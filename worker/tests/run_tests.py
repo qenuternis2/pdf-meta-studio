@@ -464,6 +464,69 @@ def test_annotations_attachments_reported(c):
     assert att["filename"] == "данные.bin" and att["description"] == "Вложение"
 
 
+def test_annotation_attachment_fields_edit(c):
+    src = c.pdf("objfields.pdf", info={"Title": "A"})
+    o = c.open(src)
+    ann, att = o["annotations"][0], o["attachments"][0]
+    assert ann["editable"] and ann["ref"], ann
+    edits = {"objects": [
+        {"kind": "annotation", "address": ann["ref"], "field": "author", "op": "set", "value": "Новый автор 🖊"},
+        {"kind": "annotation", "address": ann["ref"], "field": "subject", "op": "delete"},
+        {"kind": "annotation", "address": ann["ref"], "field": "modified", "op": "set", "value": "D:20261002120000+03'00'"},
+        {"kind": "annotation", "address": ann["ref"], "field": "created", "op": "set", "value": "D:2026"},
+        {"kind": "attachment", "address": att["name"], "field": "filename", "op": "set", "value": "отчёт.bin"},
+        {"kind": "attachment", "address": att["name"], "field": "description", "op": "set", "value": "Новое описание"},
+        {"kind": "attachment", "address": att["name"], "field": "modified", "op": "delete"},
+        {"kind": "attachment", "address": att["name"], "field": "created", "op": "set", "value": "D:20260930"},
+    ]}
+    pv = c.w.call("preview", path=src, edits=edits)
+    assert len(pv["objects"]) == 8, pv["objects"]
+    assert {(x["field"], x["after"]) for x in pv["objects"] if x["kind"] == "annotation"} == {
+        ("author", "Новый автор 🖊"), ("subject", None), ("modified", "D:20261002120000+03'00'"), ("created", "D:2026")}
+    out = os.path.join(c.tmp, "objfields_meta.pdf")
+    r = c.save(src, o, edits, target=out)
+    assert_checks_ok(r)
+    names = {ch["name"] for ch in r["checks"]}
+    assert "objects" in names and "annotation_contents" in names, names
+    n = c.open(out)
+    a2, f2 = n["annotations"][0], n["attachments"][0]
+    assert a2["T"] == "Новый автор 🖊" and "Subj" not in a2 and a2["M"] == "D:20261002120000+03'00'", a2
+    assert a2["CreationDate"] == "D:2026", a2
+    assert f2["filename"] == "отчёт.bin" and f2["description"] == "Новое описание", f2
+    assert f2["modDate"] == "" and f2["creationDate"] == "D:20260930", f2
+    assert f2["name"] == att["name"], "ключ в дереве вложений не должен меняться"
+    assert f2["fields"] == {"filename": "отчёт.bin", "description": "Новое описание",
+                            "created": "D:20260930", "modified": None}, f2["fields"]
+    assert a2["fields"] == {"author": "Новый автор 🖊", "subject": None,
+                            "modified": "D:20261002120000+03'00'", "created": "D:2026"}, a2["fields"]
+    try:
+        import pypdf
+    except ImportError:
+        return
+    r1, r2 = pypdf.PdfReader(src), pypdf.PdfReader(out)
+    c1 = r1.pages[0]["/Annots"][0].get_object()["/Contents"]
+    c2 = r2.pages[0]["/Annots"][0].get_object()["/Contents"]
+    assert c1 == c2, "текст комментария изменился"
+    b1 = list(r1.attachments.values())[0][0]
+    b2 = list(r2.attachments.values())[0][0]
+    assert b1 == b2 == b"attachment bytes \x00\x01\x02 must stay intact", "байты вложения изменились"
+
+
+def test_annotation_attachment_fields_rejected(c):
+    src = c.pdf("objbad.pdf")
+    o = c.open(src)
+    ann, att = o["annotations"][0], o["attachments"][0]
+    def save(op):
+        return lambda: c.save(src, o, {"objects": [op]}, target=os.path.join(c.tmp, "objbad_meta.pdf"))
+    expect_error("invalid_value", save({"kind": "annotation", "address": ann["ref"], "field": "modified", "value": "D:20260230"}))
+    expect_error("invalid_value", save({"kind": "attachment", "address": att["name"], "field": "created", "value": "вчера"}))
+    expect_error("bad_request", save({"kind": "annotation", "address": ann["ref"], "field": "contents", "value": "x"}))
+    expect_error("bad_request", save({"kind": "attachment", "address": att["name"], "field": "filename", "op": "delete"}))
+    expect_error("bad_request", save({"kind": "annotation", "address": "1 0", "field": "author", "value": "x"}))
+    expect_error("no_changes", save({"kind": "annotation", "address": ann["ref"], "field": "author", "value": ann["T"]}))
+    assert not os.path.exists(os.path.join(c.tmp, "objbad_meta.pdf"))
+
+
 def test_private_data_copy_only(c):
     src = c.pdf("piece.pdf", piece_info=True, info={"Title": "A"})
     o = c.open(src)

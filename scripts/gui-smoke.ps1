@@ -1,12 +1,13 @@
 ﻿# Дымовой тест GUI через UI Automation (Windows PowerShell 5.1):
-# главный экран → «Change meta info» → выбор PDF → правка названия → «Проверить и сохранить» →
+# главный экран → «Change meta info» → выбор PDF → правка названия и автора аннотации → «Проверить и сохранить» →
 # «Сохранить копию…» → проверка результата независимым запуском worker.
 # Пишет gui-smoke.log и снимки экрана в $OutDir. Код возврата 1 при сбое шага.
 param(
     [Parameter(Mandatory)] [string]$Exe,
     [Parameter(Mandatory)] [string]$Pdf,
     [Parameter(Mandatory)] [string]$OutDir,
-    [string]$NewTitle = 'Проверка GUI ✓'
+    [string]$NewTitle = 'Проверка GUI ✓',
+    [string]$NewAuthor = 'Автор из GUI ✓'
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
@@ -123,6 +124,8 @@ try {
         $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
         $ok = WaitFor { AssertOnlySection $win $name; $true } 5
         if (-not $ok) { AssertOnlySection $win $name }
+        $marks = CountByName $win ' · изменено'
+        if ($marks -ne 0) { throw "раздел «$name» без правок: пометок «изменено» $marks" }
         if ($name -eq 'Все теги') { Shot '2b-all-tags' }
     }
     Log 'OK  разделы: при выборе каждого виден только его заголовок'
@@ -141,6 +144,18 @@ try {
     Log ("OK  название: «{0}» → «{1}»" -f $before, $NewTitle)
     $marks = WaitFor { $n = CountByName $win ' · изменено'; if ($n -eq 1) { $n } } 5
     if (-not $marks) { throw ("после правки названия пометок «изменено»: {0}, ожидалась 1" -f (CountByName $win ' · изменено')) }
+
+    $step = 'edit-annotation'
+    $objItem = $items | Where-Object { $_.Current.Name -eq 'Объекты PDF' } | Select-Object -First 1
+    $objItem.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    $author = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Edit) (Cond $AE::NameProperty 'Автор — аннотация, Страница 1 · Text'))) } 10
+    if (-not $author) { throw 'поле «Автор» аннотации не найдено в разделе «Объекты PDF»' }
+    $beforeAuthor = $author.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
+    SetValue $author $NewAuthor
+    $marks = WaitFor { $n = CountByName $win ' · изменено'; if ($n -eq 1) { $n } } 5
+    if (-not $marks) { throw ("после правки автора аннотации пометок «изменено»: {0}, ожидалась 1" -f (CountByName $win ' · изменено')) }
+    Log ("OK  автор аннотации: «{0}» → «{1}»" -f $beforeAuthor, $NewAuthor)
+    Shot '2c-objects'
 
     $step = 'review'
     Press $review
@@ -185,7 +200,11 @@ try {
     $result = ($out -split "`n" | Where-Object { $_ -match '"id":1' -and $_ -match '"type":"result"' } | Select-Object -First 1) | ConvertFrom-Json
     $t = ($result.data.info.entries | Where-Object { $_.key -eq '/Title' }).value
     if ($t -ne $NewTitle) { throw "в копии /Title = «$t», ожидалось «$NewTitle»" }
-    Log ("OK  независимое чтение копии: /Title = «{0}»" -f $t)
+    $a = $result.data.annotations[0].fields.author
+    if ($a -ne $NewAuthor) { throw "в копии автор аннотации = «$a», ожидалось «$NewAuthor»" }
+    $c = $result.data.annotations[0].hasContents
+    if (-not $c) { throw 'в копии у аннотации пропал текст комментария' }
+    Log ("OK  независимое чтение копии: /Title = «{0}», автор аннотации = «{1}»" -f $t, $a)
 
     $step = 'close'
     $proc.CloseMainWindow() | Out-Null

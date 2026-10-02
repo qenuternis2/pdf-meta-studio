@@ -89,6 +89,107 @@ public sealed partial class ObjectStreamViewModel : ObservableObject
 
 public sealed record ReadOnlyItem(string Title, string Details);
 
+/// <summary>Поле аннотации или вложения (автор, тема, имя файла, описание, даты).</summary>
+public sealed partial class ObjectFieldViewModel : ObservableObject
+{
+    private readonly EditSession _session;
+    private readonly string _kind;
+    private readonly string _address;
+    private bool _loading;
+
+    public ObjectFieldViewModel(EditSession session, string kind, string address, ObjectField field, string objectTitle)
+    {
+        _session = session;
+        _kind = kind;
+        _address = address;
+        Field = field;
+        ObjectTitle = objectTitle;
+        Key = ObjectFields.EditKey(kind, address, field.Id);
+        Reload();
+    }
+
+    public ObjectField Field { get; }
+    public string Key { get; }
+    public string ObjectTitle { get; }
+    public string Label => Field.Label;
+    public string Source => Field.PdfKey;
+    public bool CanDelete => Field.Deletable;
+    public string? Hint => Field.IsDate ? "Формат даты PDF: D:ГГГГММДДччммсс+03'00'. Пустое поле удаляет дату." : null;
+    public string AccessibleName => Label + " — " + ObjectTitle + (IsDeleted ? ", удалено" : "");
+    public string DeleteToolTip => (IsDeleted ? "Восстановить: " : "Удалить: ") + Label;
+
+    [ObservableProperty] private string _text = "";
+    [ObservableProperty] private bool _isModified;
+    [ObservableProperty] private bool _isDeleted;
+    [ObservableProperty] private bool _isAbsent;
+    [ObservableProperty] private string? _problem;
+
+    /// <summary>Идёт ввод в это поле: текст при обновлении не перезаписывается.</summary>
+    public bool IsPushing { get; private set; }
+
+    private string? Original => ObjectFields.Original(_session.Document, _kind, _address, Field.Id);
+
+    public void Reload()
+    {
+        _loading = true;
+        Text = _session.CurrentObjectValue(_kind, _address, Field.Id) ?? "";
+        _loading = false;
+        RefreshState();
+    }
+
+    public void RefreshState()
+    {
+        bool edited = _session.Get(Key) != null;
+        bool present = _session.CurrentObjectValue(_kind, _address, Field.Id) != null;
+        IsModified = edited;
+        IsDeleted = edited && !present;
+        IsAbsent = !edited && !present;
+        OnPropertyChanged(nameof(AccessibleName));
+        OnPropertyChanged(nameof(DeleteToolTip));
+    }
+
+    partial void OnTextChanged(string value)
+    {
+        if (_loading) return;
+        IsPushing = true;
+        try
+        {
+            // Пустое поле, которого не было, — возврат к исходному; пустая дата — удаление даты.
+            if (value.Trim().Length == 0 && Original is null) _session.Revert(Key);
+            else if (value.Trim().Length == 0 && Field.IsDate) _session.SetObjectField(_kind, _address, Field.Id, null, ObjectTitle + " · " + Label);
+            else _session.SetObjectField(_kind, _address, Field.Id, value, ObjectTitle + " · " + Label);
+        }
+        finally { IsPushing = false; }
+    }
+
+    [RelayCommand]
+    private void ToggleDelete()
+    {
+        if (!CanDelete) return;
+        if (IsDeleted) _session.Revert(Key);
+        else _session.SetObjectField(_kind, _address, Field.Id, null, ObjectTitle + " · " + Label);
+    }
+
+    [RelayCommand] private void Revert() => _session.Revert(Key);
+}
+
+/// <summary>Аннотация или вложение с редактируемыми полями.</summary>
+public sealed class ObjectItemViewModel
+{
+    public ObjectItemViewModel(string title, string details, bool editable, IEnumerable<ObjectFieldViewModel> fields)
+    {
+        Title = title;
+        Details = details;
+        Editable = editable;
+        Fields = fields.ToList();
+    }
+
+    public string Title { get; }
+    public string Details { get; }
+    public bool Editable { get; }
+    public IReadOnlyList<ObjectFieldViewModel> Fields { get; }
+}
+
 /// <summary>Раздел «Объекты PDF».</summary>
 public sealed class ObjectsViewModel
 {
@@ -97,13 +198,31 @@ public sealed class ObjectsViewModel
         var doc = session.Document;
         foreach (var s in doc.Streams.Where(s => !s.IsDocument)) Streams.Add(new ObjectStreamViewModel(session, s));
         foreach (var a in doc.Annotations)
-            Annotations.Add(new ReadOnlyItem(
-                $"Страница {(int?)a!["page"]} · {((string?)a["subtype"])?.TrimStart('/')}",
-                $"Автор: {(string?)a["T"] ?? "—"} · Тема: {(string?)a["Subj"] ?? "—"} · Изменено: {(string?)a["M"] ?? "—"}"));
+        {
+            string title = $"Страница {(int?)a!["page"]} · {((string?)a["subtype"])?.TrimStart('/')}";
+            string? reff = (string?)a["ref"];
+            bool editable = (bool?)a["editable"] == true && reff != null;
+            string details = (bool?)a["hasContents"] == true ? "Текст комментария не изменяется." : "";
+            if (!editable)
+            {
+                details = $"Автор: {(string?)a["T"] ?? "—"} · Тема: {(string?)a["Subj"] ?? "—"} · Изменено: {(string?)a["M"] ?? "—"}. " +
+                          "Аннотация записана прямо в странице, а не отдельным объектом: поля только для просмотра.";
+            }
+            var fields = editable
+                ? ObjectFields.All.Where(f => f.Kind == ObjectFields.Annotation)
+                    .Select(f => new ObjectFieldViewModel(session, ObjectFields.Annotation, reff!, f, "аннотация, " + title))
+                : Enumerable.Empty<ObjectFieldViewModel>();
+            Annotations.Add(new ObjectItemViewModel(title, details, editable, fields));
+        }
         foreach (var a in doc.Attachments)
-            Attachments.Add(new ReadOnlyItem(
-                (string?)a!["filename"] ?? (string?)a["name"] ?? "",
-                $"Описание: {(string?)a["description"] ?? "—"} · Размер: {(long?)a["size"]} · Изменено: {(string?)a["modDate"] ?? "—"}"));
+        {
+            string name = (string?)a!["name"] ?? "";
+            string title = (string?)a["filename"] is { Length: > 0 } fn ? fn : name;
+            string details = $"Размер: {(long?)a["size"]} Б · содержимое файла не изменяется.";
+            Attachments.Add(new ObjectItemViewModel(title, details, true,
+                ObjectFields.All.Where(f => f.Kind == ObjectFields.Attachment)
+                    .Select(f => new ObjectFieldViewModel(session, ObjectFields.Attachment, name, f, "вложение " + title))));
+        }
         foreach (var p in doc.PieceInfo)
             PieceInfo.Add(new ReadOnlyItem(
                 "Объект " + (string?)p!["owner"] + " R " + (string?)p["keyPath"],
@@ -115,12 +234,24 @@ public sealed class ObjectsViewModel
     }
 
     public ObservableCollection<ObjectStreamViewModel> Streams { get; } = new();
-    public ObservableCollection<ReadOnlyItem> Annotations { get; } = new();
-    public ObservableCollection<ReadOnlyItem> Attachments { get; } = new();
+    public ObservableCollection<ObjectItemViewModel> Annotations { get; } = new();
+    public ObservableCollection<ObjectItemViewModel> Attachments { get; } = new();
     public ObservableCollection<ReadOnlyItem> PieceInfo { get; } = new();
     public string ScanStatus { get; }
     public bool HasStreams => Streams.Count > 0;
     public bool HasAnnotations => Annotations.Count > 0;
     public bool HasAttachments => Attachments.Count > 0;
     public bool HasPieceInfo => PieceInfo.Count > 0;
+
+    private IEnumerable<ObjectFieldViewModel> AllFields => Annotations.Concat(Attachments).SelectMany(i => i.Fields);
+
+    /// <summary>Перечитать поля после изменения сессии (ввод, отмена, повтор).</summary>
+    public void Refresh(BuiltRequest built)
+    {
+        foreach (var f in AllFields)
+        {
+            if (f.IsPushing) f.RefreshState(); else f.Reload();
+            f.Problem = built.Issues.FirstOrDefault(i => i.FieldId == f.Key)?.Message;
+        }
+    }
 }

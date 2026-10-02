@@ -34,6 +34,10 @@ public sealed record XmpOpEdit(string StreamRef, string? Scope, string? Owner, s
 public sealed record RawPacketEdit(string StreamRef, string? Scope, string? Owner, string Xml)
     : Edit("raw:" + StreamRef + ":" + Scope + ":" + Owner, "XML пакета " + StreamRef);
 
+/// <summary>Правка поля аннотации или вложения. NewValue = null — удаление ключа.</summary>
+public sealed record ObjectFieldEdit(string Kind, string Address, string Field, string? NewValue, string Label)
+    : Edit(ObjectFields.EditKey(Kind, Address, Field), Label);
+
 public enum IssueSeverity { Blocking, Warning }
 
 public sealed record EditIssue(IssueSeverity Severity, string FieldId, string Message);
@@ -107,6 +111,20 @@ public sealed class EditSession
         var orig = Document.InfoValue(key);
         bool unchanged = value is null ? orig is null : orig != null && orig.Value == value && orig.Kind == kind;
         Apply(unchanged ? _edits.Remove("info:" + key) : _edits.SetItem("info:" + key, new InfoKeyEdit(key, value, kind)));
+    }
+
+    /// <summary>Текущее значение поля аннотации или вложения с учётом правок; null — ключа нет.</summary>
+    public string? CurrentObjectValue(string kind, string address, string field) =>
+        _edits.GetValueOrDefault(ObjectFields.EditKey(kind, address, field)) is ObjectFieldEdit e
+            ? e.NewValue
+            : ObjectFields.Original(Document, kind, address, field);
+
+    /// <summary>Изменить поле аннотации или вложения; value = null удаляет ключ. Возврат к исходному снимает правку.</summary>
+    public void SetObjectField(string kind, string address, string field, string? value, string label)
+    {
+        string key = ObjectFields.EditKey(kind, address, field);
+        bool unchanged = value == ObjectFields.Original(Document, kind, address, field);
+        Apply(unchanged ? _edits.Remove(key) : _edits.SetItem(key, new ObjectFieldEdit(kind, address, field, value, label)));
     }
 
     public void AddXmpOp(XmpOpEdit edit) => Apply(_edits.SetItem(edit.Key, edit));
@@ -221,6 +239,33 @@ public sealed class EditSession
                 requested.Add("xmp:" + x.StreamRef + ":" + XmpStep.FromJson(st[0]!).Key);
         }
 
+        var objects = new JsonArray();
+        foreach (var o in _edits.Values.OfType<ObjectFieldEdit>())
+        {
+            var f = ObjectFields.Get(o.Kind, o.Field);
+            string? value = o.NewValue;
+            if (value is null && !f.Deletable)
+            {
+                issues.Add(new(IssueSeverity.Blocking, o.Key, o.Label + ": значение нельзя удалить"));
+                continue;
+            }
+            if (value != null && f.IsDate)
+            {
+                value = ObjectFields.NormalizeDate(value, out var error);
+                if (value is null) { issues.Add(new(IssueSeverity.Blocking, o.Key, o.Label + ": " + error)); continue; }
+            }
+            if (value != null && !f.Deletable && value.Trim().Length == 0)
+            {
+                issues.Add(new(IssueSeverity.Blocking, o.Key, o.Label + ": значение не может быть пустым"));
+                continue;
+            }
+            requested.Add(o.Key);
+            var op = new JsonObject { ["kind"] = o.Kind, ["address"] = o.Address, ["field"] = o.Field };
+            if (value is null) op["op"] = "delete";
+            else { op["op"] = "set"; op["value"] = value; }
+            objects.Add(op);
+        }
+
         var xmp = new JsonArray();
         foreach (var so in streams.Values)
         {
@@ -233,7 +278,9 @@ public sealed class EditSession
             if (so.Scope != null) t["scope"] = so.Scope;
             xmp.Add(t);
         }
-        return new BuiltRequest(new JsonObject { ["info"] = info, ["xmp"] = xmp }, issues, requested);
+        var edits = new JsonObject { ["info"] = info, ["xmp"] = xmp };
+        if (objects.Count > 0) edits["objects"] = objects;
+        return new BuiltRequest(edits, issues, requested);
     }
 
     private StreamOps GetStream(Dictionary<string, StreamOps> streams, string streamRef, string? scope, string? owner)

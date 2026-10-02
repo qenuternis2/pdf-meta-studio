@@ -45,7 +45,9 @@ GUI запускает worker без аргументов (только `--no-li
   "info": [ {"op": "set", "key": "/Title", "value": "…", "type": "string|name"},
             {"op": "delete", "key": "/Custom"} ],
   "xmp": [ {"stream": "12 0" | null, "owner": "catalog" | "5 0", "scope": "all" | "detach",
-            "action": "edit" | "remove", "ops": [ … ] } ]
+            "action": "edit" | "remove", "ops": [ … ] } ],
+  "objects": [ {"kind": "annotation", "address": "7 0", "field": "author", "op": "set", "value": "…"},
+               {"kind": "attachment", "address": "данные.bin", "field": "modified", "op": "delete"} ]
 }
 ```
 
@@ -53,6 +55,25 @@ GUI запускает worker без аргументов (только `--no-li
 - Для общего потока (несколько владельцев) обязателен `scope`: `all` — изменить для всех,
   `detach` + `owner` — отделить копию для одного владельца. Без него — ошибка `scope_required`.
 - `action: "remove"` убирает `/Metadata` у владельцев; поток не остаётся в файле осиротевшим.
+
+### Поля аннотаций и вложений (`objects`)
+
+Аннотация адресуется ссылкой на её словарь (`ref` из `open`; только аннотации — косвенные объекты, `editable: true`),
+вложение — ключом в дереве `/EmbeddedFiles` (`name` из `open`). Текущие значения — в `fields` каждой аннотации
+и вложения (`null` — ключа нет).
+
+| kind | field | Ключ PDF | Удаление |
+|---|---|---|---|
+| `annotation` | `author`, `subject` | `/T`, `/Subj` | да |
+| `annotation` | `modified`, `created` | `/M`, `/CreationDate` (дата PDF) | да |
+| `attachment` | `filename` | `/UF` (и `/F`, если имя в ASCII) | нет |
+| `attachment` | `description` | `/Desc` | да |
+| `attachment` | `created`, `modified` | `/Params /CreationDate`, `/Params /ModDate` (дата PDF) | да |
+
+Даты проверяются строго: `D:YYYY[MM[DD[HH[mm[SS]]]]]` с необязательным поясом, по календарю (`invalid_value`).
+Текст комментария (`/Contents`) и байты вложенного файла не изменяются: поля для них нет (`bad_request`),
+а проверка после записи сравнивает хеши `/Contents` всех аннотаций (`annotation_contents`) и каждое записанное поле (`objects`).
+В ответе `preview` массив `objects` содержит `{kind, address, label, field, key, fieldLabel, before, after}`.
 
 Операции XMP адресуют узел по точному пути — массиву шагов
 `{"t":"prop","ns":URI,"name":…}`, `{"t":"item","i":N}`, `{"t":"field","ns":…,"name":…}`, `{"t":"qual","ns":…,"name":…}`.

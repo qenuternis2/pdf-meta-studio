@@ -76,6 +76,18 @@ public static class ReviewBuilder
                     requested ? null : "Автоматическое изменение при сериализации XMP"));
             }
         }
+        // Аннотации и вложения
+        foreach (var o in (JsonArray?)preview["objects"] ?? new JsonArray())
+        {
+            string kind = (string?)o!["kind"] ?? "";
+            string key = ObjectFields.EditKey(kind, (string?)o["address"] ?? "", (string?)o["field"] ?? "");
+            string? b = (string?)o["before"];
+            string? a = (string?)o["after"];
+            rows.Add(new ReviewRow((string?)o["label"] ?? kind, (string?)o["fieldLabel"] + " (" + (string?)o["key"] + ")",
+                b is null ? "Отсутствовало" : b.Length == 0 ? "Пустое значение" : b,
+                a is null ? "Будет удалено" : a.Length == 0 ? "Пустое значение" : a,
+                request.RequestedKeys.Contains(key), null));
+        }
         return new ReviewResult(rows, notes);
     }
 

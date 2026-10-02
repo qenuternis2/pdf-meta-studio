@@ -47,6 +47,7 @@ add_library(pdfmeta_core STATIC
   src/pdf_inspect.cpp
   src/pdf_edit.cpp
   src/fileutil.cpp
+  src/object_fields.cpp
 )
 target_include_directories(pdfmeta_core PUBLIC src third_party)
 target_link_libraries(pdfmeta_core PUBLIC libqpdf xmpcore_static)

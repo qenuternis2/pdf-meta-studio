@@ -103,6 +103,7 @@ public sealed partial class EditorViewModel : ObservableObject
         Status = n == 0 ? "Нет изменений" : "Изменений: " + n;
         var built = Session.Build();
         foreach (var f in Fields) f.SetProblem(built.Issues.FirstOrDefault(i => i.FieldId == f.Id));
+        Objects.Refresh(built);
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
         ReviewCommand.NotifyCanExecuteChanged();

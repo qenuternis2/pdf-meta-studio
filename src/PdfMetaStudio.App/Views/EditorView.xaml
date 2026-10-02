@@ -10,6 +10,51 @@
         <KeyBinding Key="W" Modifiers="Ctrl" Command="{Binding CloseCommand}"/>
     </UserControl.InputBindings>
     <UserControl.Resources>
+        <!-- Поле аннотации или вложения -->
+        <DataTemplate x:Key="ObjectFieldTemplate" DataType="{x:Type vm:ObjectFieldViewModel}">
+            <StackPanel Margin="0,0,0,12">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Command="{Binding ToggleDeleteCommand}" Padding="8,4" Margin="6,0,0,0"
+                            Visibility="{Binding CanDelete, Converter={StaticResource BoolToVis}}"
+                            ToolTip="{Binding DeleteToolTip}" AutomationProperties.Name="{Binding DeleteToolTip}">
+                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE74D;"/>
+                    </Button>
+                    <Button DockPanel.Dock="Right" Command="{Binding RevertCommand}" Padding="8,4" Margin="6,0,0,0"
+                            Visibility="{Binding IsModified, Converter={StaticResource BoolToVis}}"
+                            ToolTip="Вернуть исходное значение" AutomationProperties.Name="{Binding Label, StringFormat='Вернуть исходное значение: {0}'}">
+                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7A7;"/>
+                    </Button>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Label}"/>
+                        <TextBlock Text="{Binding Source, StringFormat=' {0}'}" Style="{StaticResource Secondary}" FontSize="12" VerticalAlignment="Center"/>
+                        <TextBlock Text=" · изменено" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" FontSize="12"
+                                   VerticalAlignment="Center" Visibility="{Binding IsModified, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text=" · нет в документе" Style="{StaticResource Secondary}" FontSize="12"
+                                   VerticalAlignment="Center" Visibility="{Binding IsAbsent, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                </DockPanel>
+                <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Margin="0,4,0,0"
+                         IsEnabled="{Binding IsDeleted, Converter={StaticResource Not}}"
+                         AutomationProperties.Name="{Binding AccessibleName}" AutomationProperties.HelpText="{Binding Hint}"/>
+                <TextBlock Text="Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить." Style="{StaticResource Secondary}"
+                           FontSize="12" Visibility="{Binding IsDeleted, Converter={StaticResource BoolToVis}}"/>
+                <TextBlock Text="{Binding Hint}" Style="{StaticResource Secondary}" FontSize="12" TextWrapping="Wrap"
+                           Visibility="{Binding Hint, Converter={StaticResource NullToVis}}"/>
+                <TextBlock Text="{Binding Problem}" Style="{StaticResource Warn}" Visibility="{Binding Problem, Converter={StaticResource NullToVis}}"/>
+            </StackPanel>
+        </DataTemplate>
+
+        <!-- Аннотация или вложение -->
+        <DataTemplate x:Key="ObjectItemTemplate" DataType="{x:Type vm:ObjectItemViewModel}">
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource ObjectFieldTemplate}" Focusable="False"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <!-- Поле простой формы -->
         <DataTemplate x:Key="FieldTemplate" DataType="{x:Type vm:FieldViewModel}">
             <StackPanel Margin="0,0,0,18">
@@ -305,30 +350,16 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="Аннотации (только просмотр в этой версии)" FontWeight="SemiBold" Margin="0,12,0,6"
+                            <TextBlock Text="Аннотации" FontWeight="SemiBold" Margin="0,12,0,2" AutomationProperties.HeadingLevel="Level3"
                                        Visibility="{Binding HasAnnotations, Converter={StaticResource BoolToVis}}"/>
-                            <ItemsControl ItemsSource="{Binding Annotations}" Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="{Binding Title}"/>
-                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Text="Вложения (только просмотр в этой версии)" FontWeight="SemiBold" Margin="0,12,0,6"
+                            <TextBlock Text="Автор, тема и даты комментариев. Текст самих комментариев не изменяется." Style="{StaticResource Secondary}"
+                                       FontSize="12" Margin="0,0,0,8" Visibility="{Binding HasAnnotations, Converter={StaticResource BoolToVis}}"/>
+                            <ItemsControl ItemsSource="{Binding Annotations}" ItemTemplate="{StaticResource ObjectItemTemplate}" Focusable="False"/>
+                            <TextBlock Text="Вложения" FontWeight="SemiBold" Margin="0,12,0,2" AutomationProperties.HeadingLevel="Level3"
                                        Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVis}}"/>
-                            <ItemsControl ItemsSource="{Binding Attachments}" Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="{Binding Title}"/>
-                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                            <TextBlock Text="Имя, описание и даты вложенных файлов. Содержимое файлов не изменяется." Style="{StaticResource Secondary}"
+                                       FontSize="12" Margin="0,0,0,8" Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVis}}"/>
+                            <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource ObjectItemTemplate}" Focusable="False"/>
                             <TextBlock Text="Частные контейнеры /PieceInfo (только чтение)" FontWeight="SemiBold" Margin="0,12,0,6"
                                        Visibility="{Binding HasPieceInfo, Converter={StaticResource BoolToVis}}"/>
                             <ItemsControl ItemsSource="{Binding PieceInfo}" Focusable="False">
