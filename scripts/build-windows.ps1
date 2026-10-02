@@ -16,7 +16,7 @@ if ($LASTEXITCODE) { throw 'cmake configure failed' }
 # qpdf CLI нужен тестам для создания зашифрованных PDF.
 cmake --build $build --config $Configuration --target pdfmeta-worker
 if ($LASTEXITCODE) { throw 'worker build failed' }
-cmake --build $build --config $Configuration --target qpdf
+cmake --build $build --config $Configuration --target test-tools
 if ($LASTEXITCODE) { throw 'qpdf CLI build failed' }
 $worker = Join-Path $build "$Configuration\pdfmeta-worker.exe"
 
