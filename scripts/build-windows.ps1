@@ -14,8 +14,10 @@ cmake -S (Join-Path $root 'worker') -B $build -G 'Visual Studio 17 2022' -A x64 
     -DVCPKG_TARGET_TRIPLET=x64-windows-static
 if ($LASTEXITCODE) { throw 'cmake configure failed' }
 # qpdf CLI нужен тестам для создания зашифрованных PDF.
-cmake --build $build --config $Configuration --target pdfmeta-worker qpdf
+cmake --build $build --config $Configuration --target pdfmeta-worker
 if ($LASTEXITCODE) { throw 'worker build failed' }
+cmake --build $build --config $Configuration --target qpdf
+if ($LASTEXITCODE) { throw 'qpdf CLI build failed' }
 $worker = Join-Path $build "$Configuration\pdfmeta-worker.exe"
 
 if (-not $SkipTests) {
