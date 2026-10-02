@@ -1,4 +1,4 @@
-# Загружает qpdf, XMP-Toolkit-SDK и Expat по версиям из scripts\deps.lock в worker\external
+﻿# Загружает qpdf, XMP-Toolkit-SDK и Expat по версиям из scripts\deps.lock в worker\external
 # и применяет обязательный патч XMP SDK. Повторный запуск безопасен.
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
