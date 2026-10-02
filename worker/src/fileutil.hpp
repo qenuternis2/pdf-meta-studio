@@ -29,9 +29,16 @@ Fingerprint computeFingerprint(const fs::path& p, Context* ctx = nullptr);
 
 // Уникальное имя рядом с файлом: <stem><suffix>.pdf, <stem><suffix> (2).pdf ...
 fs::path uniqueSibling(const fs::path& dir, const std::string& stemUtf8, const std::string& ext);
+// Создаёт пустой временный файл в каталоге монопольно (не через существующий файл или ссылку).
 fs::path tempPathIn(const fs::path& dir);
 
+// Перенос защиты на новый файл до его переименования в target:
+// POSIX — права доступа файла назначения (если он есть) или исходного;
+// Windows — метка «загружено из Интернета» (поток Zone.Identifier) исходного файла.
+void carryOverProtection(const fs::path& source, const fs::path& target, const fs::path& temp);
 // Атомарная замена (rename поверх существующего файла в том же каталоге).
+// В Windows существующий файл заменяется через ReplaceFileW: его ACL, атрибуты
+// и именованные потоки сохраняются.
 void replaceFile(const fs::path& from, const fs::path& to);
 void copyFileExact(const fs::path& from, const fs::path& to);
 bool sameFile(const fs::path& a, const fs::path& b);

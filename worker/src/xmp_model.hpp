@@ -5,6 +5,7 @@
 
 #include "protocol.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -39,6 +40,11 @@ private:
 };
 
 // Предварительная проверка пакета до XML-парсера: запрет DOCTYPE/ENTITY и лимит размера.
+// Предел размера одного XMP-пакета (после распаковки потока).
+inline constexpr size_t kMaxXmpPacketBytes = 64u * 1024u * 1024u;
+// Предел суммарного объёма пакетов, которые worker отдаёт GUI в ответе на open.
+inline constexpr size_t kMaxSnapshotPacketBytes = 256u * 1024u * 1024u;
+
 void precheckPacket(const std::string& packet);
 bool isValidXmpDate(const std::string& value);
 
