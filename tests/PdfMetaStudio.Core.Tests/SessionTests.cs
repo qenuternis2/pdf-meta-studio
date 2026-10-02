@@ -219,4 +219,62 @@ public class SessionTests
         Assert.Null((string?)t["stream"]);
         Assert.Equal("catalog", (string?)t["owner"]);
     }
+
+    private static DocumentSnapshot DocWithObjects()
+    {
+        var d = (JsonObject)JsonNode.Parse("""
+        {
+          "file": {"path": "/tmp/a.pdf", "name": "a.pdf", "fingerprint": {"size": 1, "mtime": "1", "sha256": "x"}},
+          "pdf": {"version": "1.7", "pageCount": 1},
+          "encryption": {"encrypted": false}, "signatures": {"signed": false},
+          "info": {"present": false, "entries": []}, "metadataStreams": [],
+          "annotations": [{"page": 1, "subtype": "/Text", "ref": "7 0", "editable": true,
+                           "fields": {"author": "Рецензент", "subject": null, "modified": "D:20260918103000+04'00'", "created": null}}],
+          "attachments": [{"name": "данные.bin", "filename": "данные.bin",
+                           "fields": {"filename": "данные.bin", "description": "Вложение", "created": null, "modified": null}}]
+        }
+        """)!;
+        return DocumentSnapshot.FromJson(d, null);
+    }
+
+    [Fact]
+    public void ObjectFieldEditsBuildObjectOps()
+    {
+        var s = new EditSession(DocWithObjects());
+        Assert.Equal("Рецензент", s.CurrentObjectValue("annotation", "7 0", "author"));
+        Assert.Null(s.CurrentObjectValue("annotation", "7 0", "subject"));
+
+        s.SetObjectField("annotation", "7 0", "author", "Новый автор", "Автор");
+        s.SetObjectField("annotation", "7 0", "modified", null, "Дата");
+        s.SetObjectField("attachment", "данные.bin", "created", "20261002", "Дата");
+        s.SetObjectField("attachment", "данные.bin", "description", "Вложение", "Описание");  // как было — не правка
+        Assert.Equal(3, s.ChangeCount);
+
+        var b = s.Build();
+        Assert.False(b.Blocked);
+        Assert.Contains(b.Edits["objects"]!.AsArray(), o => (string?)o!["kind"] == "annotation" && (string?)o["address"] == "7 0" &&
+            (string?)o["field"] == "author" && (string?)o["op"] == "set" && (string?)o["value"] == "Новый автор");
+        Assert.Contains(b.Edits["objects"]!.AsArray(), o => (string?)o!["field"] == "modified" && (string?)o["op"] == "delete");
+        Assert.Contains(b.Edits["objects"]!.AsArray(), o => (string?)o!["field"] == "created" && (string?)o["value"] == "D:20261002");
+        Assert.Contains(ObjectFields.EditKey("annotation", "7 0", "author"), b.RequestedKeys);
+
+        // Возврат к исходному снимает правку.
+        s.SetObjectField("annotation", "7 0", "author", "Рецензент", "Автор");
+        Assert.Equal(2, s.ChangeCount);
+        s.Undo();
+        Assert.Equal("Новый автор", s.CurrentObjectValue("annotation", "7 0", "author"));
+    }
+
+    [Fact]
+    public void ObjectFieldInvalidValuesBlock()
+    {
+        var s = new EditSession(DocWithObjects());
+        s.SetObjectField("annotation", "7 0", "created", "вчера", "Дата создания");
+        s.SetObjectField("attachment", "данные.bin", "filename", "  ", "Имя файла");
+        s.SetObjectField("attachment", "данные.bin", "modified", "D:20260230", "Дата изменения");
+        var b = s.Build();
+        Assert.True(b.Blocked);
+        Assert.Equal(3, b.Issues.Count);
+        Assert.Null(b.Edits["objects"]);
+    }
 }

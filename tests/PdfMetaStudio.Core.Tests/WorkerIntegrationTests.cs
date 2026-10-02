@@ -111,4 +111,37 @@ public class WorkerIntegrationTests
             svc.SaveAsync(s, built, ReviewBuilder.DefaultCopyName(src), SaveMode.Copy, false));
         Assert.Equal("external_change", ex.Code);
     }
+
+    [Fact]
+    public async Task EditsAnnotationAndAttachmentFields()
+    {
+        if (Worker is null) return;
+        await using var svc = new DocumentService(Worker);
+        var src = TempCopy("rich.pdf");
+        var doc = await svc.OpenAsync(src, null);
+        string annRef = (string)doc.Annotations[0]!["ref"]!;
+        string attName = (string)doc.Attachments[0]!["name"]!;
+        var session = new EditSession(doc);
+        session.SetObjectField("annotation", annRef, "author", "Редактор ✓", "Автор");
+        session.SetObjectField("annotation", annRef, "subject", null, "Тема");
+        session.SetObjectField("attachment", attName, "description", "Отчёт", "Описание");
+        session.SetObjectField("attachment", attName, "created", "D:20261002120000Z", "Дата создания");
+
+        var (review, built) = await svc.PreviewAsync(session);
+        Assert.False(built.Blocked);
+        Assert.Equal(4, review.Rows.Count);
+        Assert.Contains(review.Rows, r => r.Before == "Рецензент" && r.After == "Редактор ✓" && r.Requested);
+        Assert.Contains(review.Rows, r => r.Before == "Замечание" && r.After == "Будет удалено");
+        Assert.Contains(review.Rows, r => r.Before == "Отсутствовало" && r.After == "D:20261002120000Z");
+        Assert.DoesNotContain(review.Rows, r => r.IsSideEffect);
+
+        var target = ReviewBuilder.DefaultCopyName(src);
+        var outcome = await svc.SaveAsync(session, built, target, SaveMode.Copy, false);
+        Assert.All(outcome.Checks, c => Assert.True(c.Ok, c.Detail));
+        var again = await svc.OpenAsync(target, null);
+        Assert.Equal("Редактор ✓", ObjectFields.Original(again, "annotation", (string)again.Annotations[0]!["ref"]!, "author"));
+        Assert.Null(ObjectFields.Original(again, "annotation", (string)again.Annotations[0]!["ref"]!, "subject"));
+        Assert.Equal("Отчёт", ObjectFields.Original(again, "attachment", attName, "description"));
+        Assert.Equal("данные.bin", ObjectFields.Original(again, "attachment", attName, "filename"));
+    }
 }

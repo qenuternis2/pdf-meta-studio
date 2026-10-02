@@ -1,6 +1,7 @@
 #include "pdf_edit.hpp"
 
 #include "fileutil.hpp"
+#include "object_fields.hpp"
 #include "pdf_doc.hpp"
 #include "sha256.hpp"
 #include "xmp_model.hpp"
@@ -25,10 +26,20 @@ struct StreamChange {
     json beforeModel, afterModel;
 };
 
+struct ObjectChange {
+    std::string kind;     // annotation | attachment
+    std::string address;  // аннотация: ссылка "N G"; вложение: ключ в /EmbeddedFiles
+    std::string label;
+    const ObjectField* field = nullptr;
+    QPDFObjGen og;        // словарь аннотации (для поиска после перенумерации при записи)
+    json before, after;   // null — ключа нет
+};
+
 struct Applied {
     json infoBefore, infoAfter;
     bool infoChanged = false;
     std::vector<StreamChange> streams;
+    std::vector<ObjectChange> objects;
     bool needsPdf14 = false;
     std::vector<std::string> notes;
 };
@@ -205,10 +216,46 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
     }
 }
 
+// Поля аннотаций и вложений: {"kind","address","field","op":"set"|"delete","value"}.
+void applyObjectOps(QPDF& q, const json& ops, Applied& a) {
+    if (!ops.is_array()) return;
+    for (const auto& op : ops) {
+        std::string kind = op.at("kind").get<std::string>();
+        std::string address = op.at("address").get<std::string>();
+        std::string field = op.at("field").get<std::string>();
+        std::string action = op.value("op", "set");
+        const ObjectField* f = findObjectField(kind, field);
+        if (!f)
+            throw WorkerError("bad_request", "Поле «" + field + "» объекта «" + kind +
+                                                 "» не редактируется (текст комментария и байты вложения не меняются)");
+        if (action != "set" && action != "delete") throw WorkerError("bad_request", "Неизвестная операция: " + action);
+        json value = action == "delete" ? json(nullptr) : op.at("value");
+        ObjectChange* ch = nullptr;
+        for (auto& c : a.objects)
+            if (c.kind == kind && c.address == address && c.field == f) ch = &c;
+        if (!ch) {
+            ObjectChange c;
+            c.kind = kind;
+            c.address = address;
+            c.field = f;
+            c.label = objectLabel(q, kind, address);
+            c.before = readObjectField(q, kind, address, *f);
+            if (kind == "annotation") c.og = resolveAnnotation(q, address).getObjGen();
+            a.objects.push_back(std::move(c));
+            ch = &a.objects.back();
+        }
+        writeObjectField(q, kind, address, *f, value, a.notes);
+        ch->after = readObjectField(q, kind, address, *f);
+    }
+    // Правка, вернувшая исходное значение, изменением не считается.
+    std::erase_if(a.objects, [](const ObjectChange& c) { return c.before == c.after; });
+}
+
 Applied applyEdits(QPDF& q, Discovery& d, const json& edits) {
     Applied a;
     applyInfoOps(q, edits.value("info", json::array()), a);
     applyXmpTargets(q, d, edits.value("xmp", json::array()), a);
+    applyObjectOps(q, edits.value("objects", json::array()), a);
     return a;
 }
 
@@ -227,8 +274,14 @@ json appliedToJson(const Applied& a) {
         if (s.action != "remove") j["after"] = json{{"packet", packetJson(s.afterPacket)}, {"model", s.afterModel}};
         streams.push_back(j);
     }
+    json objects = json::array();
+    for (const auto& o : a.objects)
+        objects.push_back(json{{"kind", o.kind}, {"address", o.address}, {"label", o.label}, {"field", o.field->field},
+                               {"key", o.field->key}, {"fieldLabel", o.field->label}, {"before", o.before},
+                               {"after", o.after}});
     return json{{"info", {{"changed", a.infoChanged}, {"before", a.infoBefore}, {"after", a.infoAfter}}},
                 {"xmp", streams},
+                {"objects", objects},
                 {"notes", a.notes}};
 }
 
@@ -356,7 +409,7 @@ json saveEdits(const json& req, Context& ctx) {
     // Байты всех потоков метаданных до правки — для проверки сохранности незатронутых.
     std::vector<std::pair<QPDFObjGen, std::string>> untouched;
     Applied a = applyEdits(q, d, req.value("edits", json::object()));
-    if (!a.infoChanged && a.streams.empty())
+    if (!a.infoChanged && a.streams.empty() && a.objects.empty())
         throw WorkerError("no_changes", "Нет изменений для записи");
     for (auto& ms : d.streams) {
         bool touched = false;
@@ -413,6 +466,8 @@ json saveEdits(const json& req, Context& ctx) {
         for (auto& s : a.streams)
             if (s.action != "remove") renumber[refOf(s.stream.getObjGen())] = w.getRenumberedObjGen(s.stream.getObjGen());
         for (auto& [og, bytes] : untouched) renumber[refOf(og)] = w.getRenumberedObjGen(og);
+        for (auto& o : a.objects)
+            if (o.kind == "annotation") renumber[refOf(o.og)] = w.getRenumberedObjGen(o.og);
     }
     ctx.checkCancel();
 
@@ -455,6 +510,17 @@ json saveEdits(const json& req, Context& ctx) {
             check("xmp_untouched", differ == 0,
                   "Незатронутые XMP-потоки: сохранено " + std::to_string(kept) +
                       (differ ? ", изменено " + std::to_string(differ) : ""));
+            for (auto& o : a.objects) {
+                json now;
+                try {
+                    std::string addr = o.kind == "annotation" ? refOf(renumber[refOf(o.og)]) : o.address;
+                    now = readObjectField(n, o.kind, addr, *o.field);
+                } catch (const std::exception&) {
+                    now = "\x01not-found";
+                }
+                bool ok = now == o.after;
+                check("objects", ok, o.label + " · " + o.field->label + (ok ? ": записано" : ": не совпадает с ожидаемым"));
+            }
             json after = structureSnapshot(n);
             auto same = [&](const char* name, bool ok, const std::string& good, const std::string& bad) {
                 check(name, ok, ok ? good : bad);
@@ -463,6 +529,8 @@ json saveEdits(const json& req, Context& ctx) {
                  "Страницы и их содержимое не изменились", "Страницы или их содержимое отличаются от исходных");
             same("annotations", after["annotationsPerPage"] == before["annotationsPerPage"], "Аннотации на месте",
                  "Число аннотаций изменилось");
+            same("annotation_contents", after["annotationContents"] == before["annotationContents"],
+                 "Текст комментариев не изменился", "Текст комментариев отличается от исходного");
             same("outlines", after["outlines"] == before["outlines"], "Закладки на месте", "Закладки отличаются");
             same("forms", after["formFields"] == before["formFields"], "Поля форм на месте", "Поля форм отличаются");
             same("attachments", after["attachments"] == before["attachments"], "Вложения и их байты не изменились",

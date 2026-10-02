@@ -1,4 +1,5 @@
 #include "pdf_doc.hpp"
+#include "object_fields.hpp"
 
 #include "sha256.hpp"
 #include "xmp_model.hpp"
@@ -423,6 +424,7 @@ json structureSnapshot(QPDF& q) {
     }
     j["pageContents"] = contents;
     j["annotationsPerPage"] = annots;
+    j["annotationContents"] = annotationContentsHashes(q);
     QPDFOutlineDocumentHelper od(q);
     j["outlines"] = countOutlines(od.getTopLevelOutlines(), 0);
     QPDFAcroFormDocumentHelper af(q);
@@ -472,6 +474,15 @@ static json annotationsJson(QPDF& q) {
                 if (v.isString()) j[std::string(k).substr(1)] = sanitizeUtf8(v.getUTF8Value());
             }
             j["hasContents"] = o.hasKey("/Contents");
+            // Правка полей возможна только для аннотаций — косвенных объектов (их можно адресовать).
+            j["editable"] = o.isIndirect();
+            // Значения редактируемых полей: null — ключа нет в документе.
+            json fields = json::object();
+            for (const char* f : {"author", "subject", "modified", "created"}) {
+                QPDFObjectHandle v = o.getKey(findObjectField("annotation", f)->key);
+                fields[f] = v.isString() ? json(sanitizeUtf8(v.getUTF8Value())) : json(nullptr);
+            }
+            j["fields"] = fields;
             j["hasMetadata"] = o.hasKey("/Metadata");
             arr.push_back(j);
         }
@@ -495,6 +506,11 @@ static json attachmentsJson(QPDF& q) {
             j["size"] = eh.getSize();
             j["subtype"] = sanitizeUtf8(eh.getSubtype());
         }
+        // Значения редактируемых полей: null — ключа нет в документе.
+        json fields = json::object();
+        for (const char* f : {"filename", "description", "created", "modified"})
+            fields[f] = readObjectField(q, "attachment", name, *findObjectField("attachment", f));
+        j["fields"] = fields;
         arr.push_back(j);
     }
     return arr;
