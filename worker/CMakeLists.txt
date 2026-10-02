@@ -24,11 +24,15 @@ set(REQUIRE_CRYPTO_NATIVE ON CACHE BOOL "" FORCE)
 set(INSTALL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(INSTALL_PKGCONFIG OFF CACHE BOOL "" FORCE)
 set(INSTALL_CMAKE_PACKAGE OFF CACHE BOOL "" FORCE)
-if(MSVC)
-  # Статическая zlib из vcpkg (x64-windows-static) называется zs.lib, а qpdf ищет z/zlib.
-  # Находим её заранее: qpdf использует уже заполненные переменные кэша.
-  find_path(ZLIB_H_PATH zlib.h)
-  find_library(ZLIB_LIB_PATH NAMES zs zlib z)
+if(MSVC AND DEFINED VCPKG_TARGET_TRIPLET)
+  # Библиотеки из vcpkg (x64-windows-static) берём явно из release-каталога: генератор Visual Studio
+  # многоконфигурационный, и без этого qpdf может подхватить debug-версии (конфликт CRT, LIBCMTD).
+  # Статическая zlib в vcpkg называется zs.lib, а qpdf ищет z/zlib. qpdf использует уже заполненный кэш.
+  set(_vcpkg_rel "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+  find_path(ZLIB_H_PATH zlib.h PATHS "${_vcpkg_rel}/include" NO_DEFAULT_PATH)
+  find_library(ZLIB_LIB_PATH NAMES zs zlib PATHS "${_vcpkg_rel}/lib" NO_DEFAULT_PATH)
+  find_path(LIBJPEG_H_PATH jpeglib.h PATHS "${_vcpkg_rel}/include" NO_DEFAULT_PATH)
+  find_library(LIBJPEG_LIB_PATH NAMES jpeg PATHS "${_vcpkg_rel}/lib" NO_DEFAULT_PATH)
 endif()
 add_subdirectory("${PDFMETA_EXTERNAL_DIR}/qpdf" qpdf EXCLUDE_FROM_ALL)
 

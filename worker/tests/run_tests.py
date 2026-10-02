@@ -716,6 +716,9 @@ def run_corpus(exe, corpus, tmp):
 
 
 def main():
+    # Консоль Windows по умолчанию в cp1252/cp866: вывод с кириллицей иначе падает.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
     ap.add_argument("worker")
     ap.add_argument("--corpus")
