@@ -49,7 +49,6 @@ jobs:
           Write-Output "::notice title=test summary::$msg"
       - name: GUI smoke test (UI Automation)
         id: gui
-        continue-on-error: true
         shell: powershell
         run: |
           & .\scripts\gui-smoke.ps1 -Exe "$PWD\dist\PdfMetaStudio\PdfMetaStudio.exe" -Pdf "$PWD\tests\fixtures\rich.pdf" -OutDir "$PWD\gui-smoke"
