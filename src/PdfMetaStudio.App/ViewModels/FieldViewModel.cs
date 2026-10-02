@@ -47,7 +47,10 @@ public sealed partial class FieldViewModel : ObservableObject
     public string? XmpBlocked => Origin.XmpBlockedReason;
 
     [ObservableProperty] private string _text = "";
+    /// <summary>Значение удалено правкой пользователя.</summary>
     [ObservableProperty] private bool _isDeleted;
+    /// <summary>Поля нет в документе и правки нет: отсутствие — не удаление, ввод создаёт поле.</summary>
+    [ObservableProperty] private bool _isAbsent;
     [ObservableProperty] private bool _isModified;
     [ObservableProperty] private SyncOption? _selectedSync;
     [ObservableProperty] private string? _problem;
@@ -71,9 +74,11 @@ public sealed partial class FieldViewModel : ObservableObject
     public void RefreshState()
     {
         _loading = true;
-        IsDeleted = !_session.CurrentValue(Id).Present;
         var edit = _session.Get("field:" + Id);
+        bool present = _session.CurrentValue(Id).Present;
         IsModified = edit != null;
+        IsDeleted = !present && edit != null;
+        IsAbsent = !present && edit == null;
         var mode = (edit as FieldEdit)?.Sync ?? (Field.InfoKey is null ? SyncMode.XmpOnly : XmpBlocked != null ? SyncMode.InfoOnly : SyncMode.Both);
         SelectedSync = SyncOptions.FirstOrDefault(o => o.Mode == mode) ?? SyncOptions[0];
         ConflictState = edit switch
@@ -121,7 +126,14 @@ public sealed partial class FieldViewModel : ObservableObject
             v = FieldValue.OfText(Text);
         }
         IsPushing = true;
-        try { _session.SetField(Id, v, SelectedSync?.Mode); }
+        try
+        {
+            // Поле, которого не было, снова очищено — это возврат к исходному «нет в документе», а не пустое значение.
+            if (!Origin.Effective.Present && Text.Trim().Length == 0)
+                _session.Revert("field:" + Id);
+            else
+                _session.SetField(Id, v, SelectedSync?.Mode);
+        }
         finally { IsPushing = false; }
     }
 
