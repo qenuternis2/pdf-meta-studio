@@ -1,0 +1,42 @@
+#pragma once
+
+#include "protocol.hpp"
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+
+namespace pm {
+
+namespace fs = std::filesystem;
+
+fs::path pathFromUtf8(const std::string& s);
+std::string pathToUtf8(const fs::path& p);
+
+// Отпечаток файла для обнаружения внешнего изменения: размер, время изменения, SHA-256.
+struct Fingerprint {
+    std::uint64_t size = 0;
+    std::string mtime;  // число тиков file_time_type в виде строки
+    std::string sha256;
+    json toJson() const;
+    static Fingerprint fromJson(const json& j);
+    bool operator==(const Fingerprint& o) const {
+        return size == o.size && mtime == o.mtime && sha256 == o.sha256;
+    }
+};
+
+Fingerprint computeFingerprint(const fs::path& p, Context* ctx = nullptr);
+
+// Уникальное имя рядом с файлом: <stem><suffix>.pdf, <stem><suffix> (2).pdf ...
+fs::path uniqueSibling(const fs::path& dir, const std::string& stemUtf8, const std::string& ext);
+fs::path tempPathIn(const fs::path& dir);
+
+// Атомарная замена (rename поверх существующего файла в том же каталоге).
+void replaceFile(const fs::path& from, const fs::path& to);
+void copyFileExact(const fs::path& from, const fs::path& to);
+bool sameFile(const fs::path& a, const fs::path& b);
+void ensureFreeSpace(const fs::path& dir, std::uint64_t needed);
+// Проверка, что файл можно открыть на запись (не занят другим процессом).
+void ensureWritable(const fs::path& p);
+
+}  // namespace pm

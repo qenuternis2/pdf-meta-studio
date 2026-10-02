@@ -1,0 +1,154 @@
+{
+  "tests": [
+    {
+      "test": "test_annotations_attachments_reported",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_cancel_save",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_copy_onto_source_refused",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_damaged_xmp",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_external_change_detected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_independent_read_and_visual",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_invalid_dates_rejected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_missing_metadata_created",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_no_changes_not_written",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_no_space",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_object_metadata_addressed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_open_edit_reread",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_password_and_encryption_preserved",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_password_not_logged",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_preview_does_not_write",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_private_data_copy_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_removed_stream_not_left_orphaned",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_replace_original_with_backup",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_rich_values_roundtrip",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_shared_stream_scope",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_signed_document_copy_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_trapped_name_and_delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unknown_tags_preserved_add_delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unwritable_target_dir",
+      "status": "SKIP",
+      "detail": "под root права каталога не ограничивают запись"
+    },
+    {
+      "test": "test_x_default_does_not_touch_translations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_xxe_and_doctype_blocked",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "corpus": {
+    "files": 628,
+    "opened": 586,
+    "saved": 578,
+    "refused": {
+      "password_required": 23,
+      "pdf_damaged": 21,
+      "permission_denied": 5
+    },
+    "verification_blocked": [
+      [
+        "bad-encryption-length.pdf",
+        [
+          "info",
+          "pages"
+        ]
+      ]
+    ],
+    "failed": []
+  }
+}

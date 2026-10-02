@@ -1,0 +1,11 @@
+worker/external/
+worker/vcpkg_installed/
+build/
+build-*/
+build-mingw-deps/
+dist/
+bin/
+obj/
+*.user
+.vs/
+TestResults/

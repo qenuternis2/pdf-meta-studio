@@ -1,0 +1,24 @@
+name: windows
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pypdf==5.1.0
+      - name: Build and test
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
+          git -C $env:VCPKG_ROOT fetch --unshallow 2>$null; git -C $env:VCPKG_ROOT fetch origin
+          ./scripts/build-windows.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PdfMetaStudio-win-x64
+          path: dist/PdfMetaStudio

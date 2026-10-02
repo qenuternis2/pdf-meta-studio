@@ -1,0 +1,14 @@
+diff --git a/XMPCore/source/XMPCore_Impl.cpp b/XMPCore/source/XMPCore_Impl.cpp
+index 20f446c..d8d127a 100644
+--- a/XMPCore/source/XMPCore_Impl.cpp
++++ b/XMPCore/source/XMPCore_Impl.cpp
+@@ -1448,7 +1448,8 @@ NormalizeLangArray ( XMP_Node * array )
+ 			array->children[itemNum] = temp;
+ 		}
+ 
+-		if ( itemLim == 2 ) array->children[1]->value = array->children[0]->value;
++		// PDF Meta Studio: не перезаписывать единственный перевод значением x-default
++		// (исходное поведение SDK молча теряло перевод при разборе и сериализации).
+ 
+ 	}
+ 	

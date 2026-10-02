@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>PdfMetaStudio</AssemblyName>
+    <RootNamespace>PdfMetaStudio.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+    <!-- ThemeMode (системная светлая/тёмная тема Fluent) помечен в WPF как экспериментальный API. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+    <!-- Каталог с собранным pdfmeta-worker.exe (см. README). -->
+    <WorkerBinDir Condition="'$(WorkerBinDir)' == ''">$(MSBuildThisFileDirectory)..\..\build\worker\Release</WorkerBinDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PdfMetaStudio.Core\PdfMetaStudio.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(WorkerBinDir)\pdfmeta-worker.exe')">
+    <None Include="$(WorkerBinDir)\pdfmeta-worker.exe" Link="pdfmeta-worker.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
