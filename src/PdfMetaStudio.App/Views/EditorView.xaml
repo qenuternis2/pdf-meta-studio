@@ -15,6 +15,7 @@
             <StackPanel Margin="0,0,0,18">
                 <DockPanel>
                     <Button DockPanel.Dock="Right" Command="{Binding ToggleDeleteCommand}" Padding="8,4" Margin="6,0,0,0"
+                            Visibility="{Binding IsAbsent, Converter={StaticResource NotVis}}"
                             ToolTip="{Binding DeleteToolTip}" AutomationProperties.Name="{Binding DeleteToolTip}">
                         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE74D;"/>
                     </Button>
@@ -23,11 +24,13 @@
                             ToolTip="Вернуть исходное значение" AutomationProperties.Name="{Binding Label, StringFormat='Вернуть исходное значение: {0}'}">
                         <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7A7;"/>
                     </Button>
-                    <TextBlock FontWeight="SemiBold" VerticalAlignment="Center">
-                        <Run Text="{Binding Label, Mode=OneWay}"/>
-                        <Run Text=" · изменено" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"
-                             FontWeight="Normal" FontSize="12"/>
-                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold"/>
+                        <TextBlock Text=" · изменено" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" FontSize="12"
+                                   VerticalAlignment="Center" Visibility="{Binding IsModified, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock Text=" · нет в документе" Style="{StaticResource Secondary}" FontSize="12"
+                                   VerticalAlignment="Center" Visibility="{Binding IsAbsent, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
                 </DockPanel>
                 <Grid Margin="0,6,0,0">
                     <TextBox x:Name="Input" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
@@ -154,7 +157,7 @@
                     Background="{DynamicResource LayerFillColorDefaultBrush}">
                 <Grid>
                     <!-- Основные -->
-                    <ScrollViewer Visibility="{Binding SelectedSection, Converter={StaticResource SectionVis}, ConverterParameter=main}"
+                    <ScrollViewer Visibility="{Binding DataContext.SelectedSection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource SectionVis}, ConverterParameter=main}"
                                   Padding="26,22" Focusable="False">
                         <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
                             <TextBlock Text="Основные сведения" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
@@ -164,7 +167,7 @@
                     </ScrollViewer>
 
                     <!-- Даты и ПО -->
-                    <ScrollViewer Visibility="{Binding SelectedSection, Converter={StaticResource SectionVis}, ConverterParameter=dates}"
+                    <ScrollViewer Visibility="{Binding DataContext.SelectedSection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource SectionVis}, ConverterParameter=dates}"
                                   Padding="26,22" Focusable="False">
                         <StackPanel MaxWidth="820">
                             <TextBlock Text="Даты и программы" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
@@ -175,7 +178,7 @@
                     </ScrollViewer>
 
                     <!-- Все теги -->
-                    <Grid Visibility="{Binding SelectedSection, Converter={StaticResource SectionVis}, ConverterParameter=all}"
+                    <Grid Visibility="{Binding DataContext.SelectedSection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource SectionVis}, ConverterParameter=all}"
                           DataContext="{Binding Tags}" Margin="20,18">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -266,7 +269,7 @@
                     </Grid>
 
                     <!-- Объекты PDF -->
-                    <ScrollViewer Visibility="{Binding SelectedSection, Converter={StaticResource SectionVis}, ConverterParameter=objects}"
+                    <ScrollViewer Visibility="{Binding DataContext.SelectedSection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource SectionVis}, ConverterParameter=objects}"
                                   Padding="26,22" Focusable="False" DataContext="{Binding Objects}">
                         <StackPanel MaxWidth="820">
                             <TextBlock Text="Метаданные объектов" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>

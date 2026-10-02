@@ -57,6 +57,20 @@ function TypeIntoDialog($dlg, [string]$text) {
     Start-Sleep -Milliseconds 300
     [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
 }
+# Заголовки разделов редактора. Свёрнутые (Collapsed) элементы в дерево UI Automation не попадают,
+# поэтому виден ровно один заголовок — иначе разделы рисуются друг поверх друга.
+$SectionHeadings = [ordered]@{
+    'Основные' = 'Основные сведения'; 'Даты и ПО' = 'Даты и программы'
+    'Все теги' = 'Все теги документа'; 'Объекты PDF' = 'Метаданные объектов'
+}
+function AssertOnlySection($win, [string]$section) {
+    $shown = @($SectionHeadings.Values | Where-Object { ByName $win $_ })
+    $want = $SectionHeadings[$section]
+    if ($shown.Count -ne 1 -or $shown[0] -ne $want) {
+        throw ("раздел «{0}»: видны заголовки [{1}], ожидался только «{2}»" -f $section, ($shown -join ', '), $want)
+    }
+}
+function CountByName($root, [string]$name) { @($root.FindAll($TS::Descendants, (Cond $AE::NameProperty $name))).Count }
 function DumpTree($root, [int]$max = 120) {
     $all = $root.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
     $n = 0
@@ -102,12 +116,31 @@ try {
     Log ("OK  редактор открыт за {0:N1} с; разделы: {1}" -f $sw.Elapsed.TotalSeconds, (($items | ForEach-Object { $_.Current.Name }) -join ' | '))
     Shot '2-editor'
 
+    $step = 'sections'
+    foreach ($name in @('Все теги', 'Объекты PDF', 'Даты и ПО', 'Основные')) {
+        $item = $items | Where-Object { $_.Current.Name -eq $name } | Select-Object -First 1
+        if (-not $item) { throw "в списке разделов нет «$name»" }
+        $item.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $ok = WaitFor { AssertOnlySection $win $name; $true } 5
+        if (-not $ok) { AssertOnlySection $win $name }
+        if ($name -eq 'Все теги') { Shot '2b-all-tags' }
+    }
+    Log 'OK  разделы: при выборе каждого виден только его заголовок'
+
+    $step = 'clean-state'
+    $marks = CountByName $win ' · изменено'
+    $deleted = CountByName $win 'Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить.'
+    if ($marks -ne 0 -or $deleted -ne 0) { throw "без правок видны пометки: «изменено» ×$marks, «удалено» ×$deleted" }
+    Log 'OK  без правок нет пометок «изменено» и «удалено»'
+
     $step = 'edit-title'
     $title = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Edit) (Cond $AE::NameProperty 'Название документа'))) } 10
     if (-not $title) { throw 'поле «Название документа» не найдено' }
     $before = $title.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value
     SetValue $title $NewTitle
     Log ("OK  название: «{0}» → «{1}»" -f $before, $NewTitle)
+    $marks = WaitFor { $n = CountByName $win ' · изменено'; if ($n -eq 1) { $n } } 5
+    if (-not $marks) { throw ("после правки названия пометок «изменено»: {0}, ожидалась 1" -f (CountByName $win ' · изменено')) }
 
     $step = 'review'
     Press $review
