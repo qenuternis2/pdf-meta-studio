@@ -24,6 +24,12 @@ set(REQUIRE_CRYPTO_NATIVE ON CACHE BOOL "" FORCE)
 set(INSTALL_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(INSTALL_PKGCONFIG OFF CACHE BOOL "" FORCE)
 set(INSTALL_CMAKE_PACKAGE OFF CACHE BOOL "" FORCE)
+if(MSVC)
+  # Статическая zlib из vcpkg (x64-windows-static) называется zs.lib, а qpdf ищет z/zlib.
+  # Находим её заранее: qpdf использует уже заполненные переменные кэша.
+  find_path(ZLIB_H_PATH zlib.h)
+  find_library(ZLIB_LIB_PATH NAMES zs zlib z)
+endif()
 add_subdirectory("${PDFMETA_EXTERNAL_DIR}/qpdf" qpdf EXCLUDE_FROM_ALL)
 
 # --- Adobe XMP Core + Expat ----------------------------------------------
