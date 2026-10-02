@@ -46,6 +46,17 @@ function Dialog([int]$processId) {
     if ($main) { $d = $main.FindFirst($TS::Children, $cls); if ($d) { return $d } }
     $AE::RootElement.FindFirst($TS::Children, (AndCond (Cond $AE::ProcessIdProperty $processId) $cls))
 }
+# Поле имени файла в системном диалоге не всегда видно через UI Automation —
+# вводим путь с клавиатуры, как пользователь: фокус по умолчанию стоит в поле имени.
+function TypeIntoDialog($dlg, [string]$text) {
+    try { $dlg.SetFocus() } catch { }
+    Start-Sleep -Milliseconds 500
+    $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', '{$0}')
+    [System.Windows.Forms.SendKeys]::SendWait('^a')
+    [System.Windows.Forms.SendKeys]::SendWait($escaped)
+    Start-Sleep -Milliseconds 300
+    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+}
 function DumpTree($root, [int]$max = 120) {
     $all = $root.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition)
     $n = 0
@@ -80,9 +91,7 @@ try {
     $dlg = WaitFor { Dialog $proc.Id } 20
     if (-not $dlg) { throw 'диалог выбора файла не появился' }
     Log ("OK  диалог выбора файла: «{0}»" -f $dlg.Current.Name)
-    $edit = WaitFor { $dlg.FindFirst($TS::Descendants, (AndCond (Cond $AE::AutomationIdProperty '1148') (Cond $AE::ControlTypeProperty $CT::Edit))) } 10
-    SetValue $edit $Pdf
-    Press ($dlg.FindFirst($TS::Children, (AndCond (Cond $AE::AutomationIdProperty '1') (Cond $AE::ControlTypeProperty $CT::Button))))
+    TypeIntoDialog $dlg $Pdf
 
     $step = 'editor'
     $review = WaitFor { ByName $win 'Проверить и сохранить' } 60
@@ -116,9 +125,8 @@ try {
     Press $saveCopy
     $sdlg = WaitFor { Dialog $proc.Id } 20
     if (-not $sdlg) { throw 'диалог сохранения не появился' }
-    $sedit = WaitFor { $sdlg.FindFirst($TS::Descendants, (AndCond (Cond $AE::AutomationIdProperty '1001') (Cond $AE::ControlTypeProperty $CT::Edit))) } 10
-    SetValue $sedit $target
-    Press ($sdlg.FindFirst($TS::Children, (AndCond (Cond $AE::AutomationIdProperty '1') (Cond $AE::ControlTypeProperty $CT::Button))))
+    Log ("OK  диалог сохранения: «{0}»" -f $sdlg.Current.Name)
+    TypeIntoDialog $sdlg $target
     # После записи приложение показывает окно «Готово» (или «Файл не сохранён») — тоже класс #32770.
     $box = WaitFor { $d = Dialog $proc.Id; if ($d -and $d.Current.Name -ne $sdlg.Current.Name) { $d } } 120
     if (-not $box) { throw 'после сохранения не появилось сообщение о результате' }
