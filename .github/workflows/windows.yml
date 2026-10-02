@@ -1,5 +1,13 @@
 name: windows
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Создать релиз с этим тегом (например v0.1.0); пусто — только сборка'
+        required: false
+        default: ''
 # Сборке нужен только доступ на чтение репозитория.
 permissions:
   contents: read
@@ -72,10 +80,10 @@ jobs:
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
-  # Релиз: при пуше тега v* архив сборки публикуется как GitHub Release.
+  # Релиз: при пуше тега v* или ручном запуске с release_tag архив сборки публикуется как GitHub Release.
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -87,9 +95,9 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           zip -r -q "PdfMetaStudio-$TAG-win-x64.zip" PdfMetaStudio
           sha256sum "PdfMetaStudio-$TAG-win-x64.zip" > "PdfMetaStudio-$TAG-win-x64.zip.sha256"
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "PDF Meta Studio $TAG" --generate-notes \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "PDF Meta Studio $TAG" --generate-notes \
             "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256"
