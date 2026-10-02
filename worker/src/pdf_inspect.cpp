@@ -4,6 +4,7 @@
 #include "xmp_model.hpp"
 
 #include <qpdf/Buffer.hh>
+#include <qpdf/Pipeline.hh>
 #include <qpdf/QPDFAcroFormDocumentHelper.hh>
 #include <qpdf/QPDFAnnotationObjectHelper.hh>
 #include <qpdf/QPDFEFStreamObjectHelper.hh>
@@ -71,9 +72,45 @@ MetaStream* Discovery::find(QPDFObjGen og) {
     return nullptr;
 }
 
+namespace {
+
+// Приёмник распакованных данных с ограничением размера: маленький сжатый поток не должен
+// разворачиваться в гигабайты памяти («zip-бомба»).
+class CappedSink : public Pipeline {
+public:
+    explicit CappedSink(size_t cap) : Pipeline("pdfmeta capped sink", nullptr), cap_(cap) {}
+    void write(unsigned char const* data, size_t len) override {
+        if (overflow_) return;
+        if (len > cap_ - out.size()) {
+            overflow_ = true;
+            throw std::length_error("stream data exceeds limit");
+        }
+        out.append(reinterpret_cast<const char*>(data), len);
+    }
+    void finish() override {}
+    bool overflow() const { return overflow_; }
+    std::string out;
+private:
+    size_t cap_;
+    bool overflow_ = false;
+};
+
+}  // namespace
+
 std::string streamBytes(QPDFObjectHandle stream) {
-    auto buf = stream.getStreamData(qpdf_dl_all);
-    return std::string(reinterpret_cast<const char*>(buf->getBuffer()), buf->getSize());
+    CappedSink sink(kMaxXmpPacketBytes + 1);
+    bool attempted = false;
+    bool ok = false;
+    try {
+        ok = stream.pipeStreamData(&sink, &attempted, 0, qpdf_dl_all, true);
+    } catch (const std::length_error&) {
+        if (!sink.overflow()) throw;
+    }
+    if (sink.overflow())
+        throw WorkerError("xmp_too_large", "Поток метаданных после распаковки превышает " +
+                                               std::to_string(kMaxXmpPacketBytes >> 20) + " МиБ");
+    if (!ok || !attempted) throw std::runtime_error("Не удалось распаковать данные потока " + refOf(stream.getObjGen()));
+    return std::move(sink.out);
 }
 
 static std::string nameOr(QPDFObjectHandle d, const std::string& key) {
@@ -505,6 +542,8 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
     ctx.progress("inspect", 60);
     json streams = json::array();
     std::unique_ptr<XmpDoc> catalogDoc;
+    // Общий объём пакетов в ответе: тысячи потоков по десятки МиБ иначе раздувают ответ GUI.
+    size_t packetBudget = kMaxSnapshotPacketBytes;
     QPDFObjectHandle rootMeta = q.getRoot().getKey("/Metadata");
     for (auto& ms : d.streams) {
         ctx.checkCancel();
@@ -516,6 +555,10 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
             QPDFObjectHandle filter = ms.stream.getDict().getKey("/Filter");
             if (!filter.isNull()) s["filter"] = filter.unparse();
             std::string packet = streamBytes(ms.stream);
+            if (packet.size() > packetBudget)
+                throw WorkerError("xmp_too_large", "Суммарный объём XMP-потоков документа превышает " +
+                                                       std::to_string(kMaxSnapshotPacketBytes >> 20) + " МиБ");
+            packetBudget -= packet.size();
             s["length"] = packet.size();
             s["sha256"] = Sha256::hex(packet);
             if (isValidUtf8(packet))
@@ -539,6 +582,9 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
             }
         } catch (const Cancelled&) {
             throw;
+        } catch (const WorkerError& e) {
+            s["parse"] = json{{"ok", false}, {"code", e.code}, {"error", sanitizeUtf8(e.what())}};
+            issues.push_back({"metadata " + refOf(ms.og), sanitizeUtf8(e.what())});
         } catch (const std::exception& e) {
             s["parse"] = json{{"ok", false}, {"code", "stream_unreadable"}, {"error", sanitizeUtf8(e.what())}};
             issues.push_back({"metadata " + refOf(ms.og), sanitizeUtf8(e.what())});
