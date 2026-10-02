@@ -12,12 +12,28 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pypdf==5.1.0
-      - name: Build and test
+      - name: vcpkg (baseline from worker/vcpkg.json)
         shell: pwsh
         run: |
-          $env:VCPKG_ROOT = $env:VCPKG_INSTALLATION_ROOT
-          git -C $env:VCPKG_ROOT fetch --unshallow 2>$null; git -C $env:VCPKG_ROOT fetch origin
-          ./scripts/build-windows.ps1
+          $baseline = (Get-Content worker/vcpkg.json | ConvertFrom-Json).'builtin-baseline'
+          git clone --quiet https://github.com/microsoft/vcpkg "$env:RUNNER_TEMP\vcpkg"
+          git -C "$env:RUNNER_TEMP\vcpkg" checkout --quiet $baseline
+          & "$env:RUNNER_TEMP\vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          "VCPKG_ROOT=$env:RUNNER_TEMP\vcpkg" >> $env:GITHUB_ENV
+      - name: Build and test
+        shell: pwsh
+        run: ./scripts/build-windows.ps1 *>&1 | Tee-Object -FilePath build.log
+      # Журнал задания не всегда доступен снаружи; хвост и строки с ошибками попадают в аннотацию.
+      - name: Report build log
+        if: failure()
+        shell: pwsh
+        run: |
+          if (-not (Test-Path build.log)) { exit 0 }
+          $errs = Select-String -Path build.log -Pattern 'error|FAIL|fatal|Exception' | Select-Object -First 40 | ForEach-Object { $_.Line }
+          $tail = Get-Content build.log -Tail 60
+          $msg = (@($errs) + '----- tail -----' + @($tail)) -join "`n"
+          $msg = $msg.Replace('%', '%25').Replace("`r", '').Replace("`n", '%0A')
+          Write-Output "::error title=build log::$msg"
       - uses: actions/upload-artifact@v4
         with:
           name: PdfMetaStudio-win-x64
