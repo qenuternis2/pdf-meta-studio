@@ -2,14 +2,19 @@
 
 #include "sha256.hpp"
 
+#include <cerrno>
 #include <chrono>
 #include <cstdio>
 #include <fstream>
+#include <iterator>
 #include <random>
 #include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
 #endif
 
 namespace pm {
@@ -84,20 +89,63 @@ fs::path uniqueSibling(const fs::path& dir, const std::string& stemUtf8, const s
 fs::path tempPathIn(const fs::path& dir) {
     for (int i = 0; i < 100; ++i) {
         fs::path candidate = dir / pathFromUtf8(".pdfmeta-" + randomToken() + ".tmp");
-        std::error_code ec;
-        if (!fs::exists(candidate, ec)) return candidate;
+#ifdef _WIN32
+        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h != INVALID_HANDLE_VALUE) {
+            CloseHandle(h);
+            return candidate;
+        }
+        if (GetLastError() != ERROR_FILE_EXISTS) break;
+#else
+        int fd = ::open(candidate.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd >= 0) {
+            ::close(fd);
+            return candidate;
+        }
+        if (errno != EEXIST) break;
+#endif
     }
-    throw WorkerError("io_error", "Не удалось создать имя временного файла");
+    throw WorkerError("io_error", "Не удалось создать временный файл в каталоге назначения");
+}
+
+void carryOverProtection(const fs::path& source, const fs::path& target, const fs::path& temp) {
+#ifdef _WIN32
+    (void)target;
+    // Копия или замена файла из Интернета должна остаться помеченной, иначе программы просмотра
+    // перестанут открывать её в защищённом режиме.
+    std::ifstream in(fs::path(source.native() + L":Zone.Identifier"), std::ios::binary);
+    if (!in) return;
+    std::string zone((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::ofstream out(fs::path(temp.native() + L":Zone.Identifier"), std::ios::binary | std::ios::trunc);
+    out.write(zone.data(), static_cast<std::streamsize>(zone.size()));
+    if (!out) throw WorkerError("io_error", "Не удалось перенести отметку «загружено из Интернета» на новый файл");
+#else
+    std::error_code ec;
+    fs::perms p = fs::status(fs::exists(target, ec) ? target : source, ec).permissions();
+    if (ec) throw WorkerError("io_error", "Не удалось прочитать права доступа файла: " + ec.message());
+    fs::permissions(temp, p & fs::perms::all, ec);
+    if (ec) throw WorkerError("io_error", "Не удалось установить права доступа файла: " + ec.message());
+#endif
 }
 
 void replaceFile(const fs::path& from, const fs::path& to) {
 #ifdef _WIN32
-    if (!MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-        DWORD err = GetLastError();
-        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION || err == ERROR_ACCESS_DENIED)
+    auto fail = [](DWORD err) {
+        if (err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION || err == ERROR_ACCESS_DENIED ||
+            err == ERROR_UNABLE_TO_REMOVE_REPLACED)
             throw WorkerError("file_locked", "Файл назначения занят другой программой или защищён от записи");
         throw WorkerError("io_error", "Не удалось переименовать временный файл (код " + std::to_string(err) + ")");
+    };
+    std::error_code ec;
+    if (fs::exists(to, ec)) {
+        if (ReplaceFileW(to.c_str(), from.c_str(), nullptr, REPLACEFILE_WRITE_THROUGH | REPLACEFILE_IGNORE_MERGE_ERRORS,
+                         nullptr, nullptr))
+            return;
+        DWORD err = GetLastError();
+        // Файловые системы без поддержки ReplaceFileW: обычное переименование.
+        if (err != ERROR_INVALID_FUNCTION && err != ERROR_NOT_SUPPORTED && err != ERROR_INVALID_PARAMETER) fail(err);
     }
+    if (!MoveFileExW(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) fail(GetLastError());
 #else
     std::error_code ec;
     fs::rename(from, to, ec);

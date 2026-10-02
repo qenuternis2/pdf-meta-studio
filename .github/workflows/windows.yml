@@ -1,5 +1,8 @@
 name: windows
 on: [push, pull_request, workflow_dispatch]
+# Сборке нужен только доступ на чтение репозитория.
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: windows-2022

@@ -578,6 +578,66 @@ def test_replace_original_with_backup(c):
     assert r2["backup"] != r["backup"]
 
 
+def test_metadata_bomb_capped(c):
+    # 2 МиБ сжатых данных разворачиваются в 2 ГиБ: worker не должен распаковывать их целиком.
+    import zlib
+    z = zlib.compressobj(9)
+    chunk = b" " * (16 << 20)
+    bomb = b"".join(z.compress(chunk) for _ in range(128)) + z.flush()
+    b = pdfgen.Builder()
+    cat = b.reserve()
+    pages = b.reserve()
+    page = b.add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] >>" % pages)
+    b.set(pages, b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
+    meta = b.add(b"<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length %d >>\nstream\n" % len(bomb)
+                 + bomb + b"\nendstream")
+    b.set(cat, b"<< /Type /Catalog /Pages %d 0 R /Metadata %d 0 R >>" % (pages, meta))
+    src = write(os.path.join(c.tmp, "bomb.pdf"), b.build(cat))
+    o = c.open(src)
+    ds = doc_stream(o)
+    assert ds["parse"]["ok"] is False and ds["parse"]["code"] == "xmp_too_large", ds["parse"]
+    assert "packet" not in ds and "packetBase64" not in ds
+    # Такой поток можно удалить.
+    r = c.save(src, o, {"xmp": [{"stream": ds["ref"], "action": "remove"}]}, target=os.path.join(c.tmp, "out.pdf"))
+    assert_checks_ok(r)
+    assert not c.open(r["target"])["metadataStreams"]
+
+
+def test_permissions_carried_over(c):
+    if os.name == "nt" or WINE:
+        return "SKIP: права POSIX проверяются только в Linux"
+    src = c.pdf("private.pdf", info={"Title": "A"})
+    os.chmod(src, 0o600)
+    o = c.open(src)
+    r = c.save(src, o, {"info": [{"op": "set", "key": "/Title", "value": "B"}]}, mode="replace")
+    assert_checks_ok(r)
+    assert os.stat(src).st_mode & 0o777 == 0o600, oct(os.stat(src).st_mode)
+    o = c.open(src)
+    new = os.path.join(c.tmp, "copy.pdf")
+    c.save(src, o, {"info": [{"op": "set", "key": "/Title", "value": "C"}]}, target=new)
+    assert os.stat(new).st_mode & 0o777 == 0o600, oct(os.stat(new).st_mode)
+    existing = write(os.path.join(c.tmp, "existing.pdf"), b"old")
+    os.chmod(existing, 0o640)
+    c.save(src, o, {"info": [{"op": "set", "key": "/Title", "value": "D"}]}, target=existing)
+    assert os.stat(existing).st_mode & 0o777 == 0o640, oct(os.stat(existing).st_mode)
+
+
+def test_mark_of_the_web_kept(c):
+    if os.name != "nt":
+        return "SKIP: потоки NTFS (Zone.Identifier) есть только в Windows"
+    zone = b"[ZoneTransfer]\r\nZoneId=3\r\n"
+    src = c.pdf("downloaded.pdf", info={"Title": "A"})
+    write(src + ":Zone.Identifier", zone)
+    o = c.open(src)
+    new = os.path.join(c.tmp, "copy.pdf")
+    c.save(src, o, {"info": [{"op": "set", "key": "/Title", "value": "B"}]}, target=new)
+    assert open(new + ":Zone.Identifier", "rb").read() == zone
+    r = c.save(src, o, {"info": [{"op": "set", "key": "/Title", "value": "C"}]}, mode="replace")
+    assert_checks_ok(r)
+    assert open(src + ":Zone.Identifier", "rb").read() == zone
+    assert info_map(c.open(src))["/Title"][1] == "C"
+
+
 def test_copy_onto_source_refused(c):
     src = c.pdf("self.pdf", info={"Title": "A"})
     o = c.open(src)

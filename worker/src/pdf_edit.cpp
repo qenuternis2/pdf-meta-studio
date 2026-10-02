@@ -149,7 +149,13 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
             affected = ms->owners;
         }
         ch.owners = affected;
-        ch.beforePacket = streamBytes(ms->stream);
+        bool replaces = !ops.empty() && ops[0].value("op", "") == "replacePacket";
+        try {
+            ch.beforePacket = streamBytes(ms->stream);
+        } catch (const WorkerError& e) {
+            // Слишком большой пакет нельзя разобрать, но можно заменить целиком или удалить.
+            if (e.code != "xmp_too_large" || !(replaces || action == "remove")) throw;
+        }
 
         if (action == "remove") {
             for (auto& o : affected) {
@@ -172,7 +178,6 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
             doc = XmpDoc::parse(ch.beforePacket);
             ch.beforeModel = doc->model();
         } catch (const WorkerError& e) {
-            bool replaces = !ops.empty() && ops[0].value("op", "") == "replacePacket";
             if (!replaces)
                 throw WorkerError("xmp_source_invalid",
                                   "Исходный XMP повреждён: изменить его можно только заменой всего пакета. " +
@@ -480,6 +485,7 @@ json saveEdits(const json& req, Context& ctx) {
         if (!(now == srcFp))
             throw WorkerError("external_change", "Исходный файл изменён другой программой во время сохранения");
     }
+    carryOverProtection(src, target, tempGuard.path);
     replaceFile(tempGuard.path, target);
     tempGuard.keep = true;
     backupGuard.keep = true;

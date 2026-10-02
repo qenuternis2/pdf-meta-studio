@@ -12,8 +12,6 @@ namespace pm {
 
 using Meta = SXMPMeta;
 
-static constexpr size_t kMaxPacketBytes = 64u * 1024u * 1024u;
-
 // По умолчанию XMP Core молча пропускает «восстановимые» ошибки XML (например, незакрытый тег)
 // и строит частичную модель. В строгом режиме любая ошибка прерывает разбор.
 static bool gStrictParse = true;
@@ -38,7 +36,7 @@ std::string xmpToolkitVersion() {
 }
 
 void precheckPacket(const std::string& packet) {
-    if (packet.size() > kMaxPacketBytes)
+    if (packet.size() > kMaxXmpPacketBytes)
         throw WorkerError("xmp_too_large", "XMP-пакет превышает допустимый размер");
     std::string lower;
     lower.reserve(packet.size());
