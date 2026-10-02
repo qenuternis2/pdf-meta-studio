@@ -13,11 +13,13 @@ cmake -S (Join-Path $root 'worker') -B $build -G 'Visual Studio 17 2022' -A x64 
     "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
     -DVCPKG_TARGET_TRIPLET=x64-windows-static
 if ($LASTEXITCODE) { throw 'cmake configure failed' }
-cmake --build $build --config $Configuration --target pdfmeta-worker
+# qpdf CLI нужен тестам для создания зашифрованных PDF.
+cmake --build $build --config $Configuration --target pdfmeta-worker qpdf
 if ($LASTEXITCODE) { throw 'worker build failed' }
 $worker = Join-Path $build "$Configuration\pdfmeta-worker.exe"
 
 if (-not $SkipTests) {
+    $env:QPDF_CLI = (Get-ChildItem (Join-Path $build 'qpdf') -Recurse -Filter qpdf.exe | Select-Object -First 1).FullName
     $env:QPDF_CORPUS = Join-Path $root "worker\external\qpdf\qpdf\qtest\qpdf"
     python (Join-Path $root "worker\tests\run_tests.py") $worker --corpus $env:QPDF_CORPUS
     if ($LASTEXITCODE) { throw 'worker tests failed' }

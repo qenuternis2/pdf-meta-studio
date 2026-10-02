@@ -9,7 +9,7 @@ grep -v '^\s*#' "$root/scripts/deps.lock" | while read -r name url tag commit; d
   [ -n "${name:-}" ] || continue
   dir="$ext/$name"
   if [ ! -d "$dir/.git" ]; then
-    git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$tag" "$url" "$dir"
+    git -c core.autocrlf=false -c advice.detachedHead=false clone --quiet --depth 1 --branch "$tag" "$url" "$dir"
   fi
   actual="$(git -C "$dir" rev-parse HEAD)"
   if [ "$actual" != "$commit" ]; then

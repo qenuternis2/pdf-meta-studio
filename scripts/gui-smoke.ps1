@@ -39,9 +39,12 @@ function AndCond($a, $b) { New-Object System.Windows.Automation.AndCondition($a,
 function ByName($root, [string]$name) { $root.FindFirst($TS::Descendants, (Cond $AE::NameProperty $name)) }
 function Press($el) { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
 function SetValue($el, [string]$v) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($v) }
+# Диалоги (выбор файла, MessageBox) принадлежат главному окну и в дереве UIA лежат под ним.
 function Dialog([int]$processId) {
-    $AE::RootElement.FindFirst($TS::Children,
-        (AndCond (Cond $AE::ProcessIdProperty $processId) (Cond $AE::ClassNameProperty '#32770')))
+    $cls = Cond $AE::ClassNameProperty '#32770'
+    $main = $AE::RootElement.FindFirst($TS::Children, (AndCond (Cond $AE::ProcessIdProperty $processId) (Cond $AE::ControlTypeProperty $CT::Window)))
+    if ($main) { $d = $main.FindFirst($TS::Children, $cls); if ($d) { return $d } }
+    $AE::RootElement.FindFirst($TS::Children, (AndCond (Cond $AE::ProcessIdProperty $processId) $cls))
 }
 function DumpTree($root, [int]$max = 120) {
     $all = $root.FindAll($TS::Descendants, [System.Windows.Automation.Condition]::TrueCondition)

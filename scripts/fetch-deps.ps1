@@ -9,7 +9,7 @@ foreach ($line in Get-Content (Join-Path $root 'scripts\deps.lock')) {
     $name, $url, $tag, $commit = $line -split '\s+'
     $dir = Join-Path $ext $name
     if (-not (Test-Path (Join-Path $dir '.git'))) {
-        git -c advice.detachedHead=false clone --quiet --depth 1 --branch $tag $url $dir
+        git -c core.autocrlf=false -c advice.detachedHead=false clone --quiet --depth 1 --branch $tag $url $dir
         if ($LASTEXITCODE) { throw "git clone $name failed" }
     }
     $actual = (git -C $dir rev-parse HEAD).Trim()

@@ -1,0 +1,3 @@
+# PDF — двоичные файлы: без преобразования концов строк (core.autocrlf в Windows портит их).
+*.pdf binary
+*.png binary
