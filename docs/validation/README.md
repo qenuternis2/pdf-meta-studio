@@ -19,4 +19,4 @@ Environment: Linux 6.18.44, .NET SDK 10.0.100, qpdf 12.4.2, Adobe XMP Toolkit 20
 
 The two runners apply different edit sets, so their save/refusal counts need not match. These reports use the public pinned qpdf corpus, not uploaded user PDFs. Rendering evidence is limited to the recorded engine and resolution.
 
-Windows packaging, GUI automation and MSI installation/uninstallation results are linked from [implementation status](../IMPLEMENTATION_STATUS.md). Real Windows 11, Narrator and physical DPI checks remain pending in [Windows acceptance](../WINDOWS_ACCEPTANCE.md).
+Windows packaging, GUI automation and MSI installation/uninstallation results are linked from [implementation status](../IMPLEMENTATION_STATUS.md). Clean Windows 11 x64, Narrator and physical DPI checks remain pending in [Windows acceptance](../WINDOWS_ACCEPTANCE.md).

@@ -12,7 +12,11 @@ $stopped = @()
 foreach ($name in @('WWAHost', 'UserOOBEBroker', 'msoobe', 'CloudExperienceHostBroker', 'SystemPropertiesPerformance', 'StartMenuExperienceHost', 'wsl', 'WindowsTerminal')) {
     foreach ($process in @(Get-Process -Name $name -ErrorAction SilentlyContinue)) {
         $stopped += @{ name = $process.ProcessName; id = $process.Id }
-        Stop-Process -Id $process.Id -Force
+        try { Stop-Process -Id $process.Id -Force -ErrorAction Stop }
+        catch {
+            # A setup process can exit between discovery and termination; other failures remain fatal.
+            if ($_.FullyQualifiedErrorId -notlike 'NoProcessFoundForGivenId,*') { throw }
+        }
     }
 }
 Start-Sleep -Seconds 2

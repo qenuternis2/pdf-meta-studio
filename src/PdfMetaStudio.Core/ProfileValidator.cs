@@ -30,7 +30,11 @@ public static class ProfileValidator
         async Task<string> ReadBounded(StreamReader reader) {
             char[] buffer = new char[8192]; var output = new StringBuilder(); int count;
             while ((count = await reader.ReadAsync(buffer.AsMemory(), deadline.Token)) != 0) {
-                if (output.Length + count > 8 * 1024 * 1024) throw new WorkerException("validator_output_too_large", "Ответ валидатора превышает 8 МиБ");
+                if (output.Length + count > 8 * 1024 * 1024) {
+                    // Release the other pipe reader and exit wait; WhenAll otherwise waits for the deadline.
+                    deadline.Cancel();
+                    throw new WorkerException("validator_output_too_large", "Ответ валидатора превышает 8 МиБ");
+                }
                 output.Append(buffer, 0, count);
             }
             return output.ToString();

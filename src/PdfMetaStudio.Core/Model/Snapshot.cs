@@ -132,6 +132,7 @@ public sealed class XmpModel
 
     public XmpNode? Find(IEnumerable<XmpStep> steps) => _byKey.GetValueOrDefault(XmpPath.Key(steps));
     public XmpNode? Find(string ns, string name) => Find(new[] { XmpStep.Prop(ns, name) });
+    internal XmpNode? FindByKey(string key) => _byKey.GetValueOrDefault(key);
 
     public IEnumerable<XmpNode> Children(XmpNode parent) =>
         _children.TryGetValue(parent.Key, out var children) ? children : Array.Empty<XmpNode>();
