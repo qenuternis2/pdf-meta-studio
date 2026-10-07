@@ -67,7 +67,7 @@ Operations apply transactionally to a cloned XMP model, then validate known date
 
 ## Annotation and attachment fields
 
-Indirect annotation dictionaries are addressed by `ref` from `open`; direct annotations remain read-only. Attachments use their EmbeddedFiles tree `name`. A `null` current field value means absent.
+Indirect annotation dictionaries are addressed by `ref` from `open`; direct annotations use the supplied `page:N:annot:M` address. Attachments use their EmbeddedFiles tree `name`. A `null` current field value means absent.
 
 | Kind | Field | PDF keys | Deletable |
 |---|---|---|---|

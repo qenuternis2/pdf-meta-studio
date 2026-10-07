@@ -10,6 +10,15 @@ public sealed class TestWorkerFactAttribute : FactAttribute {
     }
 }
 public class WorkerDeadlineTests {
+    [TestWorkerFact] public async Task ClosedOutputTerminatesThePeerAndFailsFurtherRequestsImmediately() {
+        await using var worker = await WorkerClient.StartAsync(Environment.GetEnvironmentVariable("PDFMETA_TEST_WORKER"));
+        var error = await Assert.ThrowsAsync<WorkerException>(() => worker.CallAsync("close-output", new JsonObject()));
+        Assert.Equal("worker_crashed", error.Code);
+        await Task.Delay(200);
+        Assert.False(worker.IsAlive);
+        var next = await Assert.ThrowsAsync<WorkerException>(() => worker.CallAsync("hello", new JsonObject()));
+        Assert.Equal("worker_crashed", next.Code);
+    }
     [TestWorkerFact] public async Task OpaqueHangIsKilledAtTheDeadline() {
         await using var worker = await WorkerClient.StartAsync(Environment.GetEnvironmentVariable("PDFMETA_TEST_WORKER"));
         worker.OperationTimeout = TimeSpan.FromMilliseconds(50);

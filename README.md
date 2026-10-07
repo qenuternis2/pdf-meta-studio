@@ -38,6 +38,7 @@ Install a C++20 compiler, CMake, Ninja, zlib/libjpeg development packages, the p
 cmake -S worker -B build-worker -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build-worker --parallel --target pdfmeta-worker test-tools
 export PDFMETA_WORKER="$PWD/build-worker/pdfmeta-worker"
+export PDFMETA_TEST_WORKER="$PWD/build-worker/pdfmeta-test-worker"
 export QPDF_CLI="$PWD/build-worker/qpdf/qpdf/qpdf"
 python3 worker/tests/run_tests.py "$PDFMETA_WORKER" --corpus worker/external/qpdf/qpdf/qtest/qpdf
 
@@ -45,7 +46,7 @@ dotnet test tests/PdfMetaStudio.Core.Tests -c Release
 dotnet build -c Release
 ```
 
-Building the WPF project on Linux verifies compilation, not GUI execution. Worker-dependent .NET tests are explicitly skipped if `PDFMETA_WORKER` is unavailable. Tests using native fixtures must run with a built worker to provide integration evidence.
+Building the WPF project on Linux verifies compilation, not GUI execution. Worker-dependent .NET tests are explicitly skipped if `PDFMETA_WORKER` is unavailable; IPC fault/deadline tests require `PDFMETA_TEST_WORKER`. Tests using native fixtures must run with the built workers to provide integration evidence.
 
 ## Preservation and editing behavior
 

@@ -1060,18 +1060,39 @@ def test_windows_locked_original_can_only_be_copied(c):
 def test_windows_backup_retains_protected_acl(c):
     if os.name != "nt":
         return "SKIP: Windows DACL acceptance requires Windows"
+    import ctypes
+    from ctypes import wintypes
+    security = ctypes.WinDLL('advapi32', use_last_error=True)
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    pointer = ctypes.c_void_p
+    security.GetNamedSecurityInfoW.argtypes = [wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD,
+                                              pointer, pointer, pointer, pointer, ctypes.POINTER(pointer)]
+    security.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [pointer, wintypes.DWORD,
+                                                                              wintypes.DWORD, ctypes.POINTER(pointer), pointer]
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [pointer]
+    kernel.LocalFree.restype = pointer
+    def acl(path):
+        descriptor, text = pointer(), pointer()
+        error = security.GetNamedSecurityInfoW(path, 1, 4, None, None, None, None, ctypes.byref(descriptor))
+        assert error == 0, ctypes.WinError(error)
+        try:
+            assert security.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, 4, ctypes.byref(text), None), ctypes.WinError(ctypes.get_last_error())
+            return ctypes.wstring_at(text)
+        finally:
+            if text: kernel.LocalFree(text)
+            kernel.LocalFree(descriptor)
     source = c.pdf("acl.pdf")
-    def quote(value):
-        return "'" + value.replace("'", "''") + "'"
     # Change only DACL inheritance, without asking Set-Acl to restore owner/group privileges.
     setup = subprocess.run(['icacls.exe', source, '/inheritance:d'], capture_output=True)
     assert setup.returncode == 0, setup.stderr.decode(errors='replace')
+    original_acl = acl(source)
     opened = c.open(source)
     result = c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "ACL"}]}, mode="replace")
     assert_checks_ok(result)
-    check = "$a=(Get-Acl -LiteralPath " + quote(source) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);$b=(Get-Acl -LiteralPath " + quote(result['backup']) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);if($a -ne $b){throw 'Backup ACL differs'}"
-    result_acl = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', check], capture_output=True)
-    assert result_acl.returncode == 0, result_acl.stderr.decode(errors='replace')
+    assert acl(source) == original_acl, 'Replaced source ACL differs'
+    assert acl(result['backup']) == original_acl, 'Backup ACL differs'
 
 
 def test_bounded_queue_and_queued_cancellation(c):

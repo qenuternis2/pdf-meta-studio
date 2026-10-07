@@ -121,6 +121,8 @@ public sealed class WorkerClient : IAsyncDisposable
                 Kill();
             }
         }
+        // A broken protocol reader cannot service another request, even if the peer stays alive.
+        Kill();
         string tail;
         lock (_stderrTail) tail = _stderrTail.ToString();
         var crash = new WorkerException("worker_crashed",
