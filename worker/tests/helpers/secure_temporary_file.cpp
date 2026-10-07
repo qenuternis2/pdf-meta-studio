@@ -1,5 +1,6 @@
 // Synthetic data only: check the production temporary-file primitive before PDF serialization.
 #include "fileutil.hpp"
+#include "pdf_doc.hpp"
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -64,7 +65,7 @@ void requireCreatorOnly(const pm::fs::path& path) {
 
 int main(int argc, char** argv) {
     try {
-        require(argc == 2, "Pass an isolated fixture directory");
+        require(argc == 3, "Pass an isolated fixture directory and generated PDF");
         const auto root = pm::pathFromUtf8(argv[1]) / "secure-temporary-file";
         require(pm::fs::create_directory(root), "Fixture directory already exists");
         const auto victim = root / "unrelated.txt";
@@ -106,10 +107,28 @@ int main(int argc, char** argv) {
             temporary.close();
         }
         require(!pm::fs::exists(temporaryPath), "Pending temporary file was not cleaned up");
+        {
+            pm::TemporaryFile temporary(root);
+            temporary.write(read(pm::pathFromUtf8(argv[2])));
+            temporary.flush();
+#ifndef _WIN32
+            const auto moved = root / "verification-moved.tmp";
+            pm::fs::rename(temporary.path, moved);
+            pm::fs::create_symlink(victim, temporary.path);
+#endif
+            // qpdf's MSVC filename reader uses _wfopen_s sharing semantics that conflict with
+            // the retained writer. The stream reader also prevents verification of a substituted path.
+            auto pdf = pm::openPdfFromStream(temporary.path, temporary.stream(), "", nullptr);
+            require(pdf.warnings.empty() && !pdf.q->getAllPages().empty(), "Retained PDF stream cannot be verified");
+#ifndef _WIN32
+            pm::fs::remove(temporary.path);
+            pm::fs::rename(moved, temporary.path);
+#endif
+        }
         require(read(victim) == "unrelated sentinel", "Unrelated fixture was overwritten");
         pm::fs::remove(victim);
         pm::fs::remove(root);
-        std::cout << "PASS private temporary ACL/mode, retained descriptor, write/verify and cleanup\n";
+        std::cout << "PASS private temporary ACL/mode, retained write/read descriptor and cleanup\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -34,7 +34,7 @@ QPDFObjGen parseRef(const std::string& ref) {
     return QPDFObjGen(std::stoi(ref.substr(0, sp)), std::stoi(ref.substr(sp + 1)));
 }
 
-LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ctx) {
+static LoadedPdf readPdf(const fs::path& path, const std::string& password, Context* ctx, std::FILE* stream) {
     LoadedPdf pdf;
     pdf.path = path;
     pdf.q = std::make_unique<QPDF>();
@@ -42,7 +42,8 @@ LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ct
     if (ctx) ctx->progress("open", 0);
     std::string p8 = pathToUtf8(path);
     try {
-        pdf.q->processFile(p8.c_str(), password.empty() ? nullptr : password.c_str());
+        if (stream) pdf.q->processFile(p8.c_str(), stream, false, password.empty() ? nullptr : password.c_str());
+        else pdf.q->processFile(p8.c_str(), password.empty() ? nullptr : password.c_str());
     } catch (const QPDFExc& e) {
         if (e.getErrorCode() == qpdf_e_password)
             throw WorkerError(password.empty() ? "password_required" : "password_incorrect",
@@ -60,6 +61,17 @@ LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ct
     }
     for (auto& w : pdf.q->getWarnings()) pdf.warnings.push_back(sanitizeUtf8(w.what()));
     return pdf;
+}
+
+LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ctx) {
+    return readPdf(path, password, ctx, nullptr);
+}
+
+LoadedPdf openPdfFromStream(const fs::path& description, std::FILE* stream,
+                            const std::string& password, Context* ctx) {
+    if (!stream || std::fseek(stream, 0, SEEK_SET) != 0)
+        throw WorkerError("io_error", "Не удалось прочитать временный файл для проверки");
+    return readPdf(description, password, ctx, stream);
 }
 
 json MetaOwner::toJson() const {

@@ -617,7 +617,7 @@ json saveEdits(const json& req, Context& ctx) {
     tempGuard.flush();
     ctx.checkCancel();
 
-    // Повторное открытие и проверка записанного файла.
+    // Parse the completed output independently using the retained descriptor, not its pathname.
     ctx.progress("verify", 0);
     json checks = json::array();
     bool allOk = true;
@@ -629,7 +629,7 @@ json saveEdits(const json& req, Context& ctx) {
     {
         LoadedPdf out;
         try {
-            out = openPdf(tempGuard.path, password, &ctx);
+            out = openPdfFromStream(tempGuard.path, tempGuard.stream(), password, &ctx);
             check("reopen", true, "Файл открывается заново");
         } catch (const WorkerError& e) {
             check("reopen", false, e.what());
