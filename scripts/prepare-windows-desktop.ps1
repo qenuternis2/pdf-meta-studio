@@ -9,7 +9,7 @@ $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
 New-Item -Path $policy -Force | Out-Null
 New-ItemProperty -Path $policy -Name DisablePrivacyExperience -PropertyType DWord -Value 1 -Force | Out-Null
 $stopped = @()
-foreach ($name in @('WWAHost', 'UserOOBEBroker', 'msoobe', 'CloudExperienceHostBroker', 'SystemPropertiesPerformance', 'StartMenuExperienceHost')) {
+foreach ($name in @('WWAHost', 'UserOOBEBroker', 'msoobe', 'CloudExperienceHostBroker', 'SystemPropertiesPerformance', 'StartMenuExperienceHost', 'wsl', 'WindowsTerminal')) {
     foreach ($process in @(Get-Process -Name $name -ErrorAction SilentlyContinue)) {
         $stopped += @{ name = $process.ProcessName; id = $process.Id }
         Stop-Process -Id $process.Id -Force

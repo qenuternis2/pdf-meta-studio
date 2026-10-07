@@ -119,6 +119,9 @@ function DumpTree($root, [int]$max = 120) {
 $proc = $null
 $step = 'start'
 try {
+    if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_ARCH -eq 'ARM64') {
+        & (Join-Path $PSScriptRoot 'prepare-windows-desktop.ps1') -OutDir $OutDir
+    }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $proc = Start-Process -FilePath $Exe -PassThru
     $hwnd = WaitFor { $proc.Refresh(); if ($proc.HasExited) { throw 'process exited' }; $proc.MainWindowHandle -ne 0 } 60
