@@ -83,11 +83,13 @@ public sealed partial class FieldViewModel : ObservableObject
         Items.Clear();
         foreach (string item in v.Items ?? Array.Empty<string>()) Items.Add(item);
         SelectedItemIndex = Items.Count == 0 ? -1 : Math.Clamp(index, 0, Items.Count - 1);
-        LanguageOptions.Clear();
-        foreach (string lang in new[] { "x-default", "ru-RU", "en-US" }.Concat(_session.WorkingDocument.DocumentStream?.Model.Nodes
+        var languages = new[] { "x-default", "ru-RU", "en-US" }.Concat(_session.WorkingDocument.DocumentStream?.Model.Nodes
             .Where(n => n.Steps.LastOrDefault() is { Kind: "qual", Ns: "http://www.w3.org/XML/1998/namespace", Name: "lang" } &&
-                n.Steps[0].Ns == Field.XmpNs && n.Steps[0].Name == Field.XmpName).Select(n => n.Value ?? "") ?? Array.Empty<string>()).Distinct())
-            LanguageOptions.Add(lang);
+                n.Steps[0].Ns == Field.XmpNs && n.Steps[0].Name == Field.XmpName).Select(n => n.Value ?? "") ?? Array.Empty<string>())
+            .Concat(new[] { SelectedLanguage }).Where(lang => lang.Length > 0).Distinct().ToArray();
+        // Resetting the editable ComboBox's items clears its text and selection during preview.
+        foreach (string obsolete in LanguageOptions.Where(lang => !languages.Contains(lang)).ToArray()) LanguageOptions.Remove(obsolete);
+        foreach (string lang in languages) if (!LanguageOptions.Contains(lang)) LanguageOptions.Add(lang);
         _loading = false;
         RefreshState();
         DateEditor?.Load(Text, SelectedSync?.Mode == SyncMode.InfoOnly);

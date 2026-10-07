@@ -68,7 +68,7 @@ function AssertTabCycle($anchor, [string]$keys) {
         }
         $visited += $focus.Current.Name
     }
-    throw "Keyboard focus did not return within 128 steps: $keys"
+    throw ("Keyboard focus did not return within 128 steps: {0}; visited: {1}" -f $keys, ($visited -join ' | '))
 }
 # Диалоги (выбор файла, MessageBox) принадлежат главному окну и в дереве UIA лежат под ним.
 function Dialog([int]$processId) {
@@ -232,6 +232,8 @@ try {
     if ($KeyboardChecks) {
         AssertTabCycle $title '{TAB}'
         AssertTabCycle $title '+{TAB}'
+        if ((Value $title) -ne $NewTitle) { throw 'Keyboard navigation changed the title without editing it' }
+        if ((Value (ByName $win 'Язык поля: Название документа')) -ne 'x-default') { throw 'Preview or keyboard navigation cleared the selected language' }
         $title.SetFocus(); Keys '^z'
         if (-not (WaitFor { (Value $title) -eq $before } 5)) { throw 'Ctrl+Z did not restore the original title' }
         Keys '^y'

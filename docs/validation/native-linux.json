@@ -221,6 +221,11 @@
       "detail": ""
     },
     {
+      "test": "test_untouched_compressed_metadata_preserves_encoding",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
       "test": "test_unwritable_target_dir",
       "status": "PASS",
       "detail": ""
