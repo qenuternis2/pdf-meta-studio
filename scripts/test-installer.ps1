@@ -6,7 +6,7 @@ $installed = Join-Path $env:LOCALAPPDATA 'PdfMetaStudio'
 if (Test-Path $installed) { throw 'Installer acceptance requires a clean installation directory' }
 $process = Start-Process msiexec.exe -ArgumentList @('/i', "`"$installer`"", '/qn', '/norestart', '/l*v', "`"$root\installer-install.log`"") -Wait -PassThru
 if ($process.ExitCode -notin @(0, 3010)) { throw "Installer failed: $($process.ExitCode)" }
-foreach ($file in @('PdfMetaStudio.exe','pdfmeta-worker.exe','licenses\MANIFEST.txt')) {
+foreach ($file in @('PdfMetaStudio.exe','pdfmeta-worker.exe','licenses\MANIFEST.txt','validation\native-worker.json','validation\core-tests.trx')) {
     if (-not (Test-Path (Join-Path $installed $file))) { throw "Installed file missing: $file" }
 }
 & powershell.exe -NoProfile -File "$root\scripts\gui-smoke.ps1" -Exe "$installed\PdfMetaStudio.exe" -Pdf "$root\tests\fixtures\rich.pdf" -OutDir "$root\installer-smoke"

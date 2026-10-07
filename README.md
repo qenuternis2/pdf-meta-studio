@@ -25,7 +25,7 @@ pip install pypdf==5.1.0 cryptography==46.0.3
 ./scripts/build-windows.ps1
 ```
 
-The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine. The build also collects complete third-party licenses and produces a per-user MSI in `dist/installer`.
+The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine. The build also collects complete third-party licenses, includes executed test reports under `validation`, and produces a per-user MSI in `dist/installer`. A build with `-SkipTests` excludes test reports.
 
 [Windows CI](.github/workflows/windows.yml) runs this build and a GUI UI Automation smoke test, uploads the application and screenshots, exercises MSI installation/uninstallation, and publishes release ZIPs/MSIs and checksums for version tags.
 
