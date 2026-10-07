@@ -11,6 +11,7 @@ param(
     [switch]$KeyboardChecks,
     [switch]$LayoutChecks,
     [switch]$StressChecks,
+    [switch]$CalendarChecks,
     [ValidateSet('', 'light', 'dark')][string]$ExpectedTheme = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -21,6 +22,115 @@ $OutDir = [IO.Path]::GetFullPath($OutDir).Replace('/', '\')
 # Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class AcceptanceFocus {
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern IntPtr GetLastActivePopup(IntPtr h);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint id);
+    public static bool HasForeground(int processId) {
+        uint id;
+        GetWindowThreadProcessId(GetForegroundWindow(), out id);
+        return id == (uint)processId;
+    }
+    public static IntPtr ActivePopup(IntPtr owner) { return GetLastActivePopup(owner); }
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr id);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+    [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    public static void Click(int x, int y) {
+        if (!SetCursorPos(x, y)) throw new InvalidOperationException("Hosted pointer positioning failed");
+        mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+        mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+    }
+    [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr h);
+    [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+    delegate bool EnumChild(IntPtr h, IntPtr arg);
+    [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumChild cb, IntPtr arg);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int size);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string text);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, StringBuilder text);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr h);
+    static string ClassName(IntPtr h) {
+        var text = new StringBuilder(256);
+        GetClassName(h, text, text.Capacity);
+        return text.ToString();
+    }
+    static IntPtr FindControl(IntPtr parent, int id, string className) {
+        IntPtr found = IntPtr.Zero;
+        EnumChildWindows(parent, delegate(IntPtr h, IntPtr arg) {
+            if ((id == 0 || GetDlgCtrlID(h) == id) && IsWindowVisible(h) &&
+                (className == null || ClassName(h) == className)) { found = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    public static void SubmitFileDialog(IntPtr dialog, string path) {
+        // Win32 edit/button proxies can be absent from the ARM64 UIA tree.
+        IntPtr filename = FindControl(dialog, 1148, null);
+        if (filename != IntPtr.Zero && ClassName(filename) != "Edit") filename = FindControl(filename, 0, "Edit");
+        if (filename == IntPtr.Zero) filename = FindControl(dialog, 1152, "Edit");
+        if (filename == IntPtr.Zero) filename = FindControl(dialog, 1001, "Edit");
+        if (filename == IntPtr.Zero) throw new InvalidOperationException("Native Shell filename edit was not found");
+        // WM_SETTEXT alone does not update the modern Shell's cached filename model.
+        // Targeted edit messages produce the same change notifications as character input.
+        SendMessage(filename, 0x00B1, IntPtr.Zero, new IntPtr(-1)); // EM_SETSEL: select all
+        foreach (char character in path) SendMessage(filename, 0x0102, new IntPtr(character), new IntPtr(1)); // WM_CHAR
+        var actual = new StringBuilder(path.Length + 2);
+        SendMessage(filename, 0x000D, new IntPtr(actual.Capacity), actual); // WM_GETTEXT
+        if (actual.ToString() != path) throw new InvalidOperationException("Native Shell filename did not retain the requested path");
+        IntPtr button = FindControl(dialog, 1, "Button");
+        if (button == IntPtr.Zero) throw new InvalidOperationException("Native Shell submit button was not found");
+        // Deliver the button's BN_CLICKED to its parent independently of foreground keyboard input.
+        if (!PostMessage(GetParent(button), 0x0111, new IntPtr(1), button)) throw new InvalidOperationException("Native Shell submit command failed");
+    }
+    public static void ConfirmResultDialog(IntPtr dialog) {
+        IntPtr button = FindControl(dialog, 0, "Button");
+        if (button == IntPtr.Zero) throw new InvalidOperationException("Native result confirmation button was not found");
+        var label = new StringBuilder(256);
+        SendMessage(button, 0x000D, new IntPtr(label.Capacity), label);
+        string name = label.ToString().Replace("&", "").Trim();
+        if (name != "OK" && name != "\u041e\u041a") throw new InvalidOperationException("Unexpected result confirmation button: " + name);
+        if (!PostMessage(GetParent(button), 0x0111, new IntPtr(GetDlgCtrlID(button)), button)) throw new InvalidOperationException("Native result confirmation failed");
+    }
+    public static void Activate(IntPtr window, int controlId) {
+        uint current = GetCurrentThreadId();
+        uint foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+        uint target = GetWindowThreadProcessId(window, IntPtr.Zero);
+        bool attachedForeground = foreground != 0 && foreground != current && AttachThreadInput(current, foreground, true);
+        bool attachedTarget = target != 0 && target != current && target != foreground && AttachThreadInput(current, target, true);
+        try {
+            BringWindowToTop(window);
+            if (GetForegroundWindow() != window && !SetForegroundWindow(window)) {
+                // A hosted console thread may not own the last input; Alt releases the foreground lock.
+                keybd_event(0x12, 0, 0, UIntPtr.Zero);
+                keybd_event(0x12, 0, 2, UIntPtr.Zero);
+                SetForegroundWindow(window);
+            }
+            if (controlId != 0) {
+                IntPtr input = IntPtr.Zero;
+                EnumChildWindows(window, delegate(IntPtr h, IntPtr arg) {
+                    if (GetDlgCtrlID(h) == controlId) { input = h; return false; }
+                    return true;
+                }, IntPtr.Zero);
+                if (input != IntPtr.Zero) SetFocus(input);
+            }
+        } finally {
+            if (attachedTarget) AttachThreadInput(current, target, false);
+            if (attachedForeground) AttachThreadInput(current, foreground, false);
+        }
+    }
+}
+'@
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 $CT = [System.Windows.Automation.ControlType]
@@ -52,7 +162,16 @@ function Press($el) { $el.GetCurrentPattern([System.Windows.Automation.InvokePat
 function SetValue($el, [string]$v) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($v) }
 function Value($el) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value }
 function FocusId($el) { (@($el.GetRuntimeId()) -join '.') }
-function Keys([string]$keys) { [System.Windows.Forms.SendKeys]::SendWait($keys); Start-Sleep -Milliseconds 70 }
+function Keys([string]$keys) {
+    if ($desktopGuard -and -not [AcceptanceFocus]::HasForeground($proc.Id)) {
+        if (-not (WaitFor {
+            [AcceptanceFocus]::Activate([AcceptanceFocus]::ActivePopup($proc.MainWindowHandle), 0)
+            [AcceptanceFocus]::HasForeground($proc.Id)
+        } 5)) { throw 'Hosted desktop did not grant the application keyboard foreground' }
+    }
+    [System.Windows.Forms.SendKeys]::SendWait($keys)
+    Start-Sleep -Milliseconds 70
+}
 function AssertTabCycle($anchor, [string]$keys) {
     $anchor.SetFocus()
     $start = FocusId $anchor
@@ -80,13 +199,24 @@ function Dialog([int]$processId) {
 # Поле имени файла в системном диалоге не всегда видно через UI Automation —
 # вводим путь с клавиатуры, как пользователь: фокус по умолчанию стоит в поле имени.
 function TypeIntoDialog($dlg, [string]$text) {
+    if ($desktopGuard) {
+        [AcceptanceFocus]::SubmitFileDialog([IntPtr]$dlg.Current.NativeWindowHandle, $text)
+        return
+    }
     try { $dlg.SetFocus() } catch { }
+    # Shell controls may be exposed only as panes on ARM64; focus the native filename edit.
+    [AcceptanceFocus]::Activate([IntPtr]$dlg.Current.NativeWindowHandle, 1148)
     Start-Sleep -Milliseconds 500
+    # Prefer the Shell dialog's filename control instead of relying on initial focus.
+    $fileName = $dlg.FindFirst($TS::Descendants, (Cond $AE::AutomationIdProperty '1148'))
+    if ($fileName) { try { $fileName.SetFocus() } catch { } }
     $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', '{$0}')
-    [System.Windows.Forms.SendKeys]::SendWait('^a')
-    [System.Windows.Forms.SendKeys]::SendWait($escaped)
+    # English hosted Shell dialogs expose File name through Alt+N even without UIA edit peers.
+    if ($desktopGuard) { Keys '%n' }
+    Keys '^a'
+    Keys $escaped
     Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Keys '{ENTER}'
 }
 # Заголовки разделов редактора. Свёрнутые (Collapsed) элементы в дерево UI Automation не попадают,
 # поэтому виден ровно один заголовок — иначе разделы рисуются друг поверх друга.
@@ -113,14 +243,31 @@ function DumpTree($root, [int]$max = 120) {
 }
 
 $proc = $null
+$desktopGuard = $null
 $step = 'start'
 try {
+    if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_ARCH -eq 'ARM64') {
+        & (Join-Path $PSScriptRoot 'prepare-windows-desktop.ps1') -OutDir $OutDir
+        # First-logon tasks can relaunch WSL/Terminal during a later save dialog.
+        # Reap only known hosted-image setup surfaces for the lifetime of this CI case.
+        $desktopGuard = Start-Job -ArgumentList (Join-Path $OutDir 'desktop-guard.log') -ScriptBlock {
+            param($guardLog)
+            while ($true) {
+                foreach ($process in @(Get-Process -Name WWAHost, UserOOBEBroker, msoobe, CloudExperienceHostBroker, SystemPropertiesPerformance, wsl, WindowsTerminal -ErrorAction SilentlyContinue)) {
+                    ('{0:o} stopped {1} {2}' -f [DateTime]::UtcNow, $process.ProcessName, $process.Id) | Add-Content -Path $guardLog
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                }
+                Start-Sleep -Milliseconds 100
+            }
+        }
+    }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $proc = Start-Process -FilePath $Exe -PassThru
     $hwnd = WaitFor { $proc.Refresh(); if ($proc.HasExited) { throw 'process exited' }; $proc.MainWindowHandle -ne 0 } 60
     if (-not $hwnd) { throw 'главное окно не появилось за 60 с' }
     Start-Sleep -Seconds 2
     $win = $AE::FromHandle($proc.MainWindowHandle)
+    [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
     Log ("OK  запуск: окно «{0}» за {1:N1} с" -f $win.Current.Name, $sw.Elapsed.TotalSeconds)
 
     $step = 'home'
@@ -197,6 +344,48 @@ try {
     $deleted = CountByName $win 'Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить.'
     if ($marks -ne 0 -or $deleted -ne 0) { throw "без правок видны пометки: «изменено» ×$marks, «удалено» ×$deleted" }
     Log 'OK  без правок нет пометок «изменено» и «удалено»'
+
+    if ($CalendarChecks) {
+        $step = 'calendar'
+        ($items | Where-Object { $_.Current.Name -eq 'Даты и ПО' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $components = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Group) (Cond $AE::NameProperty 'Компоненты даты, точность и часовой пояс'))) } 10
+        if (-not $components) { throw 'Date component expander is missing' }
+        $components.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        $calendarInput = WaitFor { ByName $win 'Календарь: Дата создания' } 10
+        if (-not $calendarInput) { throw 'Creation date calendar is missing' }
+        $originalDate = Value (ByName $win 'Исходная дата: Дата создания')
+        # UIA SetFocus alone does not guarantee OS foreground after hosted WSL windows steal it.
+        # A real click on the date textbox activates the application without changing the date.
+        $calendarText = $calendarInput.FindFirst($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Edit))
+        if (-not $calendarText) { throw 'Calendar date textbox is missing' }
+        $textBounds = $calendarText.Current.BoundingRectangle
+        [AcceptanceFocus]::Click([int]($textBounds.Left + $textBounds.Width / 2), [int]($textBounds.Top + $textBounds.Height / 2))
+        if (-not (WaitFor {
+            [AcceptanceFocus]::HasForeground($proc.Id) -and (FocusId $AE::FocusedElement) -eq (FocusId $calendarText)
+        } 5)) { throw 'Calendar date textbox did not receive actual keyboard focus' }
+        $calendarPattern = $calendarInput.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        Keys '%{DOWN}'
+        $popup = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::ControlTypeProperty $CT::Calendar))) } 10
+        if (-not $popup) { throw 'Calendar popup did not open' }
+        $bounds = $popup.Current.BoundingRectangle
+        $screen = [Windows.Forms.SystemInformation]::VirtualScreen
+        if ($popup.Current.IsOffscreen -or $bounds.Left -lt $screen.Left -or $bounds.Top -lt $screen.Top -or $bounds.Right -gt $screen.Right -or $bounds.Bottom -gt $screen.Bottom) { throw 'Calendar popup is clipped by the desktop' }
+        Shot 'calendar-popup'
+        # DatePicker handles Escape through calendar day/month buttons, not header navigation buttons.
+        $calendarDays = @($popup.FindAll($TS::Descendants, (Cond $AE::IsSelectionItemPatternAvailableProperty $true)) | Where-Object { $_.Current.IsKeyboardFocusable -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+        $calendarFocus = $calendarDays | Where-Object { $_.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } | Select-Object -First 1
+        if (-not $calendarFocus) { $calendarFocus = $calendarDays | Select-Object -First 1 }
+        if (-not $calendarFocus) { throw 'Calendar has no reachable day/month keyboard focus target' }
+        $calendarFocus.SetFocus()
+        $calendarActualFocus = $AE::FocusedElement
+        Log ("Calendar focus before Escape: {0}; class={1}; process={2}; applicationForeground={3}" -f $calendarActualFocus.Current.Name, $calendarActualFocus.Current.ClassName, $calendarActualFocus.Current.ProcessId, [AcceptanceFocus]::HasForeground($proc.Id))
+        Keys '{ESC}'
+        if (-not (WaitFor { $calendarPattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed } 5)) { throw 'Escape did not close the calendar popup' }
+        if ((Value (ByName $win 'Исходная дата: Дата создания')) -ne $originalDate -or (CountByName $win ' · изменено') -ne 0) { throw 'Calendar inspection changed the document date' }
+        $components.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+        ($items | Where-Object { $_.Current.Name -eq 'Основные' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Log 'OK  calendar opens within the desktop, Escape closes it and original date precision/value remains unchanged'
+    }
 
     if ($StressChecks) {
         ($items | Where-Object { $_.Current.Name -eq 'Все теги' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
@@ -279,10 +468,11 @@ try {
     if ($KeyboardChecks) { $saveCopy.SetFocus(); Keys ' ' } else { Press $saveCopy }
     $sdlg = WaitFor { Dialog $proc.Id } 20
     if (-not $sdlg) { throw 'диалог сохранения не появился' }
-    Log ("OK  диалог сохранения: «{0}»" -f $sdlg.Current.Name)
+    $saveDialogName = $sdlg.Current.Name
+    Log ("OK  диалог сохранения: «{0}»" -f $saveDialogName)
     TypeIntoDialog $sdlg $target
     # После записи приложение показывает окно «Готово» (или «Файл не сохранён») — тоже класс #32770.
-    $box = WaitFor { $d = Dialog $proc.Id; if ($d -and $d.Current.Name -ne $sdlg.Current.Name) { $d } } 120
+    $box = WaitFor { $d = Dialog $proc.Id; if ($d -and $d.Current.Name -ne $saveDialogName) { $d } } 120
     if (-not $box) { throw 'после сохранения не появилось сообщение о результате' }
     $boxText = @($box.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Text)) | ForEach-Object { $_.Current.Name }) -join ' '
     Shot '4-saved'
@@ -294,7 +484,8 @@ try {
     else {
         # Native message-box buttons may be exposed as Pane by the CI accessibility provider.
         try { $box.SetFocus() } catch { }
-        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        if ($desktopGuard) { [AcceptanceFocus]::ConfirmResultDialog([IntPtr]$box.Current.NativeWindowHandle) }
+        else { Keys '{ENTER}' }
     }
     if (-not (WaitFor { -not (Dialog $proc.Id) } 15)) { throw 'The save result dialog did not close after confirmation' }
 
@@ -357,5 +548,6 @@ catch {
     exit 1
 }
 finally {
+    if ($desktopGuard) { Stop-Job $desktopGuard; Remove-Job $desktopGuard -Force }
     if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
 }

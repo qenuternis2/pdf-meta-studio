@@ -12,6 +12,10 @@ on:
         description: 'Run GUI acceptance using a previously built native worker; skips native/MSI acceptance'
         type: boolean
         default: false
+      desktop_probe:
+        description: 'Inspect Windows 11 desktop blockers without building or running application tests'
+        type: boolean
+        default: false
       package_run_id:
         description: 'Successful run containing PdfMetaStudio-win-x64 (required for GUI-only mode)'
         type: string
@@ -21,7 +25,7 @@ permissions:
   contents: read
 jobs:
   build:
-    if: ${{ !inputs.gui_only }}
+    if: ${{ !inputs.gui_only && !inputs.desktop_probe }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -115,20 +119,134 @@ jobs:
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
-  gui_acceptance:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gui_only }}
-    runs-on: windows-2022
-    permissions:
-      contents: read
-      actions: read
+      - name: Collect native test tools
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory build/native-tools -Force | Out-Null
+          Copy-Item build/worker/Release/pdfmeta-test-worker.exe build/native-tools
+          $qpdf = Get-ChildItem build/worker/qpdf -Recurse -Filter qpdf.exe | Select-Object -First 1
+          if (-not $qpdf) { throw 'Native qpdf test tool missing' }
+          Copy-Item $qpdf.FullName build/native-tools/qpdf.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PdfMetaStudio-native-test-tools-win-x64
+          path: build/native-tools
+  windows11:
+    needs: build
+    runs-on: windows-11-arm
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Report actual Windows product and architecture
+        shell: pwsh
+        run: Get-ComputerInfo | Select-Object WindowsProductName, OsArchitecture, OsBuildNumber
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          architecture: x64
+      - run: pip install pypdf==5.1.0 cryptography==46.0.3
+      - uses: actions/download-artifact@v4
+        with:
+          name: PdfMetaStudio-win-x64
+          path: dist/PdfMetaStudio
+      - uses: actions/download-artifact@v4
+        with:
+          name: PdfMetaStudio-installer-win-x64
+          path: dist/installer
+      - uses: actions/download-artifact@v4
+        with:
+          name: PdfMetaStudio-native-test-tools-win-x64
+          path: build/native-tools
+      - name: Record Windows 11 ARM host and x64 application identity
+        shell: powershell
+        run: |
+          ./scripts/prepare-windows-desktop.ps1 -OutDir windows11-acceptance
+          ./scripts/windows-host-info.ps1 -OutDir windows11-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
+      - name: Install pinned independent page renderer for native tests
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'pdfmeta-poppler-26.09.zip'
+          $source = 'https://github.com/oschwartz10612/poppler-windows/releases/download/v26.09.0-0/Release-26.09.0-0.zip'
+          $expectedHash = '7a6f256a0ddf7536182246a5733331bf4677cbcc34f4663774947ad34556c8d0'
+          Invoke-WebRequest -Uri $source -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expectedHash) { throw 'Poppler archive SHA-256 mismatch' }
+          $tools = Join-Path $env:RUNNER_TEMP 'pdfmeta-poppler'
+          Expand-Archive $archive $tools
+          $renderer = Get-ChildItem $tools -Recurse -Filter pdftoppm.exe | Select-Object -First 1
+          if (-not $renderer) { throw 'Independent page renderer missing' }
+          $version = @(& $renderer.FullName -v 2>&1 | ForEach-Object { "$_" })
+          if ($LASTEXITCODE) { throw 'Independent page renderer failed to start' }
+          $renderer.Directory.FullName >> $env:GITHUB_PATH
+          @{ source = $source; sha256 = $expectedHash; version = $version } | ConvertTo-Json | Set-Content windows11-acceptance/poppler.json -Encoding utf8
+      - name: Native and managed tests on Windows 11
+        shell: pwsh
+        run: |
+          ./scripts/fetch-deps.ps1
+          $env:PDFMETA_WORKER = "$PWD/dist/PdfMetaStudio/pdfmeta-worker.exe"
+          $env:PDFMETA_TEST_WORKER = "$PWD/build/native-tools/pdfmeta-test-worker.exe"
+          $env:QPDF_CLI = "$PWD/build/native-tools/qpdf.exe"
+          python worker/tests/run_tests.py $env:PDFMETA_WORKER --corpus worker/external/qpdf/qpdf/qtest/qpdf --report windows11-acceptance/native-worker.json
+          if ($LASTEXITCODE) { throw 'Windows 11 native tests failed' }
+          dotnet test tests/PdfMetaStudio.Core.Tests -c Release --logger 'trx;LogFileName=core-tests.trx' --results-directory windows11-acceptance
+          if ($LASTEXITCODE) { throw 'Windows 11 managed tests failed' }
+      - name: Windows 11 install, installed GUI and uninstall
+        shell: pwsh
+        run: ./scripts/test-installer.ps1
+      - name: Windows 11 keyboard, themes, resizing and large metadata
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
+          if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows11-acceptance/gui" -CalendarChecks
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows11-acceptance
+          path: |
+            windows11-acceptance
+            installer-*.log
+            installer-smoke
+  desktop_probe:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_probe }}
+    runs-on: windows-11-arm
+    timeout-minutes: 3
+    steps:
+      - name: Inspect interactive desktop windows
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+          $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)
+          $records = foreach ($window in $windows) {
+            $process = Get-Process -Id $window.Current.ProcessId -ErrorAction SilentlyContinue
+            @{ name = $window.Current.Name; className = $window.Current.ClassName; processName = $process.ProcessName; processId = $window.Current.ProcessId; path = $process.Path }
+          }
+          $records | ConvertTo-Json -Depth 4 | Tee-Object -FilePath desktop-windows.json
+          Get-Process | Where-Object { $_.ProcessName -match 'privacy|oobe|experience|wwahost' } | Select-Object ProcessName, Id, Path | ConvertTo-Json | Tee-Object -FilePath desktop-setup-processes.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows11-desktop-probe
+          path: desktop-*.json
+  gui_acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gui_only }}
+    runs-on: windows-11-arm
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report actual Windows product and architecture
+        shell: pwsh
+        run: Get-ComputerInfo | Select-Object WindowsProductName, OsArchitecture, OsBuildNumber
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Report preinstalled Python for standard-library fixtures
+        run: python --version
       - uses: actions/download-artifact@v4
         with:
           name: PdfMetaStudio-win-x64
@@ -143,10 +261,14 @@ jobs:
         run: |
           dotnet publish src/PdfMetaStudio.App -c Release -r win-x64 --self-contained true -o dist/PdfMetaStudio
           if ($LASTEXITCODE) { throw 'Managed GUI publication failed' }
+          & powershell.exe -NoProfile -File ./scripts/prepare-windows-desktop.ps1 -OutDir windows-acceptance
+          if ($LASTEXITCODE) { throw 'Windows 11 desktop preparation failed' }
+          & powershell.exe -NoProfile -File ./scripts/windows-host-info.ps1 -OutDir windows-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
+          if ($LASTEXITCODE) { throw 'Windows 11 ARM host verification failed' }
           python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
-          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance"
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance" -CalendarChecks
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -154,7 +276,7 @@ jobs:
           path: windows-acceptance
   # Релиз: при пуше тега v* или ручном запуске с release_tag архив сборки публикуется как GitHub Release.
   release:
-    needs: build
+    needs: [build, windows11]
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(inputs.release_tag, 'v')
     runs-on: ubuntu-latest
     permissions:
