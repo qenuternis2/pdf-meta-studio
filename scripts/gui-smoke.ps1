@@ -39,6 +39,7 @@ public static class AcceptanceFocus {
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
     [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr h);
     [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
@@ -52,7 +53,12 @@ public static class AcceptanceFocus {
         bool attachedTarget = target != 0 && target != current && target != foreground && AttachThreadInput(current, target, true);
         try {
             BringWindowToTop(window);
-            SetForegroundWindow(window);
+            if (GetForegroundWindow() != window && !SetForegroundWindow(window)) {
+                // A hosted console thread may not own the last input; Alt releases the foreground lock.
+                keybd_event(0x12, 0, 0, UIntPtr.Zero);
+                keybd_event(0x12, 0, 2, UIntPtr.Zero);
+                SetForegroundWindow(window);
+            }
             if (controlId != 0) {
                 IntPtr input = IntPtr.Zero;
                 EnumChildWindows(window, delegate(IntPtr h, IntPtr arg) {
@@ -142,10 +148,12 @@ function TypeIntoDialog($dlg, [string]$text) {
     $fileName = $dlg.FindFirst($TS::Descendants, (Cond $AE::AutomationIdProperty '1148'))
     if ($fileName) { try { $fileName.SetFocus() } catch { } }
     $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', '{$0}')
-    [System.Windows.Forms.SendKeys]::SendWait('^a')
-    [System.Windows.Forms.SendKeys]::SendWait($escaped)
+    # English hosted Shell dialogs expose File name through Alt+N even without UIA edit peers.
+    if ($desktopGuard) { Keys '%n' }
+    Keys '^a'
+    Keys $escaped
     Start-Sleep -Milliseconds 300
-    [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    Keys '{ENTER}'
 }
 # Заголовки разделов редактора. Свёрнутые (Collapsed) элементы в дерево UI Automation не попадают,
 # поэтому виден ровно один заголовок — иначе разделы рисуются друг поверх друга.

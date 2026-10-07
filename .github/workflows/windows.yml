@@ -229,10 +229,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          architecture: x64
+      - name: Report preinstalled Python for standard-library fixtures
+        run: python --version
       - uses: actions/download-artifact@v4
         with:
           name: PdfMetaStudio-win-x64
