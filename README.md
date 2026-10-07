@@ -12,7 +12,7 @@ The application provides typed metadata editing, review, verified save-copy/repl
 | `src/PdfMetaStudio.Core/` | Worker client, snapshots, date codecs, edit sessions, undo/redo, Info/XMP synchronization and review |
 | `src/PdfMetaStudio.App/` | WPF application, published as `PdfMetaStudio.exe` |
 | `tests/PdfMetaStudio.Core.Tests/` | Core, worker integration and actual editor ViewModel tests |
-| `scripts/deps.lock` | qpdf v12.4.2, XMP Toolkit v2025.03 and Expat 2.7.1 tags and commit hashes |
+| `scripts/deps.lock` | qpdf v12.4.2, XMP Toolkit v2025.03 and Expat 2.9.0 tags and commit hashes |
 | `scripts/patches/xmp-keep-translations.patch` | Required XMP SDK patch preventing translation loss |
 | `Directory.Packages.props`, `global.json`, `worker/vcpkg.json` | Pinned SDK, NuGet versions and native dependency baseline |
 
@@ -21,7 +21,7 @@ The application provides typed metadata editing, review, verified save-copy/repl
 Install Visual Studio 2022 or Build Tools with MSVC, CMake ≥ 3.21, Git, .NET SDK 10.0.1xx, Python 3 and vcpkg. Set `VCPKG_ROOT` and use Developer PowerShell for VS 2022:
 
 ```powershell
-pip install pypdf==5.1.0 cryptography==46.0.3
+pip install pypdf==6.19.0 cryptography==50.0.2
 ./scripts/build-windows.ps1
 ```
 
@@ -31,7 +31,7 @@ The script fetches and verifies pinned dependencies, builds the worker and qpdf 
 
 ## Validate on Linux
 
-Install a C++20 compiler, CMake, Ninja, zlib/libjpeg development packages, the pinned .NET SDK and Python. `pypdf==5.1.0` and Poppler's `pdftoppm` enable independent parsing and a representative visual comparison.
+Install a C++20 compiler, CMake, Ninja, zlib/libjpeg development packages, the pinned .NET SDK and Python. `pypdf==6.19.0` with `cryptography==50.0.2` and Poppler's `pdftoppm` enable independent parsing and a representative visual comparison.
 
 ```bash
 ./scripts/fetch-deps.sh
@@ -61,6 +61,8 @@ Building the WPF project on Linux verifies compilation, not GUI execution. Worke
 - The XMP SDK patch prevents `x-default` from silently replacing another translation. Modified packets are serialized, reparsed and compared semantically. DTDs and entity declarations are prohibited. Decompression caps protect XMP processing; Windows also uses a 4 GiB worker Job limit.
 
 A save refusal is a supported result when preservation cannot be established. For example, the damaged qpdf `issue-149.pdf` contains conflicting object generations: retaining unreferenced objects causes the upstream writer to select different page content. The post-write check rejects that result and leaves the source unchanged.
+
+See the [security audit](docs/SECURITY_AUDIT.md) for verified findings, dependency advisory applicability, trust boundaries and remaining Windows isolation checks. The worker is a separate process with resource limits; it is not an OS security sandbox.
 
 ## Independent corpus and Windows acceptance
 

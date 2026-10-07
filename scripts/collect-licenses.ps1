@@ -47,4 +47,4 @@ Copy-License "$root\scripts\deps.lock" 'native-versions.lock'
 Copy-License "$root\worker\vcpkg.json" 'vcpkg-baseline.json'
 Copy-License "$root\Directory.Packages.props" 'managed-versions.props'
 $commit = git -C $root rev-parse HEAD
-@("PDF Meta Studio third-party license bundle", "Source commit: $commit", "Published runtime packages: $($runtimeVersions -join '; ')", "CommunityToolkit.Mvvm 8.4.0", "nlohmann/json 3.11.3", "qpdf 12.4.2; Adobe XMP Toolkit 2025.03; Expat 2.7.1", "zlib and libjpeg-turbo: versions fixed by the enclosed vcpkg baseline", "The full licenses and notices are included in this directory.") | Set-Content (Join-Path $out 'MANIFEST.txt') -Encoding utf8
+@("PDF Meta Studio third-party license bundle", "Source commit: $commit", "Published runtime packages: $($runtimeVersions -join '; ')", "CommunityToolkit.Mvvm 8.4.0", "nlohmann/json 3.11.3", "qpdf 12.4.2; Adobe XMP Toolkit 2025.03; Expat 2.9.0", "zlib and libjpeg-turbo: versions fixed by the enclosed vcpkg baseline", "The full licenses and notices are included in this directory.") | Set-Content (Join-Path $out 'MANIFEST.txt') -Encoding utf8
