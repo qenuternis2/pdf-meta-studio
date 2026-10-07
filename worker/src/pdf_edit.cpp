@@ -266,6 +266,7 @@ void applyObjectOps(QPDF& q, const json& ops, Applied& a) {
 }
 
 static bool declares(const json& model, const std::string& uri, const std::string& name) {
+    if (!model.is_object()) return false;
     for (const auto& node : model.value("nodes", json::array())) {
         const auto& steps = node.at("steps");
         if (steps.size() == 1 && steps[0].value("ns", "") == uri && steps[0].value("name", "") == name &&

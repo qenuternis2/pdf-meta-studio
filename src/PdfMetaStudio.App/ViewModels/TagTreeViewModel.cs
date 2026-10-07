@@ -182,6 +182,7 @@ public sealed partial class TagTreeViewModel : ObservableObject
     partial void OnSelectedChanged(TagNodeViewModel? value)
     {
         Message = null;
+        DateEditor.ContextLabel = value?.Title ?? "Выбранный тег";
         EditValue = value?.PendingValue ?? value?.Value ?? "";
         var node = value?.Node;
         string type = node is null ? "text" : node.IsUri ? "uri" : IsKnownDate(node) ? "date" :

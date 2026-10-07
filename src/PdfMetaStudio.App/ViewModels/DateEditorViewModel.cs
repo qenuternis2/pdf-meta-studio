@@ -21,6 +21,7 @@ public sealed partial class DateEditorViewModel : ObservableObject
         new DatePrecisionOption(DatePrecision.FractionalSecond, "Доли секунды") };
     public IReadOnlyList<DateZoneOption> Zones { get; } = new[] {
         new DateZoneOption(ZoneKind.None, "Не указан"), new DateZoneOption(ZoneKind.Utc, "UTC (Z)"), new DateZoneOption(ZoneKind.Offset, "Смещение") };
+    [ObservableProperty] private string _contextLabel = "";
     [ObservableProperty] private string _year = "";
     [ObservableProperty] private string _month = "";
     [ObservableProperty] private string _day = "";

@@ -81,12 +81,12 @@
                     </StackPanel>
                 </DockPanel>
                 <StackPanel Visibility="{Binding IsLocalized, Converter={StaticResource BoolToVis}}">
-                    <ComboBox ItemsSource="{Binding LanguageOptions}" Text="{Binding SelectedLanguage, UpdateSourceTrigger=LostFocus}" IsEditable="True" AutomationProperties.Name="Язык поля"/>
+                    <ComboBox ItemsSource="{Binding LanguageOptions}" Text="{Binding SelectedLanguage, UpdateSourceTrigger=LostFocus}" IsEditable="True" AutomationProperties.Name="{Binding Label, StringFormat='Язык поля: {0}'}"/>
                     <WrapPanel><Button Content="Применить языковой вариант XMP" Command="{Binding ApplyLanguageCommand}"/><Button Content="Удалить только этот язык" Command="{Binding DeleteLanguageCommand}"/></WrapPanel>
                 </StackPanel>
                 <StackPanel Visibility="{Binding IsList, Converter={StaticResource BoolToVis}}">
-                    <ListBox ItemsSource="{Binding Items}" SelectedIndex="{Binding SelectedItemIndex}" MaxHeight="180" AutomationProperties.Name="Элементы списка"/>
-                    <TextBox Text="{Binding ItemText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Автор или элемент списка"/>
+                    <ListBox ItemsSource="{Binding Items}" SelectedIndex="{Binding SelectedItemIndex}" MaxHeight="180" AutomationProperties.Name="{Binding Label, StringFormat='Элементы: {0}'}"/>
+                    <TextBox Text="{Binding ItemText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label, StringFormat='Значение элемента: {0}'}"/>
                     <WrapPanel><Button Content="Добавить элемент" Command="{Binding AddItemCommand}"/><Button Content="Изменить элемент" Command="{Binding UpdateItemCommand}"/><Button Content="Удалить элемент" Command="{Binding DeleteItemCommand}"/><Button Content="Выше" Command="{Binding MoveItemUpCommand}"/><Button Content="Ниже" Command="{Binding MoveItemDownCommand}"/></WrapPanel>
                 </StackPanel>
                 <Grid Margin="0,6,0,0">
@@ -190,7 +190,7 @@
         <!-- Разделы и поля -->
         <Grid Grid.Row="1" Visibility="{Binding IsReviewing, Converter={StaticResource NotVis}}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="180"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}" BorderThickness="0"
@@ -261,9 +261,9 @@
                         </DockPanel>
                         <Grid Grid.Row="2">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="3*" MinWidth="220"/>
+                                <ColumnDefinition Width="3*" MinWidth="140"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="2*" MinWidth="220"/>
+                                <ColumnDefinition Width="2*" MinWidth="140"/>
                             </Grid.ColumnDefinitions>
                             <TreeView x:Name="Tree" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling" ItemsSource="{Binding Roots}" SelectedItemChanged="OnTreeSelection"
                                       AutomationProperties.Name="Дерево тегов: источник, пространство имён, свойство">
@@ -527,7 +527,7 @@
                                  AutomationProperties.Name="Ход выполнения"/>
                 </StackPanel>
                 <!-- Режим правки -->
-                <DockPanel Visibility="{Binding IsReviewing, Converter={StaticResource NotVis}}" LastChildFill="False">
+                <WrapPanel Visibility="{Binding IsReviewing, Converter={StaticResource NotVis}}" HorizontalAlignment="Right">
                     <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" VerticalAlignment="Center" Style="{StaticResource Secondary}"
                                AutomationProperties.LiveSetting="Polite"/>
                     <Button DockPanel.Dock="Right" Content="Проверить и сохранить" Command="{Binding ReviewCommand}"
@@ -536,9 +536,9 @@
                     <Button DockPanel.Dock="Right" Content="Повторить" Command="{Binding RedoCommand}" Margin="8,0,0,0" ToolTip="Ctrl+Y"/>
                     <Button DockPanel.Dock="Right" Content="Отменить" Command="{Binding UndoCommand}" Margin="8,0,0,0" ToolTip="Отменить последнюю правку"/>
                     <Button DockPanel.Dock="Right" Content="Сбросить все" Command="{Binding RevertAllCommand}" Margin="8,0,0,0"/>
-                </DockPanel>
+                </WrapPanel>
                 <!-- Режим проверки -->
-                <DockPanel Visibility="{Binding IsReviewing, Converter={StaticResource BoolToVis}}" LastChildFill="False">
+                <WrapPanel Visibility="{Binding IsReviewing, Converter={StaticResource BoolToVis}}" HorizontalAlignment="Right">
                     <TextBlock DockPanel.Dock="Left" Text="Оригинал останется без изменений" VerticalAlignment="Center" Style="{StaticResource Secondary}"/>
                     <Button DockPanel.Dock="Right" Content="Сохранить копию…" Command="{Binding SaveCopyCommand}"
                             Style="{DynamicResource AccentButtonStyle}" Margin="8,0,0,0"/>
@@ -546,7 +546,7 @@
                         <Button.ContextMenu><ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"><MenuItem Header="Заменить оригинал…" Command="{Binding ReplaceCommand}"/></ContextMenu></Button.ContextMenu>
                     </Button>
                     <Button DockPanel.Dock="Right" Content="К редактированию" Command="{Binding BackToEditCommand}" Margin="8,0,0,0" IsCancel="True"/>
-                </DockPanel>
+                </WrapPanel>
             </StackPanel>
         </Border>
     </Grid>

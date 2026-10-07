@@ -24,7 +24,7 @@ public sealed partial class FieldViewModel : ObservableObject
         _session = session;
         _service = service;
         Origin = origin;
-        if (origin.Field.Kind == FieldKind.Date) DateEditor = new DateEditorViewModel(value => Text = value);
+        if (origin.Field.Kind == FieldKind.Date) DateEditor = new DateEditorViewModel(value => Text = value) { ContextLabel = origin.Field.Label };
         SyncOptions = origin.Field.InfoKey is null
             ? new[] { new SyncOption(SyncMode.XmpOnly, "Только XMP") }
             : new[]

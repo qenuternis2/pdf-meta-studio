@@ -129,7 +129,7 @@ public sealed partial class ObjectFieldViewModel : ObservableObject
         _kind = kind;
         _address = address;
         Field = field;
-        if (field.IsDate) DateEditor = new DateEditorViewModel(value => Text = value);
+        if (field.IsDate) DateEditor = new DateEditorViewModel(value => Text = value) { ContextLabel = field.Label + " — " + objectTitle };
         ObjectTitle = objectTitle;
         Key = ObjectFields.EditKey(kind, address, field.Id);
         Reload();

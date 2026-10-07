@@ -3,19 +3,19 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
  <Expander Header="Компоненты даты, точность и часовой пояс" Margin="0,6,0,6">
   <StackPanel>
-   <TextBlock Text="Исходная строка"/><TextBox Text="{Binding Original}" IsReadOnly="True" AutomationProperties.Name="Исходная строка даты"/>
+   <TextBlock Text="Исходная строка"/><TextBox Text="{Binding Original}" IsReadOnly="True" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Исходная дата: {0}'}"/>
    <WrapPanel Margin="0,6,0,6">
     <StackPanel Margin="0,0,8,0"><TextBlock Text="Точность"/><ComboBox ItemsSource="{Binding Precisions}" SelectedItem="{Binding Precision}" DisplayMemberPath="Title" AutomationProperties.Name="Точность даты"/></StackPanel>
-    <StackPanel><TextBlock Text="Календарь"/><DatePicker SelectedDate="{Binding CalendarDate}" AutomationProperties.Name="Календарь даты"/></StackPanel>
+    <StackPanel><TextBlock Text="Календарь"/><DatePicker SelectedDate="{Binding CalendarDate}" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Календарь: {0}'}"/></StackPanel>
    </WrapPanel>
    <WrapPanel>
-<StackPanel Margin="0,0,8,6"><TextBlock Text="Год"/><TextBox Text="{Binding Year, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Год даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasMonth, Converter={StaticResource BoolToVis}}"><TextBlock Text="Месяц"/><TextBox Text="{Binding Month, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Месяц даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasDay, Converter={StaticResource BoolToVis}}"><TextBlock Text="День"/><TextBox Text="{Binding Day, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="День даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasHour, Converter={StaticResource BoolToVis}}"><TextBlock Text="Час"/><TextBox Text="{Binding Hour, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Час даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasMinute, Converter={StaticResource BoolToVis}}"><TextBlock Text="Минута"/><TextBox Text="{Binding Minute, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Минута даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasSecond, Converter={StaticResource BoolToVis}}"><TextBlock Text="Секунда"/><TextBox Text="{Binding Second, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Секунда даты"/></StackPanel>
-<StackPanel Margin="0,0,8,6" Visibility="{Binding HasFraction, Converter={StaticResource BoolToVis}}"><TextBlock Text="Доля"/><TextBox Text="{Binding Fraction, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="Доля даты"/></StackPanel>
+<StackPanel Margin="0,0,8,6"><TextBlock Text="Год"/><TextBox Text="{Binding Year, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Год даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasMonth, Converter={StaticResource BoolToVis}}"><TextBlock Text="Месяц"/><TextBox Text="{Binding Month, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Месяц даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasDay, Converter={StaticResource BoolToVis}}"><TextBlock Text="День"/><TextBox Text="{Binding Day, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='День даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasHour, Converter={StaticResource BoolToVis}}"><TextBlock Text="Час"/><TextBox Text="{Binding Hour, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Час даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasMinute, Converter={StaticResource BoolToVis}}"><TextBlock Text="Минута"/><TextBox Text="{Binding Minute, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Минута даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasSecond, Converter={StaticResource BoolToVis}}"><TextBlock Text="Секунда"/><TextBox Text="{Binding Second, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Секунда даты: {0}'}"/></StackPanel>
+<StackPanel Margin="0,0,8,6" Visibility="{Binding HasFraction, Converter={StaticResource BoolToVis}}"><TextBlock Text="Доля"/><TextBox Text="{Binding Fraction, UpdateSourceTrigger=PropertyChanged}" MinWidth="54" AutomationProperties.Name="{Binding ContextLabel, StringFormat='Доля даты: {0}'}"/></StackPanel>
 </WrapPanel>
    <TextBlock Text="Часовой пояс"/><ComboBox ItemsSource="{Binding Zones}" SelectedItem="{Binding Zone}" DisplayMemberPath="Title" AutomationProperties.Name="Часовой пояс даты"/>
    <TextBox Text="{Binding Offset, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding HasOffset, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Смещение часового пояса: плюс или минус ЧЧ:ММ"/>
