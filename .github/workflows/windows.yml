@@ -8,11 +8,20 @@ on:
         description: 'Создать релиз с этим тегом (например v0.1.0); пусто — только сборка'
         required: false
         default: ''
+      gui_only:
+        description: 'Run GUI acceptance using a previously built native worker; skips native/MSI acceptance'
+        type: boolean
+        default: false
+      package_run_id:
+        description: 'Successful run containing PdfMetaStudio-win-x64 (required for GUI-only mode)'
+        type: string
+        default: ''
 # Сборке нужен только доступ на чтение репозитория.
 permissions:
   contents: read
 jobs:
   build:
+    if: ${{ !inputs.gui_only }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -106,6 +115,43 @@ jobs:
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
+  gui_acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.gui_only }}
+    runs-on: windows-2022
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: PdfMetaStudio-win-x64
+          path: dist/PdfMetaStudio
+          run-id: ${{ inputs.package_run_id }}
+          github-token: ${{ github.token }}
+      - name: Rebuild managed GUI and run acceptance
+        timeout-minutes: 12
+        shell: pwsh
+        env:
+          GUI_ENGINE_PACKAGE_RUN: ${{ inputs.package_run_id }}
+        run: |
+          dotnet publish src/PdfMetaStudio.App -c Release -r win-x64 --self-contained true -o dist/PdfMetaStudio
+          if ($LASTEXITCODE) { throw 'Managed GUI publication failed' }
+          python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
+          python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
+          if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-acceptance
+          path: windows-acceptance
   # Релиз: при пуше тега v* или ручном запуске с release_tag архив сборки публикуется как GitHub Release.
   release:
     needs: build
