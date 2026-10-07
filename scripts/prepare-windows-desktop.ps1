@@ -1,5 +1,6 @@
 param([Parameter(Mandatory)][string]$OutDir)
 $ErrorActionPreference = 'Stop'
+if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Desktop preparation is restricted to disposable GitHub Actions VMs' }
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 # First-sign-in privacy UI can cover the entire hosted Windows 11 desktop and consume SendKeys.

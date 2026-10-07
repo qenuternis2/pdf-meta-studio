@@ -11,6 +11,7 @@ param(
     [switch]$KeyboardChecks,
     [switch]$LayoutChecks,
     [switch]$StressChecks,
+    [switch]$CalendarChecks,
     [ValidateSet('', 'light', 'dark')][string]$ExpectedTheme = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -200,6 +201,31 @@ try {
     $deleted = CountByName $win 'Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить.'
     if ($marks -ne 0 -or $deleted -ne 0) { throw "без правок видны пометки: «изменено» ×$marks, «удалено» ×$deleted" }
     Log 'OK  без правок нет пометок «изменено» и «удалено»'
+
+    if ($CalendarChecks) {
+        $step = 'calendar'
+        ($items | Where-Object { $_.Current.Name -eq 'Даты и ПО' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $components = WaitFor { ByName $win 'Компоненты даты, точность и часовой пояс' } 10
+        if (-not $components) { throw 'Date component expander is missing' }
+        $components.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
+        $calendarInput = WaitFor { ByName $win 'Календарь: Дата создания' } 10
+        if (-not $calendarInput) { throw 'Creation date calendar is missing' }
+        $originalDate = Value (ByName $win 'Исходная дата: Дата создания')
+        $calendarPattern = $calendarInput.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+        $calendarPattern.Expand()
+        $popup = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::ControlTypeProperty $CT::Calendar))) } 10
+        if (-not $popup) { throw 'Calendar popup did not open' }
+        $bounds = $popup.Current.BoundingRectangle
+        $screen = [Windows.Forms.SystemInformation]::VirtualScreen
+        if ($popup.Current.IsOffscreen -or $bounds.Left -lt $screen.Left -or $bounds.Top -lt $screen.Top -or $bounds.Right -gt $screen.Right -or $bounds.Bottom -gt $screen.Bottom) { throw 'Calendar popup is clipped by the desktop' }
+        Shot 'calendar-popup'
+        Keys '{ESC}'
+        if (-not (WaitFor { $calendarPattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed } 5)) { throw 'Escape did not close the calendar popup' }
+        if ((Value (ByName $win 'Исходная дата: Дата создания')) -ne $originalDate -or (CountByName $win ' · изменено') -ne 0) { throw 'Calendar inspection changed the document date' }
+        $components.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Collapse()
+        ($items | Where-Object { $_.Current.Name -eq 'Основные' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Log 'OK  calendar opens within the desktop, Escape closes it and original date precision/value remains unchanged'
+    }
 
     if ($StressChecks) {
         ($items | Where-Object { $_.Current.Name -eq 'Все теги' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()

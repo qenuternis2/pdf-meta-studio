@@ -1,16 +1,18 @@
-param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Pdf, [Parameter(Mandatory)][string]$StressPdf, [Parameter(Mandatory)][string]$OutDir)
+param([Parameter(Mandatory)][string]$Exe, [Parameter(Mandatory)][string]$Pdf, [Parameter(Mandatory)][string]$StressPdf, [Parameter(Mandatory)][string]$OutDir, [switch]$CalendarChecks)
 $ErrorActionPreference = 'Stop'
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
 $existed = Test-Path $key
 $original = if ($existed) { (Get-ItemProperty -LiteralPath $key -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme } else { $null }
 $cases = @()
+$calendarArgs = @()
+if ($CalendarChecks) { $calendarArgs += '-CalendarChecks' }
 try {
     if (-not $existed) { New-Item -Path $key -Force | Out-Null }
     foreach ($theme in @('light', 'dark')) {
         New-ItemProperty -LiteralPath $key -Name AppsUseLightTheme -PropertyType DWord -Value $(if ($theme -eq 'light') { 1 } else { 0 }) -Force | Out-Null
         $timer = [Diagnostics.Stopwatch]::StartNew()
-        & powershell.exe -NoProfile -File "$PSScriptRoot\gui-smoke.ps1" -Exe $Exe -Pdf $Pdf -OutDir (Join-Path $OutDir $theme) -KeyboardChecks -LayoutChecks -ExpectedTheme $theme
+        & powershell.exe -NoProfile -File "$PSScriptRoot\gui-smoke.ps1" -Exe $Exe -Pdf $Pdf -OutDir (Join-Path $OutDir $theme) -KeyboardChecks -LayoutChecks -ExpectedTheme $theme @calendarArgs
         $cases += @{ case = $theme; exitCode = $LASTEXITCODE; seconds = $timer.Elapsed.TotalSeconds }
         if ($LASTEXITCODE) { throw "$theme keyboard/theme/layout acceptance failed" }
     }

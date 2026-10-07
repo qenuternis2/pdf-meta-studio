@@ -181,7 +181,7 @@ jobs:
         run: |
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
-          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows11-acceptance/gui"
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows11-acceptance/gui" -CalendarChecks
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -229,7 +229,7 @@ jobs:
           python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
-          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance"
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance" -CalendarChecks
       - uses: actions/upload-artifact@v4
         if: always()
         with:
