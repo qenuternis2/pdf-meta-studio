@@ -22,6 +22,44 @@ $OutDir = [IO.Path]::GetFullPath($OutDir).Replace('/', '\')
 # Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class AcceptanceFocus {
+    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr id);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr h);
+    [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
+    delegate bool EnumChild(IntPtr h, IntPtr arg);
+    [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumChild cb, IntPtr arg);
+    public static void Activate(IntPtr window, int controlId) {
+        uint current = GetCurrentThreadId();
+        uint foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+        uint target = GetWindowThreadProcessId(window, IntPtr.Zero);
+        bool attachedForeground = foreground != 0 && foreground != current && AttachThreadInput(current, foreground, true);
+        bool attachedTarget = target != 0 && target != current && target != foreground && AttachThreadInput(current, target, true);
+        try {
+            BringWindowToTop(window);
+            SetForegroundWindow(window);
+            if (controlId != 0) {
+                IntPtr input = IntPtr.Zero;
+                EnumChildWindows(window, delegate(IntPtr h, IntPtr arg) {
+                    if (GetDlgCtrlID(h) == controlId) { input = h; return false; }
+                    return true;
+                }, IntPtr.Zero);
+                if (input != IntPtr.Zero) SetFocus(input);
+            }
+        } finally {
+            if (attachedTarget) AttachThreadInput(current, target, false);
+            if (attachedForeground) AttachThreadInput(current, foreground, false);
+        }
+    }
+}
+'@
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
 $CT = [System.Windows.Automation.ControlType]
@@ -82,6 +120,8 @@ function Dialog([int]$processId) {
 # вводим путь с клавиатуры, как пользователь: фокус по умолчанию стоит в поле имени.
 function TypeIntoDialog($dlg, [string]$text) {
     try { $dlg.SetFocus() } catch { }
+    # Shell controls may be exposed only as panes on ARM64; focus the native filename edit.
+    [AcceptanceFocus]::Activate([IntPtr]$dlg.Current.NativeWindowHandle, 1148)
     Start-Sleep -Milliseconds 500
     # Prefer the Shell dialog's filename control instead of relying on initial focus.
     $fileName = $dlg.FindFirst($TS::Descendants, (Cond $AE::AutomationIdProperty '1148'))
@@ -128,6 +168,7 @@ try {
     if (-not $hwnd) { throw 'главное окно не появилось за 60 с' }
     Start-Sleep -Seconds 2
     $win = $AE::FromHandle($proc.MainWindowHandle)
+    [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
     Log ("OK  запуск: окно «{0}» за {1:N1} с" -f $win.Current.Name, $sw.Elapsed.TotalSeconds)
 
     $step = 'home'
