@@ -31,10 +31,13 @@ public static class ReviewBuilder
         var after = Entries(preview["info"]?["after"]);
         foreach (var key in before.Keys.Union(after.Keys).OrderBy(k => k, StringComparer.Ordinal))
         {
-            before.TryGetValue(key, out var b);
-            after.TryGetValue(key, out var a);
-            if (b == a) continue;
-            rows.Add(new ReviewRow("/Info", key, b ?? "Ключ отсутствовал", a ?? "Ключ будет удалён",
+            bool hasB = before.TryGetValue(key, out var b);
+            bool hasA = after.TryGetValue(key, out var a);
+            if (hasB && hasA && b == a) continue;
+            bool typeChanged = hasB && hasA && b.Kind != a.Kind;
+            rows.Add(new ReviewRow("/Info", key,
+                hasB ? (typeChanged ? ShowInfo(b) : b.Value) : "Ключ отсутствовал",
+                hasA ? (typeChanged ? ShowInfo(a) : a.Value) : "Ключ будет удалён",
                 request.RequestedKeys.Contains("info:" + key), null));
         }
 
@@ -61,7 +64,7 @@ public static class ReviewBuilder
                 bool hasB = sb.TryGetValue(key, out var vb);
                 bool hasA = sa.TryGetValue(key, out var va);
                 if (hasB && hasA && vb == va) continue;
-                var node = hasA ? ma.Nodes.First(n => n.Key == key) : mb.Nodes.First(n => n.Key == key);
+                var node = hasA ? ma.FindByKey(key)! : mb.FindByKey(key)!;
                 // Узлы-контейнеры без значения показываются через их элементы.
                 if (!node.IsSimple && hasB && hasA) continue;
                 string path = hasA ? ma.Display(node) : mb.Display(node);
@@ -94,11 +97,14 @@ public static class ReviewBuilder
     private static string Show((string Form, string? Value) v) =>
         v.Form == "simple" ? (v.Value is { Length: > 0 } ? v.Value : "Пустое значение") : XmpNode.FormTitle(v.Form);
 
-    private static Dictionary<string, string> Entries(JsonNode? info)
+    private static string ShowInfo((string Kind, string Value) entry) =>
+        (entry.Kind switch { "name" => "Имя PDF", "string" => "Строка PDF", _ => entry.Kind }) + ": " + entry.Value;
+
+    private static Dictionary<string, (string Kind, string Value)> Entries(JsonNode? info)
     {
-        var d = new Dictionary<string, string>();
+        var d = new Dictionary<string, (string Kind, string Value)>();
         foreach (var e in (JsonArray?)info?["entries"] ?? new JsonArray())
-            d[(string)e!["key"]!] = (string?)e["kind"] == "name" ? (string?)e["value"] ?? "" : (string?)e["value"] ?? "";
+            d[(string)e!["key"]!] = ((string?)e["kind"] ?? "other", (string?)e["value"] ?? "");
         return d;
     }
 
