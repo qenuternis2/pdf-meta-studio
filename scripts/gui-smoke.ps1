@@ -27,6 +27,14 @@ using System;
 using System.Runtime.InteropServices;
 public static class AcceptanceFocus {
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern IntPtr GetLastActivePopup(IntPtr h);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint id);
+    public static bool HasForeground(int processId) {
+        uint id;
+        GetWindowThreadProcessId(GetForegroundWindow(), out id);
+        return id == (uint)processId;
+    }
+    public static IntPtr ActivePopup(IntPtr owner) { return GetLastActivePopup(owner); }
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr id);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
@@ -91,7 +99,14 @@ function Press($el) { $el.GetCurrentPattern([System.Windows.Automation.InvokePat
 function SetValue($el, [string]$v) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($v) }
 function Value($el) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value }
 function FocusId($el) { (@($el.GetRuntimeId()) -join '.') }
-function Keys([string]$keys) { [System.Windows.Forms.SendKeys]::SendWait($keys); Start-Sleep -Milliseconds 70 }
+function Keys([string]$keys) {
+    if ($desktopGuard -and -not [AcceptanceFocus]::HasForeground($proc.Id)) {
+        [AcceptanceFocus]::Activate([AcceptanceFocus]::ActivePopup($proc.MainWindowHandle), 0)
+        Start-Sleep -Milliseconds 100
+    }
+    [System.Windows.Forms.SendKeys]::SendWait($keys)
+    Start-Sleep -Milliseconds 70
+}
 function AssertTabCycle($anchor, [string]$keys) {
     $anchor.SetFocus()
     $start = FocusId $anchor
@@ -157,10 +172,23 @@ function DumpTree($root, [int]$max = 120) {
 }
 
 $proc = $null
+$desktopGuard = $null
 $step = 'start'
 try {
     if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_ARCH -eq 'ARM64') {
         & (Join-Path $PSScriptRoot 'prepare-windows-desktop.ps1') -OutDir $OutDir
+        # First-logon tasks can relaunch WSL/Terminal during a later save dialog.
+        # Reap only known hosted-image setup surfaces for the lifetime of this CI case.
+        $desktopGuard = Start-Job -ArgumentList (Join-Path $OutDir 'desktop-guard.log') -ScriptBlock {
+            param($guardLog)
+            while ($true) {
+                foreach ($process in @(Get-Process -Name WWAHost, UserOOBEBroker, msoobe, CloudExperienceHostBroker, SystemPropertiesPerformance, wsl, WindowsTerminal -ErrorAction SilentlyContinue)) {
+                    ('{0:o} stopped {1} {2}' -f [DateTime]::UtcNow, $process.ProcessName, $process.Id) | Add-Content -Path $guardLog
+                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                }
+                Start-Sleep -Milliseconds 100
+            }
+        }
     }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $proc = Start-Process -FilePath $Exe -PassThru
@@ -430,5 +458,6 @@ catch {
     exit 1
 }
 finally {
+    if ($desktopGuard) { Stop-Job $desktopGuard; Remove-Job $desktopGuard -Force }
     if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
 }

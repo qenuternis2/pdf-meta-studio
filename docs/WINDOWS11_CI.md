@@ -16,7 +16,7 @@ The automated cases cover:
 - Calendar popup visibility, Escape dismissal and preservation of the original date.
 - 10,000-tag search, complete 1 MiB text inspection/navigation and exact saved tag/value preservation.
 
-The image can display first-sign-in privacy setup over the entire desktop. This is tracked upstream in [runner-images issue #14069](https://github.com/actions/runner-images/issues/14069). `prepare-windows-desktop.ps1` is restricted to disposable GitHub Actions VMs, disables that setup experience by policy and stops WWAHost/setup brokers and first-login performance/Start-menu/WSL-update surfaces immediately before each keyboard automation case; it does not accept privacy defaults. This preparation is recorded.
+The image can display first-sign-in privacy setup over the entire desktop. This is tracked upstream in [runner-images issue #14069](https://github.com/actions/runner-images/issues/14069). `prepare-windows-desktop.ps1` is restricted to disposable GitHub Actions VMs, disables that setup experience by policy and stops WWAHost/setup brokers and first-login performance/Start-menu/WSL-update surfaces immediately before each keyboard automation case; it does not accept privacy defaults. This preparation is recorded. Each ARM CI GUI case also watches for relaunched setup/WSL/Terminal processes until completion and records every termination in `desktop-guard.log`; the guard is stopped in `finally`.
 
 The optional `gui_only` workflow dispatch also uses Windows 11 ARM, rebuilding managed code over a specified earlier native package. Its `enginePackageRun` identifies that reuse. It is a GUI diagnostic run and does not establish native/MSI acceptance for current source.
 
