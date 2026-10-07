@@ -1,0 +1,3628 @@
+{
+  "renderer": "Poppler, all pages at 72 DPI scaled to a maximum dimension of 1024 pixels",
+  "limits": {
+    "pages": 50,
+    "renderSeconds": 10
+  },
+  "files": [
+    {
+      "file": "11-pages-with-labels.pdf",
+      "status": "passed",
+      "pages": 11,
+      "seconds": 0.69
+    },
+    {
+      "file": "11-pages.pdf",
+      "status": "passed",
+      "pages": 11,
+      "seconds": 0.685
+    },
+    {
+      "file": "20-pages.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "V4-aes-clearmeta.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.831
+    },
+    {
+      "file": "V4-aes.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.853
+    },
+    {
+      "file": "V4-clearmeta.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.014
+    },
+    {
+      "file": "V4.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.013
+    },
+    {
+      "file": "add-attachments-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.618
+    },
+    {
+      "file": "add-attachments-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "add-contents.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.607
+    },
+    {
+      "file": "annotation-no-resources-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.051
+    },
+    {
+      "file": "annotation-no-resources.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.003
+    },
+    {
+      "file": "annotations-foreign-file.out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.662
+    },
+    {
+      "file": "annotations-no-acroform-with-p.out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.663
+    },
+    {
+      "file": "annotations-no-acroform-with-p.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.612
+    },
+    {
+      "file": "annotations-no-acroform.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "annotations-rotated-180.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.608
+    },
+    {
+      "file": "annotations-rotated-270.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.712
+    },
+    {
+      "file": "annotations-rotated-90.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.618
+    },
+    {
+      "file": "annotations-same-file.out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.865
+    },
+    {
+      "file": "appearances-1-rotated.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.882
+    },
+    {
+      "file": "appearances-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.686
+    },
+    {
+      "file": "appearances-11.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.623
+    },
+    {
+      "file": "appearances-12.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.627
+    },
+    {
+      "file": "appearances-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.631
+    },
+    {
+      "file": "appearances-a-more.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.616
+    },
+    {
+      "file": "appearances-a-more2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.632
+    },
+    {
+      "file": "appearances-a-more3.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.318
+    },
+    {
+      "file": "appearances-a.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.628
+    },
+    {
+      "file": "appearances-b.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.629
+    },
+    {
+      "file": "appearances-quack.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.637
+    },
+    {
+      "file": "append-page-content-damaged.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.013
+    },
+    {
+      "file": "append-page-content.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.82
+    },
+    {
+      "file": "append-xref-loop-fixed.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.834
+    },
+    {
+      "file": "append-xref-loop.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.012
+    },
+    {
+      "file": "attachment-fields.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "bad-content.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.008
+    },
+    {
+      "file": "bad-data-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.02
+    },
+    {
+      "file": "bad-data.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.02
+    },
+    {
+      "file": "bad-direct-root.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad-encryption-length.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad-jpeg-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.298
+    },
+    {
+      "file": "bad-jpeg.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.324
+    },
+    {
+      "file": "bad-token-startxref.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.339
+    },
+    {
+      "file": "bad-xref-entry.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad-xref.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad1.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "bad10.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad11.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad12.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad13.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad14.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad15.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad16.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad17.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad18.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad19.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad2.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad20.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad21.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad22.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad23.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad24.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad25.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad26.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad27.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad28.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad29.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad3.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad30.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.653
+    },
+    {
+      "file": "bad31.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "bad32.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad33.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad34.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad35.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad36.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad37.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad38.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad39.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad4.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad40.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad5.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad6.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad7.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "bad8.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "bad9.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "badlin1.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.359
+    },
+    {
+      "file": "big-ostream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "boxes-flattened.pdf",
+      "status": "passed",
+      "pages": 8,
+      "seconds": 0.864
+    },
+    {
+      "file": "boxes.pdf",
+      "status": "passed",
+      "pages": 8,
+      "seconds": 0.843
+    },
+    {
+      "file": "boxes2.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.799
+    },
+    {
+      "file": "broken-decode-parms-no-filter.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.633
+    },
+    {
+      "file": "broken-lzw.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.023
+    },
+    {
+      "file": "button-set-broken-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "KeyError: '/AP'",
+      "seconds": 0.018
+    },
+    {
+      "file": "button-set-broken.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "KeyError: '/AP'",
+      "seconds": 0.017
+    },
+    {
+      "file": "button-set-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "KeyError: '/AP'",
+      "seconds": 0.017
+    },
+    {
+      "file": "button-set.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "KeyError: '/AP'",
+      "seconds": 0.017
+    },
+    {
+      "file": "c-check-clear-in.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "c-check-warn-in.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "c-decrypt-R5-with-user.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.844
+    },
+    {
+      "file": "c-decrypt-R6-with-owner.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.836
+    },
+    {
+      "file": "c-decrypt-with-owner.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.859
+    },
+    {
+      "file": "c-decrypt-with-user.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.948
+    },
+    {
+      "file": "c-empty.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.001
+    },
+    {
+      "file": "c-foreign.pdf",
+      "status": "passed",
+      "pages": 11,
+      "seconds": 0.743
+    },
+    {
+      "file": "c-ignore-xref-streams.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.842
+    },
+    {
+      "file": "c-indirect-objects-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "c-info-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.607
+    },
+    {
+      "file": "c-info2-in.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.618
+    },
+    {
+      "file": "c-linearized.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.836
+    },
+    {
+      "file": "c-new-stream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.624
+    },
+    {
+      "file": "c-no-options.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.879
+    },
+    {
+      "file": "c-no-original-object-ids.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.852
+    },
+    {
+      "file": "c-normalized-content.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.837
+    },
+    {
+      "file": "c-object-handle-creation-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "c-object-handles-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.593
+    },
+    {
+      "file": "c-object-streams.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.841
+    },
+    {
+      "file": "c-pages.pdf",
+      "status": "passed",
+      "pages": 13,
+      "seconds": 0.751
+    },
+    {
+      "file": "c-qdf.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.86
+    },
+    {
+      "file": "c-r2.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "c-r3.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "c-r4.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "c-r5-in.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "c-r6-in.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "c-uncompressed-streams.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.857
+    },
+    {
+      "file": "catalgg.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "coalesce-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.308
+    },
+    {
+      "file": "coalesce.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.3
+    },
+    {
+      "file": "collate-even.pdf",
+      "status": "passed",
+      "pages": 15,
+      "seconds": 0.765
+    },
+    {
+      "file": "collate-odd.pdf",
+      "status": "passed",
+      "pages": 15,
+      "seconds": 0.752
+    },
+    {
+      "file": "comment-annotation-direct-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "comment-annotation-direct.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.616
+    },
+    {
+      "file": "comment-annotation-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.604
+    },
+    {
+      "file": "comment-annotation.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.6
+    },
+    {
+      "file": "compress-objstm-xref-qdf.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.677
+    },
+    {
+      "file": "compress-objstm-xref.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.707
+    },
+    {
+      "file": "compressed-metadata-out-normal.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.859
+    },
+    {
+      "file": "compressed-metadata.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.009
+    },
+    {
+      "file": "content-stream-errors.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.306
+    },
+    {
+      "file": "copied-positive-P.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.664
+    },
+    {
+      "file": "copy-attachments-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.63
+    },
+    {
+      "file": "copy-foreign-objects-in.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.645
+    },
+    {
+      "file": "copy-foreign-objects-out1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "copy-foreign-objects-out2.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.611
+    },
+    {
+      "file": "copy-foreign-objects-out3.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.623
+    },
+    {
+      "file": "custom-pipeline.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "damaged-inline-image-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.048
+    },
+    {
+      "file": "damaged-inline-image.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.047
+    },
+    {
+      "file": "damaged-stream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.617
+    },
+    {
+      "file": "dangling-bad-xref-dangling-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.643
+    },
+    {
+      "file": "dangling-bad-xref.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "dangling-refs-dangling-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.954
+    },
+    {
+      "file": "dangling-refs.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.67
+    },
+    {
+      "file": "decrypted-crypt-filter.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.844
+    },
+    {
+      "file": "decrypted-positive-P.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.603
+    },
+    {
+      "file": "deep-duplicate-pages.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.649
+    },
+    {
+      "file": "deep-pages.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.003
+    },
+    {
+      "file": "default-da-q-out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.636
+    },
+    {
+      "file": "default-da-q.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.306
+    },
+    {
+      "file": "delete-and-reuse.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.857
+    },
+    {
+      "file": "deterministic-id-in.pdf",
+      "status": "passed",
+      "pages": 43,
+      "seconds": 1.455
+    },
+    {
+      "file": "digitally-signed.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.61
+    },
+    {
+      "file": "direct-dr-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.617
+    },
+    {
+      "file": "direct-dr.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.615
+    },
+    {
+      "file": "direct-outlines.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.829
+    },
+    {
+      "file": "direct-pages-fixed.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.603
+    },
+    {
+      "file": "direct-pages.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "dr-with-indirect-item-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.049
+    },
+    {
+      "file": "dr-with-indirect-item.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.047
+    },
+    {
+      "file": "duplicate-page-inherited-1-fixed.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.6
+    },
+    {
+      "file": "duplicate-page-inherited-2-fixed.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.605
+    },
+    {
+      "file": "duplicate-page-inherited.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "duplicate-pages.pdf",
+      "status": "passed",
+      "pages": 7,
+      "seconds": 0.645
+    },
+    {
+      "file": "empty-decode-parms-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.045
+    },
+    {
+      "file": "empty-decode-parms.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.043
+    },
+    {
+      "file": "empty-object.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "empty-stream-compressed.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.002
+    },
+    {
+      "file": "empty-stream-uncompressed.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.043
+    },
+    {
+      "file": "empty.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.001
+    },
+    {
+      "file": "enc-R2,V1,O=master.pdf",
+      "status": "refused_permission_denied",
+      "seconds": 0.004
+    },
+    {
+      "file": "enc-R2,V1,U=view,O=master.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "enc-R2,V1,U=view,O=view.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "enc-R2,V1.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.836
+    },
+    {
+      "file": "enc-R3,V2,O=master.pdf",
+      "status": "refused_permission_denied",
+      "seconds": 0.004
+    },
+    {
+      "file": "enc-R3,V2,U=view,O=master.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "enc-R3,V2,U=view,O=view.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "enc-R3,V2.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.838
+    },
+    {
+      "file": "enc-XI-R6,V5,O=master.pdf",
+      "status": "refused_permission_denied",
+      "seconds": 0.023
+    },
+    {
+      "file": "enc-XI-R6,V5,U=attachment,encrypted-attachments.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "enc-XI-R6,V5,U=view,O=master.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "enc-XI-R6,V5,U=view,attachments,cleartext-metadata.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "enc-XI-R6,V5,U=wwwww,O=wwwww.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.004
+    },
+    {
+      "file": "enc-XI-attachments-base.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.818
+    },
+    {
+      "file": "enc-XI-base.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.858
+    },
+    {
+      "file": "enc-XI-long-password.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "enc-base.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.836
+    },
+    {
+      "file": "enc-long-password.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "encrypted-40-bit-R3.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "encrypted-positive-P.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.672
+    },
+    {
+      "file": "encrypted-with-images.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.069
+    },
+    {
+      "file": "endobj-at-eol-fixed.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "endobj-at-eol.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "eof-in-inline-image.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "eof-reading-token.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "eof-terminates-literal.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "erase-nntree-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.589
+    },
+    {
+      "file": "erase-nntree.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "extensions-adbe-force-1.8.5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.629
+    },
+    {
+      "file": "extensions-adbe-other-force-1.8.5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.588
+    },
+    {
+      "file": "extensions-adbe-other.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.61
+    },
+    {
+      "file": "extensions-adbe.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.592
+    },
+    {
+      "file": "extensions-none-force-1.8.5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "extensions-other-force-1.8.5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.592
+    },
+    {
+      "file": "extensions-other.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.584
+    },
+    {
+      "file": "extra-header-lin-newline.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "extra-header-lin-no-newline.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.608
+    },
+    {
+      "file": "extra-header-newline.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.599
+    },
+    {
+      "file": "extra-header-no-newline.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.599
+    },
+    {
+      "file": "extract-duplicate-page.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.609
+    },
+    {
+      "file": "fax-decode-parms.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 1.017
+    },
+    {
+      "file": "field-parse-errors-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.653
+    },
+    {
+      "file": "field-parse-errors.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.638
+    },
+    {
+      "file": "field-resource-conflict.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "field-types.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.328
+    },
+    {
+      "file": "fields-pages-out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.661
+    },
+    {
+      "file": "fields-split-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "fields-split-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.638
+    },
+    {
+      "file": "fields-two-pages.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.665
+    },
+    {
+      "file": "filter-abbreviation.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.604
+    },
+    {
+      "file": "filter-on-write-out.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.001
+    },
+    {
+      "file": "filter-on-write.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.001
+    },
+    {
+      "file": "form-bad-fields-array.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.007
+    },
+    {
+      "file": "form-document-defaults.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.325
+    },
+    {
+      "file": "form-empty-from-odt.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.323
+    },
+    {
+      "file": "form-errors.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.007
+    },
+    {
+      "file": "form-fields-and-annotations-shared.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.654
+    },
+    {
+      "file": "form-fields-and-annotations.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.62
+    },
+    {
+      "file": "form-filled-by-acrobat-out.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.653
+    },
+    {
+      "file": "form-filled-by-acrobat.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.326
+    },
+    {
+      "file": "form-filled-with-atril.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.011
+    },
+    {
+      "file": "form-mod1.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.338
+    },
+    {
+      "file": "form-no-need-appearances-filled.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.634
+    },
+    {
+      "file": "form-no-need-appearances.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.049
+    },
+    {
+      "file": "form-xobjects-no-resources-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.625
+    },
+    {
+      "file": "form-xobjects-no-resources.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.631
+    },
+    {
+      "file": "form-xobjects-out.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.895
+    },
+    {
+      "file": "form-xobjects-some-resources1-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.709
+    },
+    {
+      "file": "form-xobjects-some-resources1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.613
+    },
+    {
+      "file": "form-xobjects-some-resources2-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.612
+    },
+    {
+      "file": "form-xobjects-some-resources2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.612
+    },
+    {
+      "file": "from-scratch-0.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.599
+    },
+    {
+      "file": "fuzz-16214.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.005
+    },
+    {
+      "file": "fx-overlay-56.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.903
+    },
+    {
+      "file": "fx-overlay-57.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.984
+    },
+    {
+      "file": "fx-overlay-58.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.896
+    },
+    {
+      "file": "fx-overlay-59.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.883
+    },
+    {
+      "file": "fx-overlay-64.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.644
+    },
+    {
+      "file": "fx-overlay-65.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.627
+    },
+    {
+      "file": "fx-overlay-66.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.635
+    },
+    {
+      "file": "fx-overlay-67.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.626
+    },
+    {
+      "file": "fxo-bigsmall.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.618
+    },
+    {
+      "file": "fxo-blue.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.82
+    },
+    {
+      "file": "fxo-green.pdf",
+      "status": "passed",
+      "pages": 8,
+      "seconds": 0.699
+    },
+    {
+      "file": "fxo-red-rotate.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.792
+    },
+    {
+      "file": "fxo-red.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.806
+    },
+    {
+      "file": "fxo-smallbig.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.657
+    },
+    {
+      "file": "gen1-no-dangling.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.603
+    },
+    {
+      "file": "gen1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.606
+    },
+    {
+      "file": "global.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.603
+    },
+    {
+      "file": "global_damaged.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "good1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "good10.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.592
+    },
+    {
+      "file": "good11.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "good12.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "good13.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.001
+    },
+    {
+      "file": "good14.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "good15.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.593
+    },
+    {
+      "file": "good16.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.606
+    },
+    {
+      "file": "good17-not-qdf.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.937
+    },
+    {
+      "file": "good17-not-recompressed.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.917
+    },
+    {
+      "file": "good17.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.841
+    },
+    {
+      "file": "good18.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.832
+    },
+    {
+      "file": "good19.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "good2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.606
+    },
+    {
+      "file": "good20.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.615
+    },
+    {
+      "file": "good21.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.629
+    },
+    {
+      "file": "good3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "good4.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "good5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "good6.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "good7.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.607
+    },
+    {
+      "file": "good8.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "good9.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.609
+    },
+    {
+      "file": "hybrid-xref.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.828
+    },
+    {
+      "file": "i3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.094
+    },
+    {
+      "file": "image-streams-small.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.663
+    },
+    {
+      "file": "image-streams.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.808
+    },
+    {
+      "file": "incremental-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.641
+    },
+    {
+      "file": "incremental-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.638
+    },
+    {
+      "file": "incremental-3.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.304
+    },
+    {
+      "file": "indirect-decode-parms-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.588
+    },
+    {
+      "file": "indirect-decode-parms.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.623
+    },
+    {
+      "file": "indirect-filter-out-0.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.049
+    },
+    {
+      "file": "indirect-filter-out-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.046
+    },
+    {
+      "file": "indirect-filter.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.052
+    },
+    {
+      "file": "indirect-r-arg.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "inherited-flattened.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "inherited-rotate.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.599
+    },
+    {
+      "file": "inline-image-colorspace-lookup-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "inline-image-colorspace-lookup.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "inline-images-ii-all.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.782
+    },
+    {
+      "file": "inline-images-ii-some.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.672
+    },
+    {
+      "file": "inline-images.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.358
+    },
+    {
+      "file": "inspect.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "invalid-id-xref.pdf",
+      "status": "refused_permission_denied",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-100.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-101.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-106.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-117.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "issue-119.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-120.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-141a.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-141b.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-143.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-146.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-147.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-148.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-149.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "issue-150.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-1503.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.003
+    },
+    {
+      "file": "issue-1688a.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-1688b.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-202.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.023
+    },
+    {
+      "file": "issue-263.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-335a.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.005
+    },
+    {
+      "file": "issue-335b.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "issue-449.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-99.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "issue-99b.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.0
+    },
+    {
+      "file": "job-json-add-attachments.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.6
+    },
+    {
+      "file": "job-json-choice-match.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.613
+    },
+    {
+      "file": "job-json-copy-attachments.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "job-json-empty-input.pdf",
+      "status": "passed",
+      "pages": 6,
+      "seconds": 0.641
+    },
+    {
+      "file": "job-json-encrypt-128.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "job-json-encrypt-40.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "job-json-input-file-password.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.81
+    },
+    {
+      "file": "job-json-misc-options.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.59
+    },
+    {
+      "file": "job-json-replace-input.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "job-json-underlay-overlay-password.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.609
+    },
+    {
+      "file": "job-json-underlay-overlay.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.899
+    },
+    {
+      "file": "jpeg-qstream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "json-changed-form-fields-and-annotations.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.682
+    },
+    {
+      "file": "json-changed-good13.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.003
+    },
+    {
+      "file": "json-changed-need-appearances.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.426
+    },
+    {
+      "file": "kept-no-fields.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.651
+    },
+    {
+      "file": "kept-some-fields.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.619
+    },
+    {
+      "file": "labels-split-01-06.pdf",
+      "status": "passed",
+      "pages": 6,
+      "seconds": 0.647
+    },
+    {
+      "file": "labels-split-07-11.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.65
+    },
+    {
+      "file": "large-inline-image-ii-all.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.121
+    },
+    {
+      "file": "large-inline-image-ii-some.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.121
+    },
+    {
+      "file": "large-inline-image.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.234
+    },
+    {
+      "file": "leading-junk.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.844
+    },
+    {
+      "file": "lin-delete-and-reuse.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.828
+    },
+    {
+      "file": "lin-special.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.622
+    },
+    {
+      "file": "lin0.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.591
+    },
+    {
+      "file": "lin1.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.85
+    },
+    {
+      "file": "lin2.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.806
+    },
+    {
+      "file": "lin3.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.832
+    },
+    {
+      "file": "lin4.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.812
+    },
+    {
+      "file": "lin5.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.837
+    },
+    {
+      "file": "lin6.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.013
+    },
+    {
+      "file": "lin7.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.834
+    },
+    {
+      "file": "lin8.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.011
+    },
+    {
+      "file": "lin9.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.634
+    },
+    {
+      "file": "linearization-bounds-1.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.006
+    },
+    {
+      "file": "linearization-bounds-2.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.006
+    },
+    {
+      "file": "linearization-large-vector-alloc.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.005
+    },
+    {
+      "file": "linearize-duplicate-page.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.61
+    },
+    {
+      "file": "linearized-and-warnings.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "link-annots.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.62
+    },
+    {
+      "file": "long-id-linearized.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.616
+    },
+    {
+      "file": "long-id.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.603
+    },
+    {
+      "file": "manual-appearances-out.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.132
+    },
+    {
+      "file": "manual-appearances-print-out.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.127
+    },
+    {
+      "file": "manual-appearances-screen-out.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.129
+    },
+    {
+      "file": "manual-appearances.pdf",
+      "status": "passed",
+      "pages": 9,
+      "seconds": 0.143
+    },
+    {
+      "file": "manual-qpdf-json.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.002
+    },
+    {
+      "file": "many-nulls.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.614
+    },
+    {
+      "file": "merge-dict.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "merge-dot-implicit-ranges.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.605
+    },
+    {
+      "file": "merge-implicit-ranges.pdf",
+      "status": "excluded_page_limit",
+      "pages": 51,
+      "seconds": 0.003
+    },
+    {
+      "file": "merge-multiple-labels.pdf",
+      "status": "passed",
+      "pages": 8,
+      "seconds": 0.661
+    },
+    {
+      "file": "merge-three-files-1.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.749
+    },
+    {
+      "file": "merge-three-files-2.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.722
+    },
+    {
+      "file": "metadata-crypt-filter.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.011
+    },
+    {
+      "file": "minimal-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.595
+    },
+    {
+      "file": "minimal-9.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.591
+    },
+    {
+      "file": "minimal-dangling-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.587
+    },
+    {
+      "file": "minimal-linearize-pass1.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "minimal-linearized.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "minimal-nulls.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "minimal-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.646
+    },
+    {
+      "file": "minimal-rotated.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.646
+    },
+    {
+      "file": "minimal-signed-restricted.pdf",
+      "status": "refused_permission_denied",
+      "seconds": 0.007
+    },
+    {
+      "file": "minimal-signed-restrictions-removed.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.032
+    },
+    {
+      "file": "minimal.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.724
+    },
+    {
+      "file": "more-choices.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.354
+    },
+    {
+      "file": "name-pound-images.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.004
+    },
+    {
+      "file": "name-tree.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.654
+    },
+    {
+      "file": "need-appearances-more-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.336
+    },
+    {
+      "file": "need-appearances-more.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.328
+    },
+    {
+      "file": "need-appearances-more2.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.327
+    },
+    {
+      "file": "need-appearances-more3.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.332
+    },
+    {
+      "file": "need-appearances-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.335
+    },
+    {
+      "file": "need-appearances-utf8.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.008
+    },
+    {
+      "file": "need-appearances.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.328
+    },
+    {
+      "file": "need-appearances2.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.332
+    },
+    {
+      "file": "nested-form-xobjects-inline-images-ii-all.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.61
+    },
+    {
+      "file": "nested-form-xobjects-inline-images-ii-some.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.615
+    },
+    {
+      "file": "nested-form-xobjects-inline-images.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.648
+    },
+    {
+      "file": "nested-form-xobjects.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.623
+    },
+    {
+      "file": "nested-images.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.217
+    },
+    {
+      "file": "new-streams.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "newline-before-endstream-nl-objstm.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.627
+    },
+    {
+      "file": "newline-before-endstream-nl-qdf.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.624
+    },
+    {
+      "file": "newline-before-endstream-nl.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.654
+    },
+    {
+      "file": "newline-before-endstream-qdf.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.7
+    },
+    {
+      "file": "no-contents-coalesce-contents.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.054
+    },
+    {
+      "file": "no-contents-none.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.083
+    },
+    {
+      "file": "no-contents-qdf.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.063
+    },
+    {
+      "file": "no-contents.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.066
+    },
+    {
+      "file": "no-pages-types-fixed.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.703
+    },
+    {
+      "file": "no-pages-types.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.012
+    },
+    {
+      "file": "no-space-compressed-object.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.671
+    },
+    {
+      "file": "no-space-in-xref.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.669
+    },
+    {
+      "file": "nontrivial-crypt-filter-decrypted.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.758
+    },
+    {
+      "file": "nontrivial-crypt-filter.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "number-tree.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.606
+    },
+    {
+      "file": "numeric-and-string-1.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.595
+    },
+    {
+      "file": "numeric-and-string-2.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 1.142
+    },
+    {
+      "file": "numeric-and-string-3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.605
+    },
+    {
+      "file": "obj0.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "object-stream-self-ref.out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.588
+    },
+    {
+      "file": "object-stream-self-ref.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "object-stream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "object-types-os.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "object-types.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "other-file-first.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.686
+    },
+    {
+      "file": "outlines-split-01-10.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.674
+    },
+    {
+      "file": "outlines-split-11-20.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.671
+    },
+    {
+      "file": "outlines-split-21-30.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.69
+    },
+    {
+      "file": "outlines-with-actions.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.829
+    },
+    {
+      "file": "outlines-with-loop.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.006
+    },
+    {
+      "file": "outlines-with-old-root-dests-dict.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.827
+    },
+    {
+      "file": "outlines-with-old-root-dests.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.834
+    },
+    {
+      "file": "overlay-copy-annotations-p1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.633
+    },
+    {
+      "file": "overlay-copy-annotations-p2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.661
+    },
+    {
+      "file": "overlay-copy-annotations-p5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.627
+    },
+    {
+      "file": "overlay-copy-annotations-p6.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.625
+    },
+    {
+      "file": "overlay-copy-annotations.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 1.024
+    },
+    {
+      "file": "overlay-no-resources.pdf",
+      "status": "refused_verification_failed",
+      "seconds": 0.002
+    },
+    {
+      "file": "override-compressed-object.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.604
+    },
+    {
+      "file": "p1-a-p2-a.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.607
+    },
+    {
+      "file": "p1-a-p2-b.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.621
+    },
+    {
+      "file": "p1-a.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.616
+    },
+    {
+      "file": "p1-b.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.598
+    },
+    {
+      "file": "page-inherit-mediabox-out.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.631
+    },
+    {
+      "file": "page-inherit-mediabox.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.648
+    },
+    {
+      "file": "page-labels-and-outlines.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.838
+    },
+    {
+      "file": "page-labels-no-zero.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.84
+    },
+    {
+      "file": "page-labels-num-tree-damaged.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.835
+    },
+    {
+      "file": "page-labels-num-tree.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.84
+    },
+    {
+      "file": "page-missing-mediabox-out.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.632
+    },
+    {
+      "file": "page-no-content.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "page-outlines.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.848
+    },
+    {
+      "file": "page-with-no-resources.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "page_api_1-out.pdf",
+      "status": "passed",
+      "pages": 13,
+      "seconds": 0.764
+    },
+    {
+      "file": "page_api_1-out2.pdf",
+      "status": "passed",
+      "pages": 11,
+      "seconds": 0.828
+    },
+    {
+      "file": "page_api_1-out3.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.839
+    },
+    {
+      "file": "page_api_1.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.904
+    },
+    {
+      "file": "page_api_2.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "pages-copy-encryption.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.0
+    },
+    {
+      "file": "pages-is-page-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.685
+    },
+    {
+      "file": "pages-is-page.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "pages-loop.pdf",
+      "status": "excluded_page_limit",
+      "pages": 0,
+      "seconds": 0.001
+    },
+    {
+      "file": "pclm-in.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 1.306
+    },
+    {
+      "file": "pclm-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 1.052
+    },
+    {
+      "file": "png-filters-1-column.pdf",
+      "status": "passed",
+      "pages": 12,
+      "seconds": 0.308
+    },
+    {
+      "file": "png-filters-decoded.pdf",
+      "status": "passed",
+      "pages": 12,
+      "seconds": 0.3
+    },
+    {
+      "file": "png-filters-no-columns-decoded.pdf",
+      "status": "passed",
+      "pages": 12,
+      "seconds": 0.291
+    },
+    {
+      "file": "png-filters-no-columns.pdf",
+      "status": "passed",
+      "pages": 12,
+      "seconds": 0.299
+    },
+    {
+      "file": "png-filters.pdf",
+      "status": "passed",
+      "pages": 12,
+      "seconds": 0.291
+    },
+    {
+      "file": "pound-in-name.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "qpdf-ctest-42-43.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.624
+    },
+    {
+      "file": "qpdf-ctest-44-45.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "qpdfjob-ctest-wide.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.611
+    },
+    {
+      "file": "qpdfjob-ctest1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.586
+    },
+    {
+      "file": "qpdfjob-ctest2.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.926
+    },
+    {
+      "file": "qpdfjob-ctest3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.048
+    },
+    {
+      "file": "qpdfjob-ctest4.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.603
+    },
+    {
+      "file": "qstream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.594
+    },
+    {
+      "file": "really-shared-images-pages-out.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.647
+    },
+    {
+      "file": "recover-xref-stream-recovered.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.64
+    },
+    {
+      "file": "recover-xref-stream.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "remove-acroform-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.331
+    },
+    {
+      "file": "remove-info-no-moddate.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.874
+    },
+    {
+      "file": "remove-info.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.832
+    },
+    {
+      "file": "remove-labels.pdf",
+      "status": "passed",
+      "pages": 8,
+      "seconds": 0.663
+    },
+    {
+      "file": "remove-metadata-no-moddate.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.82
+    },
+    {
+      "file": "remove-metadata.pdf",
+      "status": "passed",
+      "pages": 30,
+      "seconds": 0.873
+    },
+    {
+      "file": "remove-multiple-attachments.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.626
+    },
+    {
+      "file": "remove-structure.out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.594
+    },
+    {
+      "file": "remove-structure.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.592
+    },
+    {
+      "file": "replace-input.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "replace-with-stream-updated.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.002
+    },
+    {
+      "file": "replaced-stream-data-flate.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "replaced-stream-data.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "reserved-objects.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "resolved-appearance-conflicts-generate.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.615
+    },
+    {
+      "file": "resolved-appearance-conflicts.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.614
+    },
+    {
+      "file": "resolved-field-conflicts.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.68
+    },
+    {
+      "file": "resource-from-dr-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.631
+    },
+    {
+      "file": "resource-from-dr.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.332
+    },
+    {
+      "file": "reuse-xref-stream.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.002
+    },
+    {
+      "file": "rotated-shared-annotations-1.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.007
+    },
+    {
+      "file": "rotated-shared-annotations-2.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.008
+    },
+    {
+      "file": "rotated.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.767
+    },
+    {
+      "file": "sample-form-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.617
+    },
+    {
+      "file": "sample-form.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.624
+    },
+    {
+      "file": "shallow_array-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.589
+    },
+    {
+      "file": "shallow_array.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.606
+    },
+    {
+      "file": "shared-font-xobject-split-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.596
+    },
+    {
+      "file": "shared-font-xobject-split-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.614
+    },
+    {
+      "file": "shared-font-xobject-split-3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.61
+    },
+    {
+      "file": "shared-font-xobject-split-4.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.602
+    },
+    {
+      "file": "shared-font-xobject.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.641
+    },
+    {
+      "file": "shared-form-images-merged.pdf",
+      "status": "passed",
+      "pages": 6,
+      "seconds": 0.119
+    },
+    {
+      "file": "shared-form-images-xobject.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.063
+    },
+    {
+      "file": "shared-form-images.pdf",
+      "status": "passed",
+      "pages": 6,
+      "seconds": 0.122
+    },
+    {
+      "file": "shared-form-split-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.051
+    },
+    {
+      "file": "shared-form-split-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.05
+    },
+    {
+      "file": "shared-form-split-3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.049
+    },
+    {
+      "file": "shared-form-split-4.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.051
+    },
+    {
+      "file": "shared-form-split-5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.049
+    },
+    {
+      "file": "shared-form-split-6.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.05
+    },
+    {
+      "file": "shared-form-xobject-split-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.053
+    },
+    {
+      "file": "shared-form-xobject-split-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.05
+    },
+    {
+      "file": "shared-images-errors-1-3-out.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.627
+    },
+    {
+      "file": "shared-images-errors-1-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.6
+    },
+    {
+      "file": "shared-images-errors-2-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.023
+    },
+    {
+      "file": "shared-images-errors.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.354
+    },
+    {
+      "file": "shared-images-pages-out.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.65
+    },
+    {
+      "file": "shared-images.pdf",
+      "status": "passed",
+      "pages": 10,
+      "seconds": 0.73
+    },
+    {
+      "file": "shared-split-01-04.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.77
+    },
+    {
+      "file": "shared-split-05-08.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.687
+    },
+    {
+      "file": "shared-split-09-10.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.827
+    },
+    {
+      "file": "shared-unnamed-field.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.003
+    },
+    {
+      "file": "short-O-U.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.001
+    },
+    {
+      "file": "short-id-linearized.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.625
+    },
+    {
+      "file": "short-id.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.753
+    },
+    {
+      "file": "small-images.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.06
+    },
+    {
+      "file": "split-content-stream-errors.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "split-content-stream.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.611
+    },
+    {
+      "file": "split-exp-1.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.023
+    },
+    {
+      "file": "split-exp-group-01-05.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.645
+    },
+    {
+      "file": "split-exp-group-06-10.pdf",
+      "status": "passed",
+      "pages": 5,
+      "seconds": 0.632
+    },
+    {
+      "file": "split-exp-group-11-11.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "split-nntree-out.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.616
+    },
+    {
+      "file": "split-nntree.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.597
+    },
+    {
+      "file": "split-tokens-split-1-2.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.306
+    },
+    {
+      "file": "split-tokens.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.308
+    },
+    {
+      "file": "stream-data.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.665
+    },
+    {
+      "file": "stream-line-enders.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "streams-with-newlines.pdf",
+      "status": "passed",
+      "pages": 3,
+      "seconds": 0.792
+    },
+    {
+      "file": "terminate-parsing.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.033
+    },
+    {
+      "file": "test102.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.75
+    },
+    {
+      "file": "test14-in.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.735
+    },
+    {
+      "file": "test14-out.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 1.25
+    },
+    {
+      "file": "test4-1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.914
+    },
+    {
+      "file": "test4-2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.767
+    },
+    {
+      "file": "test4-3.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.609
+    },
+    {
+      "file": "test4-4.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.612
+    },
+    {
+      "file": "test4-5.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.604
+    },
+    {
+      "file": "test76.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.619
+    },
+    {
+      "file": "test77.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.611
+    },
+    {
+      "file": "test78.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.6
+    },
+    {
+      "file": "test79.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.023
+    },
+    {
+      "file": "test80a1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.663
+    },
+    {
+      "file": "test80a2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.662
+    },
+    {
+      "file": "test80b1.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.655
+    },
+    {
+      "file": "test80b2.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.645
+    },
+    {
+      "file": "test84.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.601
+    },
+    {
+      "file": "three-files-2,3,4-collate-out.pdf",
+      "status": "passed",
+      "pages": 13,
+      "seconds": 0.838
+    },
+    {
+      "file": "three-files-2-collate-out.pdf",
+      "status": "passed",
+      "pages": 13,
+      "seconds": 0.835
+    },
+    {
+      "file": "three-files-collate-out.pdf",
+      "status": "passed",
+      "pages": 13,
+      "seconds": 0.708
+    },
+    {
+      "file": "tiff-predictor.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.6
+    },
+    {
+      "file": "to-rotate.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.787
+    },
+    {
+      "file": "token-filters-out.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.306
+    },
+    {
+      "file": "tokenize-content-streams.pdf",
+      "status": "passed",
+      "pages": 2,
+      "seconds": 0.602
+    },
+    {
+      "file": "tokens.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.323
+    },
+    {
+      "file": "unfilterable-with-crypt.pdf",
+      "status": "refused_password_required",
+      "seconds": 0.005
+    },
+    {
+      "file": "unfilterable.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.022
+    },
+    {
+      "file": "unique-resources.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.608
+    },
+    {
+      "file": "unreferenced-dropped.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.599
+    },
+    {
+      "file": "unreferenced-indirect-scalar.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.696
+    },
+    {
+      "file": "unreferenced-objects.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.814
+    },
+    {
+      "file": "unreferenced-preserved.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.624
+    },
+    {
+      "file": "unrotated.pdf",
+      "status": "passed",
+      "pages": 20,
+      "seconds": 0.854
+    },
+    {
+      "file": "unsupported-optimization.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "ValueError: Poppler could not render every page",
+      "seconds": 0.025
+    },
+    {
+      "file": "uo-1.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.979
+    },
+    {
+      "file": "uo-2.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 1.055
+    },
+    {
+      "file": "uo-3.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 1.001
+    },
+    {
+      "file": "uo-4.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.832
+    },
+    {
+      "file": "uo-5.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.813
+    },
+    {
+      "file": "uo-6.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.642
+    },
+    {
+      "file": "uo-7.pdf",
+      "status": "passed",
+      "pages": 16,
+      "seconds": 0.826
+    },
+    {
+      "file": "uo-8.pdf",
+      "status": "passed",
+      "pages": 4,
+      "seconds": 0.719
+    },
+    {
+      "file": "update-stream-data-updated.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.002
+    },
+    {
+      "file": "update-stream-dict-only-updated.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.001
+    },
+    {
+      "file": "utf16le.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.615
+    },
+    {
+      "file": "various-updates-updated.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.001
+    },
+    {
+      "file": "warn-replace.pdf",
+      "status": "passed",
+      "pages": 1,
+      "seconds": 0.048
+    },
+    {
+      "file": "weird-tokens.pdf",
+      "status": "refused_unsupported_profile_edit",
+      "seconds": 0.002
+    },
+    {
+      "file": "xref-compressed-in-compressed.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.004
+    },
+    {
+      "file": "xref-errors.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    },
+    {
+      "file": "xref-range.pdf",
+      "status": "excluded_source_parser_or_renderer",
+      "reason": "PdfReadError: Trailer cannot be read: ('Unsupported filter NullObject',)",
+      "seconds": 0.002
+    },
+    {
+      "file": "xref-with-short-size.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.002
+    },
+    {
+      "file": "zero-offset.pdf",
+      "status": "refused_pdf_damaged",
+      "seconds": 0.001
+    }
+  ],
+  "summary": {
+    "passed": 417,
+    "refused_password_required": 23,
+    "refused_verification_failed": 10,
+    "refused_pdf_damaged": 111,
+    "excluded_source_parser_or_renderer": 45,
+    "excluded_page_limit": 7,
+    "refused_permission_denied": 5,
+    "refused_unsupported_profile_edit": 10
+  }
+}

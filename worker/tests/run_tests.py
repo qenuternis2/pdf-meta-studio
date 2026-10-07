@@ -650,7 +650,7 @@ def test_metadata_bomb_capped(c):
     b = pdfgen.Builder()
     cat = b.reserve()
     pages = b.reserve()
-    page = b.add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] >>" % pages)
+    page = b.add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] /Resources << >> >>" % pages)
     b.set(pages, b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
     meta = b.add(b"<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length %d >>\nstream\n" % len(bomb)
                  + bomb + b"\nendstream")
@@ -884,11 +884,255 @@ def test_conflicting_object_generations_cannot_change_pages(c):
         import pypdf
         assert pypdf.PdfReader(out).pages[0].extract_text() == pypdf.PdfReader(src).pages[0].extract_text()
     except WorkerError as error:
-        assert error.code == "verification_failed", error.code
-        assert any(check["name"] == "pages" and not check["ok"] for check in error.details["checks"])
+        assert error.code in ("verification_failed", "pdf_damaged"), error.code
+        if error.code == "verification_failed":
+            assert any(check["name"] == "pages" and not check["ok"] for check in error.details["checks"])
+        else:
+            assert error.details["warnings"]
         assert not os.path.exists(out)
     assert sha(src) == original_hash
 
+
+
+def test_array_movement_rename_and_qualifiers(c):
+    source = c.pdf("typed.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    operations = [
+        {"op": "moveItem", "steps": [prop(DC, "subject")], "from": 4, "to": 1},
+        {"op": "set", "steps": [prop(DC, "subject"), item(1)], "value": "Changed"},
+        {"op": "appendItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "value": "new@example.org"},
+        {"op": "insertItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "index": 2, "value": "insert@example.org"},
+        {"op": "rename", "steps": [prop(ATLAS, "Info")], "toSteps": [prop(ATLAS, "Renamed")]},
+    ]
+    target = os.path.join(c.tmp, "typed-out.pdf")
+    saved = c.save(source, opened, {"xmp": [{"stream": stream["ref"], "ops": operations}]}, target)
+    assert_checks_ok(saved)
+    model = doc_stream(c.open(target))["model"]
+    values = nodes(model)
+    assert values["dc:subject[1]"]["value"] == "Changed"
+    assert values["dc:subject[1]/?ex:source"]["value"] == "manual"
+    assert "atlas:Info" not in values
+    assert values["atlas:Renamed/atlas:Contacts[2]"]["value"] == "insert@example.org"
+    assert values["atlas:Renamed/atlas:Contacts[4]"]["value"] == "new@example.org"
+
+
+def test_compound_array_items_and_positional_restore(c):
+    source = c.pdf("compound.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    operations = [
+        {"op": "delete", "steps": [prop(DC, "creator"), item(3)]},
+        {"op": "restore", "steps": [prop(DC, "creator"), item(3)], "xml": stream["packet"]},
+        {"op": "appendItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "form": "struct"},
+        {"op": "create", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts"), item(3), field(ATLAS, "Name")], "value": "Nested"},
+        {"op": "moveItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "from": 3, "to": 1},
+    ]
+    target = os.path.join(c.tmp, "compound-out.pdf")
+    assert_checks_ok(c.save(source, opened, {"xmp": [{"stream": stream["ref"], "ops": operations}]}, target))
+    values = nodes(doc_stream(c.open(target)))
+    assert values["dc:creator[3]"]["value"] == "🤖 Bot"
+    assert values["atlas:Info/atlas:Contacts[1]/atlas:Name"]["value"] == "Nested"
+
+
+def test_direct_annotations_and_known_private_adapter(c):
+    builder = pdfgen.Builder()
+    root, pages, page = builder.reserve(), builder.reserve(), builder.reserve()
+    builder.set(root, b"<< /Type /Catalog /Pages %d 0 R /PieceInfo << /PdfMetaStudio << /Private << /Schema /PdfMetaStudioV1 /Label (Before) >> /LastModified (D:2026) >> >> >>" % pages)
+    builder.set(pages, b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
+    builder.set(page, b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] /Resources << >> /Annots [<< /Type /Annot /Subtype /Text /Rect [0 0 10 10] /T (Author) /Contents (Keep this) >>] >>" % pages)
+    source = write(os.path.join(c.tmp, "direct-private.pdf"), builder.build(root))
+    opened = c.open(source)
+    app = opened["pieceInfo"][0]["apps"][0]
+    assert app["adapter"] == "PdfMetaStudioV1", app
+    assert opened["annotations"][0]["editable"]
+    address = opened["annotations"][0]["ref"]
+    assert address == "page:1:annot:1"
+    export = os.path.join(c.tmp, "private.json")
+    c.w.call("exportPrivate", path=source, address=app["address"], target=export)
+    exported = json.load(open(export, encoding="utf-8"))
+    assert exported["root"]["type"] == "dictionary"
+    assert_checks_ok(c.save(source, opened, {"objects": [
+        {"kind": "annotation", "address": address, "field": "author", "value": "Changed", "op": "set"},
+        {"kind": "private", "address": app["address"], "field": "label", "value": "After", "op": "set"}
+    ]}, mode="replace"))
+    again = c.open(source)
+    assert again["annotations"][0]["fields"]["author"] == "Changed"
+    assert again["pieceInfo"][0]["apps"][0]["fields"]["label"] == "After"
+
+
+def test_private_opaque_export_keeps_raw_stream_bytes(c):
+    source = c.pdf("private.pdf", big_stream_bytes=4096)
+    opened = c.open(source)
+    app = opened["pieceInfo"][0]["apps"][0]
+    assert app["adapter"] is None
+    export = os.path.join(c.tmp, "opaque.json")
+    c.w.call("exportPrivate", path=source, address=app["address"], target=export)
+    data = json.load(open(export, encoding="utf-8"))
+    assert any("rawStreamBase64" in value for value in data["objects"].values())
+    expect_error("target_is_source", lambda: c.w.call("exportPrivate", path=source, address=app["address"], target=source))
+
+
+def test_pdf_identity_detects_replacement_with_identical_bytes(c):
+    source = c.pdf("identity.pdf")
+    opened = c.open(source)
+    assert opened["file"]["fingerprint"]["identity"]
+    old_stat = os.stat(source)
+    replacement = os.path.join(c.tmp, "replacement.pdf")
+    shutil.copyfile(source, replacement)
+    os.utime(replacement, ns=(old_stat.st_atime_ns, old_stat.st_mtime_ns))
+    os.replace(replacement, source)
+    expect_error("external_change", lambda: c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "x"}]}, mode="replace"))
+
+
+def test_invalid_protocol_envelopes_do_not_crash_worker(c):
+    for request in ['[]', '{"cmd":1}', '{"cmd":"open","id":"wrong"}']:
+        c.w.p.stdin.write((request + "\n").encode()); c.w.p.stdin.flush()
+        response = json.loads(c.w.p.stdout.readline())
+        assert response["code"] == "bad_request", response
+    assert c.w.call("hello")["protocol"] == 1
+
+
+def test_declared_profile_edit_constraints(c):
+    description = pdfgen.RICH_XMP.replace('xmp:CreateDate=', 'xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="2" pdfaid:conformance="B" xmp:CreateDate=', 1)
+    source = c.pdf("profile.pdf", xmp=description)
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    expect_error("unsupported_profile_edit", lambda: c.w.call("preview", path=source, edits={"xmp": [{"stream": stream["ref"], "ops": [
+        {"op": "create", "steps": [prop("https://example.org/new-schema/", "Custom")], "value": "New"}]}]}))
+    modern = c.pdf("pdf20.pdf", version="2.0")
+    modern_opened = c.open(modern)
+    expect_error("unsupported_profile_edit", lambda: c.save(modern, modern_opened, {"info": [
+        {"op": "set", "key": "/NewCustom", "value": "New"}]}, target=os.path.join(c.tmp, "modern-out.pdf")))
+    pdfx = c.pdf("pdfx.pdf", info={"GTS_PDFXVersion": "PDF/X-4", "Title": "Original"})
+    opened_x = c.open(pdfx)
+    expect_error("unsupported_profile_edit", lambda: c.w.call("preview", path=pdfx, edits={"info": [
+        {"op": "set", "key": "/Trapped", "type": "name", "value": "/Unknown"}]}))
+
+
+def test_repaired_structure_is_never_silently_saved(c):
+    corpus = os.environ.get("QPDF_CORPUS")
+    if not corpus:
+        return "SKIP: qpdf damaged fixtures are unavailable"
+    for name in ["bad39.pdf", "direct-pages.pdf", "stream-line-enders.pdf"]:
+        source = os.path.join(corpus, name)
+        opened = c.open(source)
+        assert not opened["scan"]["complete"]
+        before = sha(source)
+        target = os.path.join(c.tmp, name)
+        expect_error("pdf_damaged", lambda: c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "Blocked"}]}, target=target))
+        assert sha(source) == before and not os.path.exists(target)
+
+
+def test_original_packet_export_is_byte_exact(c):
+    source = c.pdf("packet.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    target = os.path.join(c.tmp, "packet.xmp")
+    c.w.call("exportMetadata", path=source, stream=stream["ref"], target=target)
+    assert open(target, "rb").read() == stream["packet"].encode("utf-8")
+    expect_error("target_is_source", lambda: c.w.call("exportMetadata", path=source, stream=stream["ref"], target=source))
+
+
+def test_windows_locked_original_can_only_be_copied(c):
+    if os.name != "nt":
+        return "SKIP: Windows sharing modes require Windows"
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    source = c.pdf("locked.pdf")
+    opened = c.open(source)
+    before = sha(source)
+    handle = kernel.CreateFileW(source, 0x80000000, 1, None, 3, 0, None)
+    assert handle != wintypes.HANDLE(-1).value
+    try:
+        edits = {"info": [{"op": "set", "key": "/Title", "value": "Copy"}]}
+        expect_error("file_locked", lambda: c.save(source, opened, edits, mode="replace"))
+        assert_checks_ok(c.save(source, opened, edits, target=os.path.join(c.tmp, "unlocked-copy.pdf")))
+        assert sha(source) == before
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def test_windows_backup_retains_protected_acl(c):
+    if os.name != "nt":
+        return "SKIP: Windows DACL acceptance requires Windows"
+    import ctypes
+    from ctypes import wintypes
+    security = ctypes.WinDLL('advapi32', use_last_error=True)
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    pointer = ctypes.c_void_p
+    security.GetNamedSecurityInfoW.argtypes = [wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD,
+                                              pointer, pointer, pointer, pointer, ctypes.POINTER(pointer)]
+    security.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes = [pointer, wintypes.DWORD,
+                                                                              wintypes.DWORD, ctypes.POINTER(pointer), pointer]
+    security.ConvertSecurityDescriptorToStringSecurityDescriptorW.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [pointer]
+    kernel.LocalFree.restype = pointer
+    def acl(path):
+        descriptor, text = pointer(), pointer()
+        error = security.GetNamedSecurityInfoW(path, 1, 4, None, None, None, None, ctypes.byref(descriptor))
+        assert error == 0, ctypes.WinError(error)
+        try:
+            assert security.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor, 1, 4, ctypes.byref(text), None), ctypes.WinError(ctypes.get_last_error())
+            return ctypes.wstring_at(text)
+        finally:
+            if text: kernel.LocalFree(text)
+            kernel.LocalFree(descriptor)
+    source = c.pdf("acl.pdf")
+    # Change only DACL inheritance, without asking Set-Acl to restore owner/group privileges.
+    setup = subprocess.run(['icacls.exe', source, '/inheritance:d'], capture_output=True)
+    assert setup.returncode == 0, setup.stderr.decode(errors='replace')
+    original_acl = acl(source)
+    opened = c.open(source)
+    result = c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "ACL"}]}, mode="replace")
+    assert_checks_ok(result)
+    assert acl(source) == original_acl, 'Replaced source ACL differs'
+    assert acl(result['backup']) == original_acl, 'Backup ACL differs'
+
+
+def test_windows_long_path_copy(c):
+    if os.name != "nt":
+        return "SKIP: Windows long-path acceptance requires Windows"
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\FileSystem') as key:
+        try:
+            enabled = winreg.QueryValueEx(key, 'LongPathsEnabled')[0]
+        except FileNotFoundError:
+            enabled = 0
+    if not enabled:
+        return "SKIP: Windows long paths are not enabled on this host"
+    original = c.pdf('long-path-original.pdf')
+    directory = os.path.join(os.path.dirname(original), *(['long-directory-' + 'x' * 55] * 5))
+    os.makedirs(directory)
+    source = os.path.join(directory, 'источник.pdf')
+    shutil.copyfile(original, source)
+    opened = c.open(source)
+    target = os.path.join(directory, 'результат.pdf')
+    result = c.save(source, opened, {'info': [{'op': 'set', 'key': '/Title', 'value': 'Long path'}]}, target=target)
+    assert_checks_ok(result)
+    assert info_map(c.open(target))['/Title'] == ('string', 'Long path')
+
+
+def test_bounded_queue_and_queued_cancellation(c):
+    xml = pdfgen.xmp_packet('<rdf:Description rdf:about="" xmlns:ex="https://example.org/queue/"><ex:Rows><rdf:Seq>' + '<rdf:li>item</rdf:li>' * 20000 + '</rdf:Seq></ex:Rows></rdf:Description>').decode('utf-8')
+    primary = c.w.send('validateXmp', xml=xml)
+    queued = [c.w.send('hello') for _ in range(8)]
+    c.w.cancel(queued[1])
+    queued.extend(c.w.send('hello') for _ in range(42))
+    terminal = {}
+    while len(terminal) != 51:
+        response = json.loads(c.w.p.stdout.readline())
+        if response.get('type') in ('result', 'error'):
+            terminal[response['id']] = response
+    assert terminal[primary]['type'] == 'result'
+    assert any(response.get('code') == 'queue_full' for response in terminal.values())
+    assert terminal[queued[1]].get('code') == 'cancelled', terminal[queued[1]]
+    assert c.w.call('hello')['protocol'] == 1
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 

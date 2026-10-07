@@ -19,15 +19,17 @@ public sealed partial class EditorViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
     private BuiltRequest? _reviewed;
+    private long _reviewEpoch;
 
     public EditorViewModel(DocumentService service, IDialogService dialogs, DocumentSnapshot doc)
     {
         _service = service;
         _dialogs = dialogs;
         Session = new EditSession(doc);
-        Fields = StandardFields.All.Select(f => new FieldViewModel(Session, Session.Origins[f.Id])).ToList();
-        Tags = new TagTreeViewModel(Session, service);
-        Objects = new ObjectsViewModel(Session);
+        Fields = StandardFields.All.Select(f => new FieldViewModel(Session, Session.Origins[f.Id], service)).ToList();
+        Tags = new TagTreeViewModel(Session, service, dialogs.PickPacketTarget);
+        Objects = new ObjectsViewModel(Session, service, dialogs.PickExportTarget, message => dialogs.Info("Частные данные", message));
+        IsReadOnly = doc.Signed || !doc.CanModify;
         SelectedSection = Sections[0];
         Session.Changed += OnSessionChanged;
         Session.PreviewChanged += (_, _) =>
@@ -46,6 +48,7 @@ public sealed partial class EditorViewModel : ObservableObject
         if (!doc.ScanComplete) notes.Add("Проверено частично: " + string.Join("; ", doc.ScanIssues));
         if (doc.DocumentStream is { ParseOk: false } bad) notes.Add("XMP документа повреждён и показан только для чтения: " + bad.ParseError);
         if (doc.DocumentStream is { IsShared: true }) notes.Add("XMP документа используется и другими объектами — при сохранении нужно выбрать область правки.");
+        notes.AddRange(doc.Warnings.Select(warning => "Предупреждение PDF: " + warning));
         DocumentNotes = notes;
         UpdateStatus();
     }
@@ -53,6 +56,8 @@ public sealed partial class EditorViewModel : ObservableObject
     public EditSession Session { get; }
     public DocumentSnapshot Document => Session.Document;
     public string FileName => Document.FileName;
+    public string PageDimensions => string.Join(Environment.NewLine, Document.Pages.Select(page =>
+        $"Страница {page?["index"]}: {page?["width"]} × {page?["height"]} pt; поворот {page?["rotate"] ?? System.Text.Json.Nodes.JsonValue.Create(0)}°"));
     public string Summary =>
         $"{Pages(Document.PageCount)} · PDF {Document.PdfVersion} · {Size(Document.FileSize)}" +
         (Document.Encrypted ? " · защищён" : "") + (Document.Signed ? " · подписан" : "");
@@ -90,13 +95,55 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty] private bool _signedAcknowledged;
     [ObservableProperty] private string? _documentScope;
     public bool NeedsScopeChoice => Document.DocumentStream is { IsShared: true };
+    public IReadOnlyList<ScopeOption> DocumentScopeOptions { get; } = new[] {
+        new ScopeOption(null, null, "Выберите область общего XMP документа…"), new ScopeOption("all", null, "Изменить для всех владельцев"),
+        new ScopeOption("detach", "catalog", "Отделить копию XMP только для документа") };
+    [ObservableProperty] private ScopeOption? _selectedDocumentScope;
+    partial void OnSelectedDocumentScopeChanged(ScopeOption? value) => DocumentScope = value?.Scope;
     public bool IsSigned => Document.Signed;
+    public bool IsEncrypted => Document.Encrypted;
     public string CopyName => Path.GetFileName(ReviewBuilder.DefaultCopyName(Document.FilePath));
 
     public event EventHandler? CloseRequested;
+    public event Action<DocumentSnapshot>? Reopened;
+    [ObservableProperty] private bool _isReadOnly;
+    partial void OnIsReadOnlyChanged(bool value) { Session.IsReadOnly = value; ReviewCommand.NotifyCanExecuteChanged(); }
+    public string ReadOnlyMessage => !Document.CanModify ? "Просмотр: для изменения требуется пароль владельца." : "Просмотр: подписанный PDF. Разрешите изменение отдельной копии.";
+    [RelayCommand] private void AllowSignedCopyEditing() {
+        if (!Document.Signed || !Document.CanModify) return;
+        if (_dialogs.Confirm("Подписанный документ", "Правки разрешены только в отдельной копии. Подпись в копии станет недействительной; исходный файл сохранится.", "Редактировать копию", "Отмена")) {
+            IsReadOnly = false; SignedAcknowledged = true;
+        }
+    }
+    [RelayCommand] private async Task RestartWorker() {
+        if (IsBusy) return;
+        _metadataRefresh?.Cancel();
+        await _service.RestartWorkerAsync();
+        await Tags.RefreshAsync();
+        Status = "Обработчик перезапущен; правки и снимок сохранены";
+    }
+    [RelayCommand] private async Task EnterOwnerPassword() {
+        string? password = _dialogs.AskPassword(Document.FileName, false);
+        if (password != null) await ReopenAsync(password, true);
+    }
+    [RelayCommand] private async Task Reload() {
+        if (HasChanges && !_dialogs.Confirm("Перезагрузить документ", "Несохранённые правки будут отброшены. Будет открыт текущий файл с диска.", "Перезагрузить", "Отмена")) return;
+        await ReopenAsync(Document.Password, false);
+    }
+    private async Task ReopenAsync(string? password, bool ownerRequired) {
+        try {
+            var doc = await RunAsync("Повторное открытие…", (progress, token) => _service.OpenAsync(Document.FilePath, password, progress, token));
+            if (ownerRequired && !doc.CanModify) { _dialogs.Error("Пароль владельца", "Введённый пароль разрешает чтение, но не изменение документа."); return; }
+            _metadataRefresh?.Cancel(); Session.Changed -= OnSessionChanged; Reopened?.Invoke(doc);
+        } catch (WorkerException error) { _dialogs.Error("Документ не перезагружен", error.Message); }
+        catch (OperationCanceledException) { Status = "Открытие отменено"; }
+    }
+
 
     private void OnSessionChanged(object? sender, EventArgs e)
     {
+        _reviewed = null;
+        SaveCopyCommand.NotifyCanExecuteChanged(); ReplaceCommand.NotifyCanExecuteChanged();
         foreach (var f in Fields)
             if (f.IsPushing) f.RefreshState(); else f.Reload();
         UpdateStatus();
@@ -122,8 +169,8 @@ public sealed partial class EditorViewModel : ObservableObject
     private void UpdateStatus()
     {
         int n = Session.ChangeCount;
-        HasChanges = n > 0;
-        Status = n == 0 ? "Нет изменений" : "Изменений: " + n;
+        HasChanges = n > 0 || Session.UpdateModifyDate;
+        Status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
         var built = Session.Build();
         foreach (var f in Fields) f.SetProblem(built.Issues.FirstOrDefault(i => i.FieldId == f.Id));
         Objects.Refresh(built);
@@ -154,7 +201,7 @@ public sealed partial class EditorViewModel : ObservableObject
     private bool CanRedo() => Session.CanRedo && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(HasChanges))]
-    private void RevertAll() { Session.RevertAll(); Tags.Rebuild(); }
+    private void RevertAll() { UpdateModifyDate = false; Session.RevertAll(); Tags.Rebuild(); }
 
     [RelayCommand(CanExecute = nameof(CanReview))]
     private async Task Review()
@@ -162,10 +209,11 @@ public sealed partial class EditorViewModel : ObservableObject
         IsReviewing = true;
         await RefreshReviewAsync();
     }
-    private bool CanReview() => (HasChanges || UpdateModifyDate) && !IsBusy;
+    private bool CanReview() => (HasChanges || UpdateModifyDate) && !IsBusy && !IsReadOnly;
 
     private async Task RefreshReviewAsync()
     {
+        long epoch = ++_reviewEpoch;
         ReviewRows.Clear();
         ReviewNotes.Clear();
         ReviewIssues.Clear();
@@ -176,15 +224,17 @@ public sealed partial class EditorViewModel : ObservableObject
         try
         {
             var (review, request) = await RunAsync("Проверка изменений…", (p, ct) => _service.PreviewAsync(Session, p, ct));
+            if (epoch != _reviewEpoch) return;
             foreach (var r in review.Rows) ReviewRows.Add(r);
             foreach (var n in review.Notes) ReviewNotes.Add(n);
             if (review.Rows.Any(r => r.IsSideEffect))
                 ReviewNotes.Add("Отмеченные строки — изменения, которые вы явно не вводили (связанные или автоматические).");
             _reviewed = request;
         }
+        catch (OperationCanceledException) { if (epoch == _reviewEpoch) ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", "Проверка отменена")); }
         catch (WorkerException ex)
         {
-            ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", ReviewBuilder.Explain(ex)));
+            if (epoch == _reviewEpoch) ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", ReviewBuilder.Explain(ex)));
         }
         SaveCopyCommand.NotifyCanExecuteChanged();
         ReplaceCommand.NotifyCanExecuteChanged();
@@ -197,7 +247,7 @@ public sealed partial class EditorViewModel : ObservableObject
     private bool CanReplace() => _reviewed != null && !IsBusy && !Document.Signed && !HasPrivateData;
 
     /// <summary>Частные данные приложений без адаптера: разрешена только запись в копию.</summary>
-    public bool HasPrivateData => Document.PieceInfo.Count > 0;
+    public bool HasPrivateData => Document.PieceInfo.SelectMany(piece => (System.Text.Json.Nodes.JsonArray?)piece?["apps"] ?? new()).Any(app => app?["adapter"] == null);
 
     partial void OnSignedAcknowledgedChanged(bool value) => SaveCopyCommand.NotifyCanExecuteChanged();
 
@@ -219,6 +269,10 @@ public sealed partial class EditorViewModel : ObservableObject
         await SaveAsync(null, SaveMode.Replace);
     }
 
+    [ObservableProperty] private string? _validatorPath;
+    [RelayCommand] private void SelectValidator() => ValidatorPath = _dialogs.PickValidator();
+    [RelayCommand] private void ClearValidator() => ValidatorPath = null;
+
     private async Task SaveAsync(string? target, SaveMode mode)
     {
         if (_reviewed is null) return;
@@ -229,13 +283,19 @@ public sealed partial class EditorViewModel : ObservableObject
             string msg = "Сохранено: " + outcome.Target + (outcome.Backup != null ? "\nРезервная копия: " + outcome.Backup : "") +
                          "\n\nПроверка после записи:\n" + string.Join("\n", outcome.Checks.Select(c => (c.Ok ? "✓ " : "✗ ") + c.Detail)) +
                          "\n\nСлужебные изменения записи:\n" + string.Join("\n", outcome.WriterNotes.Select(n => "• " + n));
+            if (ValidatorPath != null) {
+                try { var validation = await RunAsync("Проверка профиля…", (_, token) => ProfileValidator.ValidateAsync(ValidatorPath, outcome.Target, token)); msg += "\n\n" + validation.Detail; }
+                catch (WorkerException error) { msg += "\n\nФайл сохранён; соответствие профилю непроверено: " + error.Message; }
+                catch (OperationCanceledException) { msg += "\n\nФайл сохранён; проверка профиля отменена."; }
+            }
             _dialogs.Info("Готово", msg);
             Session.Changed -= OnSessionChanged;
             CloseRequested?.Invoke(this, EventArgs.Empty);
         }
+        catch (OperationCanceledException) { Status = "Сохранение отменено; правки остаются в редакторе"; }
         catch (WorkerException ex)
         {
-            _dialogs.Error("Файл не сохранён", ReviewBuilder.Explain(ex) + "\n\nВаши правки остаются в редакторе.");
+            _dialogs.Error("Файл не сохранён", ReviewBuilder.Explain(ex) + "\n\nВаши правки остаются в редакторе." + (ex.Code == "external_change" ? "\nПерезагрузите файл или сохраните копию из исходного снимка сессии." : ""));
         }
     }
 
@@ -244,24 +304,27 @@ public sealed partial class EditorViewModel : ObservableObject
         IsBusy = true;
         BusyText = text;
         BusyPercent = 0;
-        _cts = new CancellationTokenSource();
+        _cts?.Cancel();
+        var operation = new CancellationTokenSource();
+        _cts = operation;
         var progress = new Progress<WorkerProgress>(p =>
         {
+            if (_cts != operation) return;
             BusyPercent = p.Percent;
             BusyText = text + " " + StageTitle(p.Stage);
         });
         try
         {
-            return await action(progress, _cts.Token);
+            return await action(progress, operation.Token);
         }
         finally
         {
-            IsBusy = false;
-            _cts.Dispose();
-            _cts = null;
-            UpdateStatus();
-            SaveCopyCommand.NotifyCanExecuteChanged();
-            ReplaceCommand.NotifyCanExecuteChanged();
+            operation.Dispose();
+            if (_cts == operation) {
+                _cts = null; IsBusy = false;
+                UpdateStatus();
+                SaveCopyCommand.NotifyCanExecuteChanged(); ReplaceCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 

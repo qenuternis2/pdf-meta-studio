@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(pdfmeta_worker VERSION 0.1.0 LANGUAGES C CXX)
+project(pdfmeta_worker VERSION 0.3.0 LANGUAGES C CXX)
 
 # Исходники зависимостей кладёт scripts/fetch-deps.(sh|ps1) в worker/external
 # (версии закреплены в scripts/deps.lock). Можно указать другой каталог.
@@ -48,16 +48,22 @@ add_library(pdfmeta_core STATIC
   src/pdf_edit.cpp
   src/fileutil.cpp
   src/object_fields.cpp
+  src/logical_graph.cpp
+  src/private_data.cpp
 )
 target_include_directories(pdfmeta_core PUBLIC src third_party)
 target_link_libraries(pdfmeta_core PUBLIC libqpdf xmpcore_static)
 target_compile_definitions(pdfmeta_core PUBLIC PDFMETA_VERSION="${PROJECT_VERSION}")
 if(WIN32)
-  target_compile_definitions(pdfmeta_core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+    target_compile_definitions(pdfmeta_core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+    target_link_libraries(pdfmeta_core PUBLIC advapi32)
 endif()
 
 add_executable(pdfmeta-worker src/main.cpp)
 target_link_libraries(pdfmeta-worker PRIVATE pdfmeta_core)
+if(MSVC)
+  target_sources(pdfmeta-worker PRIVATE src/worker.manifest)
+endif()
 if(MINGW)
   # Проверочная кросс-сборка из Linux: всё статически, без DLL MinGW рядом с EXE.
   target_link_options(pdfmeta-worker PRIVATE -static -static-libgcc -static-libstdc++)
@@ -70,8 +76,9 @@ endif()
 if(PDFMETA_BUILD_TESTS)
   # qpdf CLI (для создания зашифрованных PDF в тестах). Цель qpdf лежит в подпроекте с
   # EXCLUDE_FROM_ALL и не видна в решении Visual Studio верхнего уровня — собираем через test-tools.
+  add_executable(pdfmeta-test-worker tests/helpers/unresponsive_worker.cpp)
   add_custom_target(test-tools)
-  add_dependencies(test-tools qpdf)
+  add_dependencies(test-tools qpdf pdfmeta-test-worker)
   enable_testing()
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

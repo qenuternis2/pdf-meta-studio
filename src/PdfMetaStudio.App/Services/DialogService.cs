@@ -11,6 +11,9 @@ public enum CloseAnswer { Save, Discard, Return }
 public interface IDialogService
 {
     string? PickPdf();
+    string? PickExportTarget();
+    string? PickPacketTarget();
+    string? PickValidator();
     string? PickSaveTarget(string suggestedPath);
     string? AskPassword(string fileName, bool retry);
     CloseAnswer AskUnsavedChanges();
@@ -22,6 +25,19 @@ public interface IDialogService
 public sealed class DialogService : IDialogService
 {
     private static Window? Owner => Application.Current?.MainWindow;
+
+    public string? PickPacketTarget() {
+        var dialog = new SaveFileDialog { Title = "Экспорт исходных байтов XMP", Filter = "Пакет XMP (*.xmp)|*.xmp|Исходные байты (*.bin)|*.bin", DefaultExt = ".xmp", AddExtension = true, OverwritePrompt = true };
+        return dialog.ShowDialog(Owner) == true ? dialog.FileName : null;
+    }
+    public string? PickExportTarget() {
+        var dialog = new SaveFileDialog { Title = "Экспорт частных данных", Filter = "Диагностика JSON (*.json)|*.json", DefaultExt = ".json", AddExtension = true, OverwritePrompt = true };
+        return dialog.ShowDialog(Owner) == true ? dialog.FileName : null;
+    }
+    public string? PickValidator() {
+        var dialog = new OpenFileDialog { Title = "Выберите исполняемый файл veraPDF CLI", Filter = "veraPDF CLI (*.exe;*.jar)|*.exe;*.jar", CheckFileExists = true };
+        return dialog.ShowDialog(Owner) == true ? dialog.FileName : null;
+    }
 
     public string? PickPdf()
     {

@@ -5,6 +5,8 @@
 #include "pdf_doc.hpp"
 #include "sha256.hpp"
 #include "xmp_model.hpp"
+#include "logical_graph.hpp"
+#include "private_data.hpp"
 
 #include <qpdf/QPDFWriter.hh>
 #include <qpdf/QPDFSystemError.hh>
@@ -98,6 +100,8 @@ void applyInfoOps(QPDF& q, const json& ops, Applied& a) {
         std::string key = op.at("key").get<std::string>();
         if (key.size() < 2 || key[0] != '/') throw WorkerError("bad_request", "Ключ /Info должен начинаться с /: " + key);
         if (kind == "set") {
+            if (q.getPDFVersion() >= "2.0" && !info.hasKey(key) && key != "/CreationDate" && key != "/ModDate")
+                throw WorkerError("unsupported_profile_edit", "В PDF 2.0 новые описательные значения создаются в XMP; /Info допускает создание только дат");
             std::string type = op.value("type", "string");
             std::string value = op.at("value").get<std::string>();
             if (type == "string") {
@@ -261,11 +265,62 @@ void applyObjectOps(QPDF& q, const json& ops, Applied& a) {
     std::erase_if(a.objects, [](const ObjectChange& c) { return c.before == c.after; });
 }
 
+static bool declares(const json& model, const std::string& uri, const std::string& name) {
+    if (!model.is_object()) return false;
+    for (const auto& node : model.value("nodes", json::array())) {
+        const auto& steps = node.at("steps");
+        if (steps.size() == 1 && steps[0].value("ns", "") == uri && steps[0].value("name", "") == name &&
+            !node.value("value", std::string()).empty()) return true;
+    }
+    return false;
+}
+static void checkProfileEdits(const Applied& changes, bool infoPdfX) {
+    bool pdfX = infoPdfX;
+    const std::set<std::string> predefined{
+        "http://purl.org/dc/elements/1.1/", "http://ns.adobe.com/xap/1.0/", "http://ns.adobe.com/pdf/1.3/",
+        "http://ns.adobe.com/xap/1.0/rights/", "http://ns.adobe.com/xap/1.0/mm/", "http://ns.adobe.com/photoshop/1.0/",
+        "http://ns.adobe.com/exif/1.0/", "http://ns.adobe.com/tiff/1.0/", "http://www.aiim.org/pdfa/ns/id/",
+        "http://www.aiim.org/pdfa/ns/extension/", "http://www.aiim.org/pdfa/ns/schema#", "http://www.aiim.org/pdfa/ns/property#",
+        "http://www.aiim.org/pdfa/ns/type#", "http://www.aiim.org/pdfa/ns/field#"
+    };
+    for (const auto& stream : changes.streams) {
+        if (!std::any_of(stream.owners.begin(), stream.owners.end(), [](const auto& owner) { return owner.kind == "catalog" && owner.path.empty(); })) continue;
+        pdfX = pdfX || declares(stream.beforeModel, "http://www.npes.org/pdfx/ns/id/", "GTS_PDFXVersion");
+        if (stream.action == "remove" || !declares(stream.beforeModel, "http://www.aiim.org/pdfa/ns/id/", "part")) continue;
+        std::set<std::string> existing, registered;
+        for (const auto& node : stream.beforeModel.value("nodes", json::array())) if (node.at("steps").size() == 1) existing.insert(node.at("steps")[0].value("ns", "") + "#" + node.at("steps")[0].value("name", ""));
+        for (const auto& node : stream.afterModel.value("nodes", json::array())) {
+            const auto& steps = node.at("steps");
+            if (!steps.empty() && steps.back().value("ns", "") == "http://www.aiim.org/pdfa/ns/schema#" && steps.back().value("name", "") == "namespaceURI")
+                registered.insert(node.value("value", std::string()));
+        }
+        for (const auto& node : stream.afterModel.value("nodes", json::array())) {
+            const auto& steps = node.at("steps");
+            if (steps.size() != 1 || existing.count(steps[0].value("ns", "") + "#" + steps[0].value("name", ""))) continue;
+            auto ns = steps[0].value("ns", "");
+            if (!predefined.count(ns) && !registered.count(ns)) throw WorkerError("unsupported_profile_edit",
+                "Заявленный PDF/A: новая пользовательская схема XMP требует описания pdfaExtension. Добавьте описание схемы через XML или используйте документ без этого профиля; соответствие всё равно требует валидатора");
+        }
+    }
+    if (pdfX && changes.infoBefore != changes.infoAfter) {
+        for (const auto& entry : changes.infoAfter.at("entries"))
+            if (entry.value("key", "") == "/Trapped" && entry.value("value", "") == "/Unknown") {
+                bool changed = true;
+                for (const auto& original : changes.infoBefore.at("entries")) if (original.value("key", "") == "/Trapped" && original.value("value", "") == "/Unknown") changed = false;
+                if (changed) throw WorkerError("unsupported_profile_edit", "PDF/X не допускает создание /Trapped /Unknown; выберите True или False");
+            }
+    }
+}
+
 Applied applyEdits(QPDF& q, Discovery& d, const json& edits) {
     Applied a;
+    auto originalInfo = q.getTrailer().getKey("/Info");
+    auto originalPdfX = originalInfo.isDictionary() ? originalInfo.getKey("/GTS_PDFXVersion") : QPDFObjectHandle::newNull();
+    bool infoPdfX = originalPdfX.isString() && originalPdfX.getUTF8Value().find("PDF/X") != std::string::npos;
     applyInfoOps(q, edits.value("info", json::array()), a);
     applyXmpTargets(q, d, edits.value("xmp", json::array()), a);
     applyObjectOps(q, edits.value("objects", json::array()), a);
+    checkProfileEdits(a, infoPdfX);
     // Preserve unrelated orphan objects, but erase explicitly removed metadata
     // when no remaining object references it (including non-Metadata references).
     for (const auto& change : a.streams) {
@@ -376,6 +431,8 @@ json openDocument(const json& req, Context& ctx) {
     Fingerprint fp = computeFingerprint(path, &ctx);
     LoadedPdf pdf = openPdf(path, getPassword(req), &ctx);
     json out = inspect(pdf, ctx);
+    if (!(fp == computeFingerprint(path, &ctx)))
+        throw WorkerError("external_change", "Файл изменился во время чтения; загрузите его заново");
     out["file"] = json{{"path", pathToUtf8(path)}, {"name", pathToUtf8(path.filename())}, {"fingerprint", fp.toJson()}};
     return out;
 }
@@ -387,16 +444,29 @@ const char* const kPrivateDataNote =
     "они переносятся без изменений, сохранение возможно только в отдельную копию";
 
 json previewEdits(const json& req, Context& ctx) {
-    fs::path path = requirePath(req, "path");
+    fs::path path = requirePath(req, req.contains("snapshotPath") ? "snapshotPath" : "path");
     LoadedPdf pdf = openPdf(path, getPassword(req), &ctx);
     Discovery d = discover(*pdf.q, &ctx);
     Applied a = applyEdits(*pdf.q, d, req.value("edits", json::object()));
     json out = appliedToJson(a);
     if (a.needsPdf14 && pdf.q->getPDFVersion() < std::string("1.4"))
         out["notes"].push_back("Версия PDF будет повышена до 1.4 (нужна для потоков XMP)");
-    if (!d.pieceInfo.empty())
+    if (std::any_of(d.pieceInfo.begin(), d.pieceInfo.end(), [](const auto& piece) { for (const auto& app : piece.at("apps")) if (app.at("adapter").is_null()) return true; return false; }))
         out["notes"].push_back(kPrivateDataNote);
     return out;
+}
+
+static void requireUnrepairedInput(LoadedPdf& pdf, const Applied& changes) {
+    for (auto& warning : pdf.q->getWarnings()) pdf.warnings.push_back(sanitizeUtf8(warning.what()));
+    bool removedOversizeMetadata = std::any_of(changes.streams.begin(), changes.streams.end(), [](const auto& stream) {
+        return stream.action == "remove" && stream.beforePacket.empty();
+    });
+    if (removedOversizeMetadata) pdf.warnings.erase(std::remove_if(pdf.warnings.begin(), pdf.warnings.end(), [](const auto& warning) {
+        return warning.find("input stream is complete but output may still be valid") != std::string::npos;
+    }), pdf.warnings.end());
+    if (!pdf.warnings.empty()) throw WorkerError("pdf_damaged",
+        "qpdf обнаружил или восстановил повреждённую структуру PDF. Редактирование и запись заблокированы: интерпретация другими просмотрщиками может отличаться; исходные данные доступны для просмотра и экспорта",
+        json{{"warnings", pdf.warnings}});
 }
 
 json saveEdits(const json& req, Context& ctx) {
@@ -407,11 +477,18 @@ json saveEdits(const json& req, Context& ctx) {
     std::string password = getPassword(req);
 
     ctx.progress("check", 0);
-    checkFingerprint(src, req, ctx);
+    if (!req.contains("expect")) throw WorkerError("bad_request", "Не передан отпечаток исходного файла");
     Fingerprint srcFp = Fingerprint::fromJson(req["expect"]);
+    fs::path readPath = req.contains("snapshotPath") ? requirePath(req, "snapshotPath") : src;
+    if (mode == "replace" || !req.contains("snapshotPath")) checkFingerprint(src, req, ctx);
+    if (req.contains("snapshotPath")) {
+        auto cache = computeFingerprint(readPath, &ctx);
+        if (cache.sha256 != srcFp.sha256 || cache.size != srcFp.size)
+            throw WorkerError("external_change", "Снимок исходного файла повреждён; загрузите документ заново");
+    }
 
     fs::path target = mode == "replace" ? src : requirePath(req, "target");
-    if (mode == "copy" && sameFile(src, target))
+    if (mode == "copy" && (sameFile(readPath, target) || fs::absolute(readPath).lexically_normal() == fs::absolute(target).lexically_normal() || sameFile(src, target) || fs::absolute(src).lexically_normal() == fs::absolute(target).lexically_normal()))
         throw WorkerError("target_is_source", "Для записи поверх исходного файла выберите «Заменить оригинал…»");
     fs::path dir = target.parent_path();
     if (dir.empty()) dir = fs::current_path();
@@ -422,7 +499,7 @@ json saveEdits(const json& req, Context& ctx) {
     // и монопольное открытие в Windows всегда завершалось бы ошибкой «файл занят».
     if (mode == "replace") ensureWritable(src);
 
-    LoadedPdf pdf = openPdf(src, password, &ctx);
+    LoadedPdf pdf = openPdf(readPath, password, &ctx);
     QPDF& q = *pdf.q;
 
     json sig = signatureInfo(q);
@@ -433,7 +510,10 @@ json saveEdits(const json& req, Context& ctx) {
         throw WorkerError("permission_denied", "Ограничения документа запрещают изменение. Нужен пароль владельца.");
 
     Discovery d = discover(q, &ctx);
-    if (mode == "replace" && !d.pieceInfo.empty())
+    bool unsupportedPrivate = false;
+    for (const auto& entry : d.pieceInfo)
+        for (const auto& app : entry["apps"]) if (app.value("adapter", json(nullptr)).is_null()) unsupportedPrivate = true;
+    if (mode == "replace" && unsupportedPrivate)
         throw WorkerError("private_data_copy_only", kPrivateDataNote);
 
     ensureFreeSpace(dir, srcFp.size * (mode == "replace" ? 2 : 1) + (4u << 20));
@@ -477,8 +557,11 @@ json saveEdits(const json& req, Context& ctx) {
             }
         }
     }
+    auto expectedGraph = logicalGraph(q, ctx);
     int R0 = 0, P0 = 0;
     bool wasEncrypted = q.isEncrypted(R0, P0);
+    auto encryptionBefore = encryptionInfo(q);
+    encryptionBefore.erase("ownerPasswordMatched"); encryptionBefore.erase("userPasswordMatched");
     std::string versionBefore = q.getPDFVersion();
     size_t objectsBefore = d.totalObjects;
     size_t unreachable = d.totalObjects > d.reachableObjects ? d.totalObjects - d.reachableObjects : 0;
@@ -487,12 +570,13 @@ json saveEdits(const json& req, Context& ctx) {
     fs::path backup;
     if (mode == "replace") {
         backup = uniqueSibling(dir, pathToUtf8(src.stem()) + ".backup-" + timestamp(), pathToUtf8(src.extension()));
-        copyFileExact(src, backup);
         backupGuard.path = backup;
+        copyFileExact(src, backup);
         if (computeFingerprint(backup, &ctx).sha256 != srcFp.sha256)
             throw WorkerError("io_error", "Резервная копия не совпадает с оригиналом");
     }
 
+    requireUnrepairedInput(pdf, a);
     TempGuard tempGuard;
     tempGuard.path = tempPathIn(dir);
     std::map<std::string, QPDFObjGen> renumber;
@@ -506,6 +590,7 @@ json saveEdits(const json& req, Context& ctx) {
         w.setCompressStreams(false);
         w.setPreserveEncryption(true);
         w.setPreserveUnreferencedObjects(true);
+        w.setMinimumPDFVersion(q.getPDFVersion(), q.getExtensionLevel());
         if (a.needsPdf14) w.setMinimumPDFVersion("1.4");
         w.registerProgressReporter(std::make_shared<WriterProgress>(ctx));
         try {
@@ -519,6 +604,8 @@ json saveEdits(const json& req, Context& ctx) {
         } catch (const std::exception& e) {
             throw WorkerError("write_failed", "Ошибка записи PDF: " + sanitizeUtf8(e.what()));
         }
+        for (auto object : q.getAllObjects())
+            renumber[refOf(object.getObjGen())] = w.getRenumberedObjGen(object.getObjGen());
         for (auto& s : a.streams)
             if (s.action != "remove") renumber[refOf(s.stream.getObjGen())] = w.getRenumberedObjGen(s.stream.getObjGen());
         for (auto& [og, bytes] : untouched) renumber[refOf(og)] = w.getRenumberedObjGen(og);
@@ -550,6 +637,11 @@ json saveEdits(const json& req, Context& ctx) {
             json infoNow = infoToJson(n), infoWant = a.infoAfter;
             infoNow.erase("ref");
             infoWant.erase("ref");
+            // Reference identity and unusual values are checked by the complete logical graph below.
+            for (auto* info : {&infoNow, &infoWant}) for (auto& entry : (*info)["entries"]) {
+                entry.erase("diagnostic");
+                if (entry.value("kind", "") == "other") entry["value"] = "verified by logical graph";
+            }
             check("info", infoNow == infoWant, infoNow == infoWant ? "/Info совпадает с ожидаемым" : "/Info отличается от ожидаемого");
             for (auto& s : a.streams) {
                 if (s.action == "remove") continue;
@@ -569,7 +661,12 @@ json saveEdits(const json& req, Context& ctx) {
             for (auto& o : a.objects) {
                 json now;
                 try {
-                    std::string addr = o.kind == "annotation" ? refOf(renumber[refOf(o.og)]) : o.address;
+                    std::string addr = o.kind == "annotation" && o.og.isIndirect() ? refOf(renumber[refOf(o.og)]) : o.address;
+                    if (o.kind == "private") {
+                        auto location = json::parse(addr);
+                        location["owner"] = refOf(renumber[location["owner"].get<std::string>()]);
+                        addr = location.dump();
+                    }
                     now = readObjectField(n, o.kind, addr, *o.field);
                 } catch (const std::exception&) {
                     now = "\x01not-found";
@@ -578,6 +675,12 @@ json saveEdits(const json& req, Context& ctx) {
                 check("objects", ok, o.label + " · " + o.field->label + (ok ? ": записано" : ": не совпадает с ожидаемым"));
             }
             json after = structureSnapshot(n);
+            try {
+                auto graph = checkLogicalGraph(n, expectedGraph, renumber, ctx);
+                check("logical_graph", graph["ok"].get<bool>(), "Проверены логические объекты: " +
+                    std::to_string(graph["objects"].get<size_t>()) + "; расхождения: " + graph["differences"].dump());
+            } catch (const Cancelled&) { throw; }
+              catch (const WorkerError& error) { check("logical_graph", false, error.what()); }
             auto same = [&](const char* name, bool ok, const std::string& good, const std::string& bad) {
                 check(name, ok, ok ? good : bad);
             };
@@ -591,9 +694,14 @@ json saveEdits(const json& req, Context& ctx) {
             same("forms", after["formFields"] == before["formFields"], "Поля форм на месте", "Поля форм отличаются");
             same("attachments", after["attachments"] == before["attachments"], "Вложения и их байты не изменились",
                  "Вложения отличаются от исходных");
+            auto outputWarnings = n.getWarnings();
+            check("parser_warnings", out.warnings.empty() && outputWarnings.empty(),
+                  out.warnings.empty() && outputWarnings.empty() ? "Повторное чтение не требует восстановления структуры" : "После записи qpdf обнаружил повреждённую структуру");
             int R1 = 0, P1 = 0;
             bool isEnc = n.isEncrypted(R1, P1);
-            bool encOk = isEnc == wasEncrypted && R1 == R0 && P1 == P0;
+            auto encryptionAfter = encryptionInfo(n);
+            encryptionAfter.erase("ownerPasswordMatched"); encryptionAfter.erase("userPasswordMatched");
+            bool encOk = isEnc == wasEncrypted && R1 == R0 && P1 == P0 && encryptionBefore == encryptionAfter;
             check("encryption", encOk,
                   !encOk ? "Параметры шифрования изменились" : wasEncrypted ? "Шифрование сохранено" : "Документ не зашифрован");
         }
@@ -609,7 +717,7 @@ json saveEdits(const json& req, Context& ctx) {
         if (!(now == srcFp))
             throw WorkerError("external_change", "Исходный файл изменён другой программой во время сохранения");
     }
-    carryOverProtection(src, target, tempGuard.path);
+    carryOverProtection(mode == "copy" && req.contains("snapshotPath") ? readPath : fs::exists(src) ? src : readPath, target, tempGuard.path);
     replaceFile(tempGuard.path, target);
     tempGuard.keep = true;
     backupGuard.keep = true;
@@ -619,8 +727,10 @@ json saveEdits(const json& req, Context& ctx) {
                 {"unreachablePreserved", unreachable},
                 {"notes", json::array({"Полная перезапись: номера объектов, смещения и таблица ссылок пересозданы",
                                        "Вторая часть trailer /ID обновлена; первая сохранена",
-                                       "Прежние incremental revisions не перенесены"})}};
+                                       "Прежние incremental revisions не перенесены",
+                                       "Служебная нормализация qpdf: пустые /DecodeParms и /Contents эквивалентны отсутствующим; /Extensions и /ADBE могут быть прямыми словарями"})}};
     json result{{"target", pathToUtf8(target)}, {"checks", checks}, {"writer", writer}, {"changes", appliedToJson(a)}};
+    if (req.contains("snapshotPath")) result["writer"]["notes"].push_back("Документ записан из проверенного снимка открытой сессии; внешние изменения оригинала не включены");
     if (!backup.empty()) result["backup"] = pathToUtf8(backup);
     result["fingerprint"] = computeFingerprint(target, &ctx).toJson();
     return result;

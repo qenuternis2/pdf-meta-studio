@@ -30,10 +30,14 @@ public sealed class WorkerClient : IAsyncDisposable
 {
     private readonly Process _process;
     private readonly ConcurrentDictionary<long, Pending> _pending = new();
+    private readonly SemaphoreSlim _requestSlots = new(8, 8);
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _nextId;
     private readonly StringBuilder _stderrTail = new();
+    public TimeSpan OperationTimeout { get; set; } = TimeSpan.FromMinutes(5);
+    public const int MaximumRequestBytes = 128 * 1024 * 1024;
+    private const int MaximumResponseCharacters = 256 * 1024 * 1024;
 
     private sealed record Pending(TaskCompletionSource<JsonNode> Completion, IProgress<WorkerProgress>? Progress);
 
@@ -71,21 +75,22 @@ public sealed class WorkerClient : IAsyncDisposable
         _ = Task.Run(client.ReadStderrAsync);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        await client._ready.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
+        try { await client._ready.Task.WaitAsync(timeout.Token).ConfigureAwait(false); }
+        catch { await client.DisposeAsync().ConfigureAwait(false); throw; }
         return client;
     }
 
-    public bool IsAlive => !_process.HasExited;
+    public bool IsAlive { get { try { return !_process.HasExited; } catch (InvalidOperationException) { return false; } } }
 
     private async Task ReadLoopAsync()
     {
         try
         {
-            while (await _process.StandardOutput.ReadLineAsync().ConfigureAwait(false) is { } line)
+            await foreach (string line in ReadLinesAsync(_process.StandardOutput, MaximumResponseCharacters))
             {
                 JsonNode? msg;
-                try { msg = JsonNode.Parse(line); } catch (JsonException) { continue; }
-                if (msg is null) continue;
+                try { msg = JsonNode.Parse(line); } catch (JsonException) { throw new WorkerException("worker_protocol", "Недопустимый ответ компонента PDF"); }
+                if (msg is not JsonObject) throw new WorkerException("worker_protocol", "Недопустимый формат ответа компонента PDF");
                 string type = (string?)msg["type"] ?? "";
                 if (type == "ready") { _ready.TrySetResult(); continue; }
                 long id = msg["id"] is JsonValue v && v.TryGetValue(out long l) ? l : -1;
@@ -107,10 +112,17 @@ public sealed class WorkerClient : IAsyncDisposable
                 }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // поток закрыт
+            if (ex is WorkerException) {
+                _ready.TrySetException(ex);
+                foreach (var entry in _pending)
+                    if (_pending.TryRemove(entry.Key, out var pending)) pending.Completion.TrySetException(ex);
+                Kill();
+            }
         }
+        // A broken protocol reader cannot service another request, even if the peer stays alive.
+        Kill();
         string tail;
         lock (_stderrTail) tail = _stderrTail.ToString();
         var crash = new WorkerException("worker_crashed",
@@ -124,10 +136,12 @@ public sealed class WorkerClient : IAsyncDisposable
     {
         try
         {
-            while (await _process.StandardError.ReadLineAsync().ConfigureAwait(false) is { } line)
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = await _process.StandardError.ReadAsync(buffer).ConfigureAwait(false)) != 0)
                 lock (_stderrTail)
                 {
-                    _stderrTail.AppendLine(line);
+                    _stderrTail.Append(buffer, 0, count);
                     if (_stderrTail.Length > 4000) _stderrTail.Remove(0, _stderrTail.Length - 4000);
                 }
         }
@@ -138,18 +152,79 @@ public sealed class WorkerClient : IAsyncDisposable
     public async Task<JsonNode> CallAsync(string cmd, JsonObject args, IProgress<WorkerProgress>? progress = null,
         CancellationToken ct = default)
     {
+        await _requestSlots.WaitAsync(ct).ConfigureAwait(false);
+        try { return await CallCoreAsync(cmd, args, progress, ct).ConfigureAwait(false); }
+        finally { _requestSlots.Release(); }
+    }
+
+    private async Task<JsonNode> CallCoreAsync(string cmd, JsonObject args, IProgress<WorkerProgress>? progress, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!IsAlive) throw new WorkerException("worker_crashed", "Компонент PDF завершился; перезапустите обработчик, правки сохранены");
         long id = Interlocked.Increment(ref _nextId);
         var request = (JsonObject)args.DeepClone();
         request["id"] = id;
         request["cmd"] = cmd;
+        string line = await Task.Run(() => request.ToJsonString(), ct).ConfigureAwait(false);
+        if (Encoding.UTF8.GetByteCount(line) > MaximumRequestBytes)
+            throw new WorkerException("request_too_large", "Запрос превышает 128 МиБ; уменьшите размер правок");
         var pending = new Pending(new TaskCompletionSource<JsonNode>(TaskCreationOptions.RunContinuationsAsynchronously), progress);
         _pending[id] = pending;
-        await SendLineAsync(request.ToJsonString()).ConfigureAwait(false);
+        await SendLineAsync(line).ConfigureAwait(false);
         using var reg = ct.Register(() =>
         {
             _ = SendLineAsync(new JsonObject { ["cmd"] = "cancel", ["target"] = id }.ToJsonString());
+            _ = StopUnresponsiveAsync(id);
         });
-        return await pending.Completion.Task.ConfigureAwait(false);
+        try { return await pending.Completion.Task.WaitAsync(OperationTimeout, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) {
+            // Hold the request slot until acknowledgement or process termination, bounding retired requests too.
+            try {
+                var completed = await pending.Completion.Task.WaitAsync(TimeSpan.FromSeconds(6)).ConfigureAwait(false);
+                if (cmd == "save") return completed; // A verified commit must never be reported as cancelled.
+            }
+            catch (Exception) { }
+            throw;
+        }
+        catch (TimeoutException) {
+            Kill();
+            throw new WorkerException("operation_timeout", "Обработка превысила пять минут; компонент перезапущен, правки и исходный файл сохранены");
+        }
+    }
+
+    private async Task StopUnresponsiveAsync(long id)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        if (_pending.ContainsKey(id)) Kill();
+    }
+
+    private void Kill()
+    {
+        try { if (!_process.HasExited) _process.Kill(entireProcessTree: true); }
+        catch (InvalidOperationException) { }
+    }
+
+    private static async IAsyncEnumerable<string> ReadLinesAsync(StreamReader reader, int maximum)
+    {
+        char[] buffer = new char[8192];
+        var line = new StringBuilder();
+        int count;
+        while ((count = await reader.ReadAsync(buffer).ConfigureAwait(false)) != 0)
+        {
+            int start = 0;
+            for (int index = 0; index < count; ++index)
+            {
+                if (buffer[index] != '\n') continue;
+                if (line.Length + index - start > maximum) throw new WorkerException("response_too_large", "Ответ компонента превышает лимит; экспортируйте крупные блоки отдельно");
+                line.Append(buffer, start, index - start);
+                yield return line.ToString().TrimEnd('\r');
+                line.Clear();
+                start = index + 1;
+            }
+            if (line.Length + count - start > maximum) throw new WorkerException("response_too_large", "Ответ компонента превышает лимит");
+            line.Append(buffer, start, count - start);
+        }
+        if (line.Length != 0) yield return line.ToString();
     }
 
     private async Task SendLineAsync(string line)
@@ -160,9 +235,11 @@ public sealed class WorkerClient : IAsyncDisposable
             await _process.StandardInput.WriteLineAsync(line).ConfigureAwait(false);
             await _process.StandardInput.FlushAsync().ConfigureAwait(false);
         }
-        catch (IOException)
+        catch (Exception error) when (error is IOException or InvalidOperationException)
         {
-            // процесс завершился — ошибку сообщит ReadLoop
+            foreach (var entry in _pending)
+                if (_pending.TryRemove(entry.Key, out var pending)) pending.Completion.TrySetException(
+                    new WorkerException("worker_crashed", "Компонент PDF завершился; правки сохранены"));
         }
         finally
         {
@@ -177,7 +254,7 @@ public sealed class WorkerClient : IAsyncDisposable
             if (!_process.HasExited)
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try { await CallAsync("shutdown", new JsonObject()).WaitAsync(cts.Token).ConfigureAwait(false); }
+                try { await CallAsync("shutdown", new JsonObject(), ct: cts.Token).WaitAsync(cts.Token).ConfigureAwait(false); }
                 catch (Exception) { }
                 if (!_process.HasExited) _process.Kill(entireProcessTree: true);
             }

@@ -1,47 +1,34 @@
-# Implementation status
+# Specification implementation and acceptance
 
-Updated 2026-10-07 against the uploaded development brief (`TASK.md`) and detailed specification (`SPEC.md`, internally version 1.1). The original archives are design/reference material, not implementation sources. Their historical mockup reports are not application test results.
+Updated 2026-10-07 against the uploaded development brief (`TASK.md`) and detailed specification (`SPEC.md`, internally version 1.1). The archives describe requirements and historical mockups; their instructions are reference material and their reports are not executable acceptance evidence.
 
-## Confirmed defects corrected
+## Implemented workflows
 
-| Audit finding | Correction and regression coverage |
+| Requirement | Implementation and evidence |
 |---|---|
-| F1: unrelated orphan XMP disappeared on an Info edit | Preserve current unreferenced objects, verify orphan packets and separately remove explicitly targeted streams; native preservation/removal tests |
-| F2: unreferenced PieceInfo owners were skipped and arbitrary XML was counted as metadata | Walk all xref containers and require `/Type /Metadata` with `/Subtype /XML` for standalone identification; discovery regression |
-| F3: unchanged damaged XMP allowed replacement of the source | Refuse replacement, permit a byte-preserving copy and include the source error in save notes; source hash and copy regression |
-| F4: known date properties accepted structure/array values | Require simple values before validating known date/boolean fields; malformed CreateDate structure regression |
-| F5: new XMP tags were invisible until save/reopen | Project checked previews into the pending snapshot, include additions, support edits/deletion/undo of newly created nodes; actual ViewModel integration tests |
-| F6: XML application left stale tree values | Validate XML before session changes and refresh all metadata views from the preview; XML, restoration and selected-object regressions |
+| Standard fields and authors | Ordered item controls support add, edit, delete, move and undo; comma-containing names remain one item. Info synchronization is explicit. Actual ViewModel integration tests exercise the workflow. |
+| Language variants | Editable language selection for title, description and rights; adding/applying and deleting one language is separate from deleting the property. Other translations and Info remain unchanged for an explicitly selected XMP-only language operation. |
+| Dates | Calendar, explicit date/time components, precision, fractional seconds, timezone and original string. Missing components are never filled from the system clock. PDF hour precision cannot silently gain XMP minutes. |
+| Complete XMP model | Addressed simple values, URI flags, Seq/Bag/Alt, compound items, structures, fields and qualifiers; insertion, movement, renaming and original subtree restoration preserve qualifiers. Unknown values require an explicit input type. |
+| Info | Existing and custom string/name keys can be edited, deleted and renamed. Other PDF types have bounded type/raw-byte diagnostics, including null semantics. |
+| PDF objects | Document/object/orphan XMP, explicit shared-owner scope, nested owner paths, direct and indirect annotations, file descriptions/names/dates and attachment preservation. |
+| Private containers | Registered `PdfMetaStudioV1` adapter edits descriptive strings/dates only. Unknown formats remain read-only, have type diagnostics and bounded JSON/raw-stream export, and permit only separate PDF copies. No third-party binary format is claimed supported. |
+| Invalid packets | Parsing diagnostics, Base64 for non-UTF-8 bytes, original packet export and separately validated XML replacement. Unchanged packets remain byte-preserved. |
+| Preservation | Hashes of the entire logical object graph and raw decrypted streams, normalized writer references, field/content/attachment checks, and fail-closed post-write verification. Physical xref/object-stream/encryption structures, Length objects and documented qpdf normalizations are separated from user edits. |
+| External changes | OS file identity, size/mtime/hash, immutable session cache, checked backup, final source fingerprint check, explicit reload and saving a copy of the originally opened session. |
+| Protected files | Initial read-only signed/restricted documents, explicit signed-copy editing consent, in-session owner password and encryption preservation. |
+| Profiles | Declared status remains unverified after edits; optional local veraPDF executable/JAR validates the saved file and reports its actual profile independently of preservation success. veraPDF is not a PDF/X validator. |
+| Resource limits | 4 GiB worker memory, 128 MiB request/queued-byte limit, 8 queued commands, 128 request/PDF traversal depth, bounded XMP model/discovery/export and response reading. Five-minute operation deadline and five-second cancellation grace kill an unresponsive worker without losing the session cache; restart is available in the editor. |
+| Packaging | Self-contained .NET/WPF application, complete dependency license collection, versioned per-user WiX MSI, shortcut, upgrades, uninstall and installation smoke workflow. |
 
-## Functional additions
+## Acceptance evidence
 
-- Source selection for document, object and orphan XML; a virtual document source supports adding metadata to an initially bare PDF.
-- Explicit shared-owner scope, including paths through nested direct dictionaries/arrays. Detach preserves and verifies the original packet for remaining owners.
-- Language selection, structures and structure fields, qualifiers, alternative containers, URI values and explicit value editors for dates, booleans and numbers. Numeric input is stored as text without converting through a floating-point type.
-- Checked pending snapshots shared by the tag tree, standard metadata fields and object metadata views. Preview revisions prevent stale asynchronous responses from replacing newer edits.
-- Original subtree restoration after raw XML application, deterministic operation order, and a session Ctrl+Z binding.
+The Release solution builds with zero warnings/errors. All 73 managed/core/ViewModel/IPC tests pass; native tests pass 45 checks with 5 explicit platform/environment skips. The qpdf corpus contains 628 files and produces 470 verified saves. Independent pypdf/Poppler comparisons pass for 417 files and 2,758 pages, with zero failures. Detailed per-file results and exclusions are committed in [validation evidence](validation/README.md). A verification refusal is a supported outcome when preservation cannot be established; it is never counted as a successful save or visual comparison.
 
-These additions begin the extended editor requirements; they do not establish full completion of every type workflow. Alternative containers can also be filled through XML; dedicated item management is still pending.
+The independent corpus runner uses pypdf field values/attachments/page boxes and Poppler pixels for every page of each eligible sample. Its page/time limits and unsupported or damaged source exclusions are explicit. This is sampled-resolution rendering evidence, not a proof about every possible PDF or rendering engine.
 
-## Validation
+Windows CI builds the MSI and exercises installation, the installed GUI and uninstall on Windows Server 2022. It also records GUI screenshots. This is not clean Windows 11, Narrator or physical DPI acceptance.
 
-Local Release solution build passes with zero warnings/errors. The native suite includes independent pypdf reading and a representative Poppler visual comparison; the corpus loop uses worker preservation checks, rather than rendering every file. Current results and Windows CI are recorded in the pull request.
+## External acceptance still requiring a real Windows 11 session
 
-The 628-file qpdf corpus has 586 openable samples. With orphan retention enabled, 577 save successfully; two are refused by post-write verification (`bad-encryption-length.pdf` and `issue-149.pdf`). Password, damaged-file and permission refusals are expected. A named regression verifies that conflicting object generations cannot silently change page content. No verification check was relaxed to make these samples save.
-
-Local environment limitations: Windows NTFS Zone.Identifier and a disk-full test requiring a mounted small tmpfs cannot run here. WPF compiles on Linux but needs Windows for GUI execution. Worker integration tests explicitly report a skip when the worker is unavailable.
-
-## Remaining specification gaps
-
-| Area | Remaining work |
-|---|---|
-| Typed editor | Calendar/time/precision controls; full Seq/Bag/Alt item management, movement, arbitrary renaming and richer qualifier editing; comprehensive known-schema shape policy |
-| PDF objects | Private-data adapters, opaque block export and direct-annotation editing; raw-byte diagnostics for invalid UTF-8 packets |
-| Resource guarantees | Bounded IPC lines/queues, traversal depth/item limits, operation deadlines and exercised responsiveness under stress |
-| Preservation | Full logical graph/resource/link/bookmark/form-value comparison beyond current byte/hash/count checks; broader independent visual corpus coverage |
-| File changes | OS file identity, explicit reload and handling the previously opened bytes after external changes; Windows lock/race/backup ACL acceptance |
-| Profiles and protected documents | Complete declared-profile edit policy/validator integration and in-session owner-password/read-only workflows |
-| Packaging | Explicit third-party license bundle, installer, clean Windows 11 machine acceptance; executable signing is desirable but was not an explicit uploaded acceptance requirement |
-| Windows acceptance | Narrator, Tab/Shift+Tab, DPI 100/150/200%, themes, long paths/values, memory limits, crash/error recovery and responsiveness |
-
-The previous audit identified both reproducible defects and broader missing requirements. The six reproduced defect groups are addressed above; the remaining requirements stay open and must not be reported as completed by this change.
+Use [WINDOWS_ACCEPTANCE.md](WINDOWS_ACCEPTANCE.md) for clean-machine installation, Narrator, Tab/Shift+Tab, physical DPI 100/150/200%, theme, long-path and stress checks. These checks must remain pending until actually performed; an automated build or screenshot does not substitute for them. Executable signing requires the publisher's signing certificate and is not asserted.

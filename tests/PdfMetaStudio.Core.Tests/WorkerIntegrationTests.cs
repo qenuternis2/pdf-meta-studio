@@ -108,8 +108,12 @@ public class WorkerIntegrationTests
         File.AppendAllText(src, "\n%changed\n");
         var built = s.Build();
         var ex = await Assert.ThrowsAsync<WorkerException>(() =>
-            svc.SaveAsync(s, built, ReviewBuilder.DefaultCopyName(src), SaveMode.Copy, false));
+            svc.SaveAsync(s, built, null, SaveMode.Replace, false));
         Assert.Equal("external_change", ex.Code);
+        var saved = await svc.SaveAsync(s, built, ReviewBuilder.DefaultCopyName(src), SaveMode.Copy, false);
+        Assert.All(saved.Checks, check => Assert.True(check.Ok));
+        var again = await svc.OpenAsync(saved.Target, null);
+        Assert.Equal("x", again.InfoValue("/Title")!.Value);
     }
 
     [WorkerFact]

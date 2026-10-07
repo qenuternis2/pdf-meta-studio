@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <mutex>
 #include <stdexcept>
@@ -37,11 +38,13 @@ private:
 // Контекст выполнения одной команды: прогресс и проверка отмены.
 class Context {
 public:
-    Context(std::int64_t id, Channel& channel, std::atomic<bool>& cancel)
-        : id_(id), channel_(channel), cancel_(cancel) {}
+    Context(std::int64_t id, Channel& channel, std::atomic<bool>& cancel, int timeoutMs = 300000)
+        : id_(id), channel_(channel), cancel_(cancel), deadline_(std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs)) {}
     void progress(const std::string& stage, int percent);
     void checkCancel() const {
         if (cancel_.load()) throw Cancelled();
+        if (std::chrono::steady_clock::now() >= deadline_)
+            throw WorkerError("operation_timeout", "Превышено время обработки; исходный файл не изменён");
     }
     bool cancelRequested() const { return cancel_.load(); }
     std::int64_t id() const { return id_; }
@@ -49,6 +52,7 @@ private:
     std::int64_t id_;
     Channel& channel_;
     std::atomic<bool>& cancel_;
+    std::chrono::steady_clock::time_point deadline_;
     int lastPercent_ = -1;
     std::string lastStage_;
 };

@@ -10,6 +10,8 @@ param(
     [string]$NewAuthor = 'Автор из GUI ✓'
 )
 $ErrorActionPreference = 'Stop'
+# Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]
@@ -185,6 +187,12 @@ try {
     Log ("OK  копия записана: {0} ({1} байт); сообщение: {2}" -f $target, (Get-Item $target).Length, $boxText)
     $okBtn = $box.FindFirst($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Button))
     if ($okBtn) { Press $okBtn }
+    else {
+        # Native message-box buttons may be exposed as Pane by the CI accessibility provider.
+        try { $box.SetFocus() } catch { }
+        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+    }
+    if (-not (WaitFor { -not (Dialog $proc.Id) } 15)) { throw 'The save result dialog did not close after confirmation' }
 
     $step = 'verify'
     $worker = Join-Path (Split-Path $Exe) 'pdfmeta-worker.exe'
@@ -209,8 +217,8 @@ try {
     $step = 'close'
     $proc.CloseMainWindow() | Out-Null
     $closed = WaitFor { $proc.Refresh(); $proc.HasExited } 15
-    Log ("{0}  закрытие окна после сохранения{1}" -f $(if ($closed) { 'OK ' } else { 'WARN' }), $(if ($closed) { '' } else { ': окно не закрылось (возможен запрос о несохранённых правках)' }))
-    if (-not $closed) { Shot '5-close' }
+    Log ("{0}  закрытие окна после сохранения{1}" -f $(if ($closed) { 'OK ' } else { 'FAIL' }), $(if ($closed) { '' } else { ': окно не закрылось' }))
+    if (-not $closed) { Shot '5-close'; throw 'The application did not close after a successful save' }
     Log 'GUI SMOKE PASSED'
     exit 0
 }

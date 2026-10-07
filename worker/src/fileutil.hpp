@@ -18,10 +18,11 @@ struct Fingerprint {
     std::uint64_t size = 0;
     std::string mtime;  // число тиков file_time_type в виде строки
     std::string sha256;
+    std::string identity;
     json toJson() const;
     static Fingerprint fromJson(const json& j);
     bool operator==(const Fingerprint& o) const {
-        return size == o.size && mtime == o.mtime && sha256 == o.sha256;
+        return size == o.size && mtime == o.mtime && sha256 == o.sha256 && identity == o.identity;
     }
 };
 

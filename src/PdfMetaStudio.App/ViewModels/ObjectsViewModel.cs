@@ -1,3 +1,5 @@
+using PdfMetaStudio.Core;
+using PdfMetaStudio.Core.Protocol;
 using System.IO;
 using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
@@ -127,11 +129,13 @@ public sealed partial class ObjectFieldViewModel : ObservableObject
         _kind = kind;
         _address = address;
         Field = field;
+        if (field.IsDate) DateEditor = new DateEditorViewModel(value => Text = value) { ContextLabel = field.Label + " — " + objectTitle };
         ObjectTitle = objectTitle;
         Key = ObjectFields.EditKey(kind, address, field.Id);
         Reload();
     }
 
+    public DateEditorViewModel? DateEditor { get; }
     public ObjectField Field { get; }
     public string Key { get; }
     public string ObjectTitle { get; }
@@ -157,6 +161,7 @@ public sealed partial class ObjectFieldViewModel : ObservableObject
     {
         _loading = true;
         Text = _session.CurrentObjectValue(_kind, _address, Field.Id) ?? "";
+        DateEditor?.Load(Text, true);
         _loading = false;
         RefreshState();
     }
@@ -214,10 +219,39 @@ public sealed class ObjectItemViewModel
     public IReadOnlyList<ObjectFieldViewModel> Fields { get; }
 }
 
+public sealed partial class PrivateItemViewModel : ObservableObject
+{
+    private readonly EditSession _session;
+    private readonly DocumentService? _service;
+    private readonly Func<string?>? _pickTarget;
+    private readonly Action<string>? _report;
+    private readonly string _address;
+    public PrivateItemViewModel(EditSession session, JsonNode app, string owner, DocumentService? service, Func<string?>? pickTarget, Action<string>? report) {
+        _session = session; _service = service; _pickTarget = pickTarget; _report = report;
+        _address = (string?)app["address"] ?? "";
+        Title = owner + " · " + (string?)app["name"];
+        bool supported = app["adapter"] != null;
+        Details = supported ? "Адаптер PdfMetaStudioV1: описательные поля; внутренних смещений нет." :
+            "Неизвестный формат: только просмотр и экспорт. Совместимость после записи PDF не проверена; разрешена отдельная копия.";
+        Diagnostic = app["diagnostic"]?.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }) ?? "";
+        Fields = supported ? ObjectFields.All.Where(field => field.Kind == ObjectFields.Private).Select(field =>
+            new ObjectFieldViewModel(session, ObjectFields.Private, _address, field, Title)).ToList() : new();
+    }
+    public string Title { get; }
+    public string Details { get; }
+    public string Diagnostic { get; }
+    public IReadOnlyList<ObjectFieldViewModel> Fields { get; }
+    [RelayCommand] private async Task Export() {
+        if (_service == null || _address.Length == 0 || _pickTarget?.Invoke() is not { } target) return;
+        try { await _service.ExportPrivateAsync(_session, _address, target); _report?.Invoke("Экспорт сохранён: " + target); }
+        catch (WorkerException error) { _report?.Invoke(error.Message); }
+    }
+}
+
 /// <summary>Раздел «Объекты PDF».</summary>
 public sealed class ObjectsViewModel
 {
-    public ObjectsViewModel(EditSession session)
+    public ObjectsViewModel(EditSession session, DocumentService? service = null, Func<string?>? pickExport = null, Action<string>? report = null)
     {
         var doc = session.WorkingDocument;
         foreach (var s in doc.Streams.Where(s => !s.IsDocument)) Streams.Add(new ObjectStreamViewModel(session, s));
@@ -247,11 +281,9 @@ public sealed class ObjectsViewModel
                 ObjectFields.All.Where(f => f.Kind == ObjectFields.Attachment)
                     .Select(f => new ObjectFieldViewModel(session, ObjectFields.Attachment, name, f, "вложение " + title))));
         }
-        foreach (var p in doc.PieceInfo)
-            PieceInfo.Add(new ReadOnlyItem(
-                "Объект " + (string?)p!["owner"] + " R " + (string?)p["keyPath"],
-                string.Join("; ", ((JsonArray?)p["apps"] ?? new JsonArray()).Select(a =>
-                    $"{(string?)a!["name"]} (изменено {(string?)a["lastModified"] ?? "—"}, данные: {(string?)a["private"]})"))));
+        foreach (var piece in doc.PieceInfo)
+            foreach (var app in (JsonArray?)piece?["apps"] ?? new JsonArray())
+                PieceInfo.Add(new PrivateItemViewModel(session, app!, "Объект " + (string?)piece?["owner"] + " R " + (string?)piece?["keyPath"], service, pickExport, report));
         ScanStatus = doc.ScanComplete
             ? "Проверено полностью: граф объектов и таблица ссылок."
             : "Проверено частично: " + string.Join("; ", doc.ScanIssues);
@@ -260,7 +292,7 @@ public sealed class ObjectsViewModel
     public ObservableCollection<ObjectStreamViewModel> Streams { get; } = new();
     public ObservableCollection<ObjectItemViewModel> Annotations { get; } = new();
     public ObservableCollection<ObjectItemViewModel> Attachments { get; } = new();
-    public ObservableCollection<ReadOnlyItem> PieceInfo { get; } = new();
+    public ObservableCollection<PrivateItemViewModel> PieceInfo { get; } = new();
     public string ScanStatus { get; }
     public bool HasStreams => Streams.Count > 0;
     public bool HasAnnotations => Annotations.Count > 0;
@@ -282,7 +314,7 @@ public sealed class ObjectsViewModel
             Streams.Add(new ObjectStreamViewModel(session, stream));
     }
 
-    private IEnumerable<ObjectFieldViewModel> AllFields => Annotations.Concat(Attachments).SelectMany(i => i.Fields);
+    private IEnumerable<ObjectFieldViewModel> AllFields => Annotations.Concat(Attachments).SelectMany(i => i.Fields).Concat(PieceInfo.SelectMany(i => i.Fields));
 
     /// <summary>Перечитать поля после изменения сессии (ввод, отмена, повтор).</summary>
     public void Refresh(BuiltRequest built)

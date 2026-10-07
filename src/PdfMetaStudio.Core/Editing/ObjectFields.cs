@@ -11,6 +11,7 @@ public static class ObjectFields
 {
     public const string Annotation = "annotation";
     public const string Attachment = "attachment";
+    public const string Private = "private";
 
     public static readonly IReadOnlyList<ObjectField> All = new[]
     {
@@ -22,6 +23,9 @@ public static class ObjectFields
         new ObjectField(Attachment, "description", "Описание", "/Desc", false, true),
         new ObjectField(Attachment, "created", "Дата создания", "/Params /CreationDate", true, true),
         new ObjectField(Attachment, "modified", "Дата изменения", "/Params /ModDate", true, true),
+        new ObjectField(Private, "label", "Название", "/Label", false, true),
+        new ObjectField(Private, "description", "Описание", "/Description", false, true),
+        new ObjectField(Private, "modified", "Дата изменения", "/LastModified", true, true),
     };
 
     public static ObjectField Get(string kind, string id) => All.First(f => f.Kind == kind && f.Id == id);
@@ -29,9 +33,11 @@ public static class ObjectFields
     public static string EditKey(string kind, string address, string field) => "obj:" + kind + ":" + address + ":" + field;
 
     /// <summary>Объект снимка по адресу: аннотация — по ссылке, вложение — по ключу дерева вложений.</summary>
-    public static JsonNode? Find(DocumentSnapshot doc, string kind, string address) => kind == Annotation
-        ? doc.Annotations.FirstOrDefault(a => (string?)a?["ref"] == address)
-        : doc.Attachments.FirstOrDefault(a => (string?)a?["name"] == address);
+    public static JsonNode? Find(DocumentSnapshot doc, string kind, string address) => kind switch {
+        Annotation => doc.Annotations.FirstOrDefault(a => (string?)a?["ref"] == address),
+        Private => doc.PieceInfo.SelectMany(p => (JsonArray?)p?["apps"] ?? new JsonArray()).FirstOrDefault(a => (string?)a?["address"] == address),
+        _ => doc.Attachments.FirstOrDefault(a => (string?)a?["name"] == address)
+    };
 
     /// <summary>Исходное значение поля; null — ключа нет в документе.</summary>
     public static string? Original(DocumentSnapshot doc, string kind, string address, string field) =>

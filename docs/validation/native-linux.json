@@ -1,0 +1,312 @@
+{
+  "tests": [
+    {
+      "test": "test_annotation_attachment_fields_edit",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_annotation_attachment_fields_rejected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_annotations_attachments_reported",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_array_movement_rename_and_qualifiers",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_bounded_queue_and_queued_cancellation",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_cancel_save",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_compound_array_items_and_positional_restore",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_conflicting_object_generations_cannot_change_pages",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_copy_onto_source_refused",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_damaged_xmp",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_declared_profile_edit_constraints",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_direct_annotations_and_known_private_adapter",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_discovery_includes_orphan_containers_not_arbitrary_xml",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_external_change_detected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_independent_read_and_visual",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_invalid_dates_rejected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_invalid_protocol_envelopes_do_not_crash_worker",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_known_date_shape_rejected",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_mark_of_the_web_kept",
+      "status": "SKIP",
+      "detail": "потоки NTFS (Zone.Identifier) есть только в Windows"
+    },
+    {
+      "test": "test_metadata_bomb_capped",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_missing_metadata_created",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_nested_shared_owner_detach_and_remove",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_no_changes_not_written",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_no_space",
+      "status": "SKIP",
+      "detail": "нельзя смонтировать маленький tmpfs"
+    },
+    {
+      "test": "test_object_metadata_addressed",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_open_edit_reread",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_original_packet_export_is_byte_exact",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_password_and_encryption_preserved",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_password_not_logged",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_pdf_identity_detects_replacement_with_identical_bytes",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_permissions_carried_over",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_preview_does_not_write",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_private_data_copy_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_private_opaque_export_keeps_raw_stream_bytes",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_removed_stream_not_left_orphaned",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_repaired_structure_is_never_silently_saved",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_replace_original_with_backup",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_rich_values_roundtrip",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_shared_stream_scope",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_signed_document_copy_only",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_trapped_name_and_delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unchanged_broken_xmp_requires_copy",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unknown_tags_preserved_add_delete",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unrelated_orphan_metadata_preserved",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_unwritable_target_dir",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_windows_backup_retains_protected_acl",
+      "status": "SKIP",
+      "detail": "Windows DACL acceptance requires Windows"
+    },
+    {
+      "test": "test_windows_locked_original_can_only_be_copied",
+      "status": "SKIP",
+      "detail": "Windows sharing modes require Windows"
+    },
+    {
+      "test": "test_windows_long_path_copy",
+      "status": "SKIP",
+      "detail": "Windows long-path acceptance requires Windows"
+    },
+    {
+      "test": "test_x_default_does_not_touch_translations",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "test": "test_xxe_and_doctype_blocked",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "corpus": {
+    "files": 628,
+    "opened": 586,
+    "saved": 470,
+    "refused": {
+      "password_required": 23,
+      "pdf_damaged": 113,
+      "permission_denied": 5,
+      "unsupported_profile_edit": 10
+    },
+    "verification_blocked": [
+      [
+        "V4-clearmeta.pdf",
+        [
+          "encryption"
+        ]
+      ],
+      [
+        "V4.pdf",
+        [
+          "encryption"
+        ]
+      ],
+      [
+        "bad-encryption-length.pdf",
+        [
+          "info",
+          "logical_graph",
+          "pages"
+        ]
+      ],
+      [
+        "empty-stream-compressed.pdf",
+        [
+          "logical_graph"
+        ]
+      ],
+      [
+        "form-filled-with-atril.pdf",
+        [
+          "logical_graph"
+        ]
+      ],
+      [
+        "metadata-crypt-filter.pdf",
+        [
+          "encryption"
+        ]
+      ],
+      [
+        "overlay-no-resources.pdf",
+        [
+          "logical_graph"
+        ]
+      ]
+    ],
+    "failed": []
+  }
+}

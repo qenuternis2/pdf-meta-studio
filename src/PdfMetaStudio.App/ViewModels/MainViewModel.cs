@@ -14,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly DocumentService _service = new();
     private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
+    private TaskCompletionSource? _openingFinished;
 
     public MainViewModel(IDialogService dialogs) => _dialogs = dialogs;
 
@@ -34,6 +35,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? password = null;
         bool retry = false;
         IsOpening = true;
+        _openingFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ChangeMetaInfoCommand.NotifyCanExecuteChanged();
         _cts = new CancellationTokenSource();
         try
@@ -46,7 +48,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                     var progress = new Progress<WorkerProgress>(p => OpeningText = $"Чтение {Path.GetFileName(path)}… {p.Percent}%");
                     DocumentSnapshot doc = await _service.OpenAsync(path, password, progress, _cts.Token);
                     var editor = new EditorViewModel(_service, _dialogs, doc);
-                    editor.CloseRequested += (_, _) => Editor = null;
+                    AttachEditor(editor);
                     Editor = editor;
                     return;
                 }
@@ -58,6 +60,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 }
             }
         }
+        catch (OperationCanceledException) { Error = null; }
         catch (WorkerException ex)
         {
             Error = ex.Code switch
@@ -70,10 +73,16 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             IsOpening = false;
+            _openingFinished?.TrySetResult();
             _cts.Dispose();
             _cts = null;
             ChangeMetaInfoCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private void AttachEditor(EditorViewModel editor) {
+        editor.CloseRequested += (_, _) => { if (Editor == editor) Editor = null; };
+        editor.Reopened += document => { var replacement = new EditorViewModel(_service, _dialogs, document); AttachEditor(replacement); Editor = replacement; };
     }
 
     private bool CanOpen() => !IsOpening;
@@ -81,7 +90,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     private void CancelOpening() => _cts?.Cancel();
 
-    public async Task<bool> CanExitAsync() => Editor is null || await Editor.TryCloseAsync();
+    public async Task<bool> CanExitAsync() {
+        if (IsOpening) { _cts?.Cancel(); if (_openingFinished != null) await _openingFinished.Task; }
+        return Editor is null || await Editor.TryCloseAsync();
+    }
 
     public ValueTask DisposeAsync() => _service.DisposeAsync();
 }

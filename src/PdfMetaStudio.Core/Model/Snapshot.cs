@@ -171,10 +171,10 @@ public static class XmpNamespaces
     public const string PdfAId = "http://www.aiim.org/pdfa/ns/id/";
 }
 
-public sealed record InfoEntry(string Key, string Kind, string Value, string? Encoding)
+public sealed record InfoEntry(string Key, string Kind, string Value, string? Encoding, JsonNode? Diagnostic = null)
 {
     public static InfoEntry FromJson(JsonNode n) =>
-        new((string)n["key"]!, (string?)n["kind"] ?? "other", (string?)n["value"] ?? "", (string?)n["encoding"]);
+        new((string)n["key"]!, (string?)n["kind"] ?? "other", (string?)n["value"] ?? "", (string?)n["encoding"], n["diagnostic"]?.DeepClone());
 }
 
 public sealed record MetadataOwner(string Ref, string Kind, string Label, int? Page, JsonArray? Path = null)
@@ -195,7 +195,8 @@ public sealed record MetadataStream(
     bool ModelIsLenient,
     string? Scope = null,
     string? TargetOwner = null,
-    JsonArray? OwnerPath = null)
+    JsonArray? OwnerPath = null,
+    string? PacketBase64 = null)
 {
     public bool IsShared => Owners.Count > 1;
     public string Key => Ref + ":" + Scope + ":" + TargetOwner + ":" + OwnerPath?.ToJsonString();
@@ -215,7 +216,7 @@ public sealed record MetadataStream(
             ok,
             (string?)n["parse"]?["error"],
             XmpModel.FromJson(modelNode),
-            !ok && n["lenientModel"] != null);
+            !ok && n["lenientModel"] != null, PacketBase64: (string?)n["packetBase64"]);
     }
 }
 
@@ -243,6 +244,8 @@ public sealed record DocumentSnapshot
     public required IReadOnlyList<string> ScanIssues { get; init; }
     public required IReadOnlyList<string> Warnings { get; init; }
     public string? Password { get; init; }
+    public string? SnapshotPath { get; init; }
+    public JsonArray Pages { get; init; } = new();
 
     public MetadataStream? DocumentStream => Streams.FirstOrDefault(s => s.IsDocument);
     public InfoEntry? InfoValue(string key) => Info.FirstOrDefault(e => e.Key == key);
@@ -275,6 +278,7 @@ public sealed record DocumentSnapshot
                 .Select(i => $"{(string?)i!["area"]}: {(string?)i["reason"]}").ToList(),
             Warnings = ((JsonArray?)d["warnings"] ?? new JsonArray()).Select(w => (string)w!).ToList(),
             Password = password,
+            Pages = (JsonArray?)d["pages"]?.DeepClone() ?? new JsonArray(),
         };
     }
 }

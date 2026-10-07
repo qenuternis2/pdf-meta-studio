@@ -11,6 +11,8 @@ Requests use unique integer `id` values. Commands run serially; a separate reade
 | `validateXmp` | `xml`; parse and validate known values without opening/writing a PDF; return `model` and serialized `packet` |
 | `preview` | `path`, optional `password`, `edits`; apply in memory and return before/after metadata |
 | `save` | `path`, optional `password`, source fingerprint `expect`, `edits`, `mode` (`copy`/`replace`), copy `target`, `options.allowSignedCopy` |
+| `exportMetadata` | `path`, optional `snapshotPath`/`password`, `stream`, `target`; export original decoded packet bytes without UTF-8 conversion |
+| `exportPrivate` | `path`, optional `snapshotPath`/`password`, discovered private `address`, `target`; bounded typed JSON plus raw referenced stream bytes |
 | `cancel` | `target`: request id |
 | `shutdown` | Stop the worker |
 
@@ -65,7 +67,7 @@ Operations apply transactionally to a cloned XMP model, then validate known date
 
 ## Annotation and attachment fields
 
-Indirect annotation dictionaries are addressed by `ref` from `open`; direct annotations remain read-only. Attachments use their EmbeddedFiles tree `name`. A `null` current field value means absent.
+Indirect annotation dictionaries are addressed by `ref` from `open`; direct annotations use the supplied `page:N:annot:M` address. Attachments use their EmbeddedFiles tree `name`. A `null` current field value means absent.
 
 | Kind | Field | PDF keys | Deletable |
 |---|---|---|---|
@@ -94,3 +96,13 @@ Save returns `checks`, `writer`, and `changes`. The writer reports rewritten ver
 | `cancelled`, `out_of_memory`, `internal` | Cancellation/resource/internal errors |
 
 Save errors leave the source unchanged and remove temporary files. Unchanged damaged XMP is copied byte-for-byte only in separate-copy mode; replacement requires fixing or removing the damaged packet first.
+
+## Limits and session snapshots
+
+Requests are at most 128 MiB and 128 JSON levels; the pending queue holds at most eight requests and 128 MiB in total. Invalid envelopes do not terminate the worker. Queued cancellation removes the pending command; active cancellation is cooperative. Native operation deadlines are five minutes; the GUI kills an unresponsive worker after the deadline or five seconds after cancellation and can restart it while retaining the opened session bytes.
+
+`open.file.fingerprint.identity` is the OS device/inode or Windows volume/file identity. The GUI caches the opened bytes in a private session directory and supplies `snapshotPath` for preview/save/export. Replacement always checks the original fingerprint before work and before commit; copy can use a verified snapshot after external source changes. A snapshot may never be an export/copy target.
+
+XMP operations additionally include `moveItem` (`from`/`to`, one-based), `rename` (`toSteps`, same parent/step kind), and compound `appendItem`/`insertItem` (`form`, optional `uri`, `index`). Structural/indexed operations are ordered history entries, rather than last-value replacements. `xml:lang` is a system qualifier, not a renameable field.
+
+Private addresses are the opaque JSON strings supplied by discovery. Only the registered `/Private /Schema /PdfMetaStudioV1` dictionary has a write adapter (`label`, `description`, `modified`). All other schemas are opaque; exact raw export does not certify third-party compatibility.
