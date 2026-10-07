@@ -42,6 +42,13 @@ public static class AcceptanceFocus {
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] static extern bool BringWindowToTop(IntPtr h);
+    [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")] static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
+    public static void Click(int x, int y) {
+        if (!SetCursorPos(x, y)) throw new InvalidOperationException("Hosted pointer positioning failed");
+        mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+        mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+    }
     [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr h);
     [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
     delegate bool EnumChild(IntPtr h, IntPtr arg);
@@ -157,8 +164,10 @@ function Value($el) { $el.GetCurrentPattern([System.Windows.Automation.ValuePatt
 function FocusId($el) { (@($el.GetRuntimeId()) -join '.') }
 function Keys([string]$keys) {
     if ($desktopGuard -and -not [AcceptanceFocus]::HasForeground($proc.Id)) {
-        [AcceptanceFocus]::Activate([AcceptanceFocus]::ActivePopup($proc.MainWindowHandle), 0)
-        Start-Sleep -Milliseconds 100
+        if (-not (WaitFor {
+            [AcceptanceFocus]::Activate([AcceptanceFocus]::ActivePopup($proc.MainWindowHandle), 0)
+            [AcceptanceFocus]::HasForeground($proc.Id)
+        } 5)) { throw 'Hosted desktop did not grant the application keyboard foreground' }
     }
     [System.Windows.Forms.SendKeys]::SendWait($keys)
     Start-Sleep -Milliseconds 70
@@ -345,8 +354,15 @@ try {
         $calendarInput = WaitFor { ByName $win 'Календарь: Дата создания' } 10
         if (-not $calendarInput) { throw 'Creation date calendar is missing' }
         $originalDate = Value (ByName $win 'Исходная дата: Дата создания')
-        [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
-        $calendarInput.SetFocus()
+        # UIA SetFocus alone does not guarantee OS foreground after hosted WSL windows steal it.
+        # A real click on the date textbox activates the application without changing the date.
+        $calendarText = $calendarInput.FindFirst($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Edit))
+        if (-not $calendarText) { throw 'Calendar date textbox is missing' }
+        $textBounds = $calendarText.Current.BoundingRectangle
+        [AcceptanceFocus]::Click([int]($textBounds.Left + $textBounds.Width / 2), [int]($textBounds.Top + $textBounds.Height / 2))
+        if (-not (WaitFor {
+            [AcceptanceFocus]::HasForeground($proc.Id) -and (FocusId $AE::FocusedElement) -eq (FocusId $calendarText)
+        } 5)) { throw 'Calendar date textbox did not receive actual keyboard focus' }
         $calendarPattern = $calendarInput.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
         Keys '%{DOWN}'
         $popup = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::ControlTypeProperty $CT::Calendar))) } 10
