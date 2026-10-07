@@ -25,6 +25,7 @@ Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.For
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class AcceptanceFocus {
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] static extern IntPtr GetLastActivePopup(IntPtr h);
@@ -45,6 +46,42 @@ public static class AcceptanceFocus {
     [DllImport("user32.dll")] static extern int GetDlgCtrlID(IntPtr h);
     delegate bool EnumChild(IntPtr h, IntPtr arg);
     [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h, EnumChild cb, IntPtr arg);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int size);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string text);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, StringBuilder text);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr h);
+    static string ClassName(IntPtr h) {
+        var text = new StringBuilder(256);
+        GetClassName(h, text, text.Capacity);
+        return text.ToString();
+    }
+    static IntPtr FindControl(IntPtr parent, int id, string className) {
+        IntPtr found = IntPtr.Zero;
+        EnumChildWindows(parent, delegate(IntPtr h, IntPtr arg) {
+            if ((id == 0 || GetDlgCtrlID(h) == id) && IsWindowVisible(h) &&
+                (className == null || ClassName(h) == className)) { found = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return found;
+    }
+    public static void SubmitFileDialog(IntPtr dialog, string path) {
+        // Win32 edit/button proxies can be absent from the ARM64 UIA tree.
+        IntPtr filename = FindControl(dialog, 1148, null);
+        if (filename != IntPtr.Zero && ClassName(filename) != "Edit") filename = FindControl(filename, 0, "Edit");
+        if (filename == IntPtr.Zero) filename = FindControl(dialog, 1152, "Edit");
+        if (filename == IntPtr.Zero) filename = FindControl(dialog, 1001, "Edit");
+        if (filename == IntPtr.Zero) throw new InvalidOperationException("Native Shell filename edit was not found");
+        SendMessage(filename, 0x000C, IntPtr.Zero, path); // WM_SETTEXT
+        var actual = new StringBuilder(path.Length + 2);
+        SendMessage(filename, 0x000D, new IntPtr(actual.Capacity), actual); // WM_GETTEXT
+        if (actual.ToString() != path) throw new InvalidOperationException("Native Shell filename did not retain the requested path");
+        IntPtr button = FindControl(dialog, 1, "Button");
+        if (button == IntPtr.Zero) throw new InvalidOperationException("Native Shell submit button was not found");
+        // Deliver the button's BN_CLICKED to its parent independently of foreground keyboard input.
+        if (!PostMessage(GetParent(button), 0x0111, new IntPtr(1), button)) throw new InvalidOperationException("Native Shell submit command failed");
+    }
     public static void Activate(IntPtr window, int controlId) {
         uint current = GetCurrentThreadId();
         uint foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
@@ -140,6 +177,10 @@ function Dialog([int]$processId) {
 # Поле имени файла в системном диалоге не всегда видно через UI Automation —
 # вводим путь с клавиатуры, как пользователь: фокус по умолчанию стоит в поле имени.
 function TypeIntoDialog($dlg, [string]$text) {
+    if ($desktopGuard) {
+        [AcceptanceFocus]::SubmitFileDialog([IntPtr]$dlg.Current.NativeWindowHandle, $text)
+        return
+    }
     try { $dlg.SetFocus() } catch { }
     # Shell controls may be exposed only as panes on ARM64; focus the native filename edit.
     [AcceptanceFocus]::Activate([IntPtr]$dlg.Current.NativeWindowHandle, 1148)
