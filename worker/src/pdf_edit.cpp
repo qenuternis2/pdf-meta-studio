@@ -580,13 +580,12 @@ json saveEdits(const json& req, Context& ctx) {
     }
 
     requireUnrepairedInput(pdf, a);
-    TempGuard tempGuard;
-    tempGuard.path = tempPathIn(dir);
+    TemporaryFile tempGuard(dir);
     std::map<std::string, QPDFObjGen> renumber;
     {
         ctx.progress("write", 0);
         std::string tmp8 = pathToUtf8(tempGuard.path);
-        QPDFWriter w(q, tmp8.c_str());
+        QPDFWriter w(q, tmp8.c_str(), tempGuard.stream(), false);
         w.setLinearization(false);
         w.setObjectStreamMode(qpdf_o_preserve);
         w.setDecodeLevel(qpdf_dl_none);
@@ -615,6 +614,7 @@ json saveEdits(const json& req, Context& ctx) {
         for (auto& o : a.objects)
             if (o.kind == "annotation") renumber[refOf(o.og)] = w.getRenumberedObjGen(o.og);
     }
+    tempGuard.flush();
     ctx.checkCancel();
 
     // Повторное открытие и проверка записанного файла.
@@ -721,6 +721,7 @@ json saveEdits(const json& req, Context& ctx) {
             throw WorkerError("external_change", "Исходный файл изменён другой программой во время сохранения");
     }
     carryOverProtection(mode == "copy" && req.contains("snapshotPath") ? readPath : fs::exists(src) ? src : readPath, target, tempGuard.path);
+    tempGuard.close();
     replaceFile(tempGuard.path, target);
     tempGuard.keep = true;
     backupGuard.keep = true;

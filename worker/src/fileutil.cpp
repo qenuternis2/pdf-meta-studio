@@ -7,12 +7,16 @@
 #include <cstdio>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <random>
 #include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <aclapi.h>
+#include <sddl.h>
+#include <fcntl.h>
+#include <io.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
@@ -122,26 +126,88 @@ fs::path uniqueSibling(const fs::path& dir, const std::string& stemUtf8, const s
     throw WorkerError("io_error", "Не удалось подобрать уникальное имя файла");
 }
 
-fs::path tempPathIn(const fs::path& dir) {
+TemporaryFile::TemporaryFile(const fs::path& dir) {
+#ifdef _WIN32
+    HANDLE token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+        throw WorkerError("access_denied", "Не удалось определить владельца временного файла");
+    std::unique_ptr<void, decltype(&CloseHandle)> tokenGuard(token, &CloseHandle);
+    DWORD length = 0;
+    GetTokenInformation(token, TokenUser, nullptr, 0, &length);
+    std::vector<unsigned char> user(length);
+    bool foundUser = length && GetTokenInformation(token, TokenUser, user.data(), length, &length);
+    tokenGuard.reset();
+    if (!foundUser) throw WorkerError("access_denied", "Не удалось определить владельца временного файла");
+    LPWSTR rawSid = nullptr;
+    if (!ConvertSidToStringSidW(reinterpret_cast<TOKEN_USER*>(user.data())->User.Sid, &rawSid))
+        throw WorkerError("access_denied", "Не удалось защитить временный файл");
+    std::unique_ptr<void, decltype(&LocalFree)> sid(rawSid, &LocalFree);
+    std::wstring sddl = L"D:P(A;;FA;;;" + std::wstring(rawSid) + L")";
+    PSECURITY_DESCRIPTOR rawDescriptor = nullptr;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.c_str(), SDDL_REVISION_1, &rawDescriptor, nullptr))
+        throw WorkerError("access_denied", "Не удалось защитить временный файл");
+    std::unique_ptr<void, decltype(&LocalFree)> descriptor(rawDescriptor, &LocalFree);
+    SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), descriptor.get(), FALSE};
+#endif
     for (int i = 0; i < 100; ++i) {
         fs::path candidate = dir / pathFromUtf8(".pdfmeta-" + randomToken() + ".tmp");
 #ifdef _WIN32
-        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        // Allow verification readers, but deny other writers and deletion while we hold the file.
+        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
+                               &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (h != INVALID_HANDLE_VALUE) {
-            CloseHandle(h);
-            return candidate;
+            int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), _O_BINARY | _O_RDWR | _O_NOINHERIT);
+            if (fd < 0) CloseHandle(h);
+            else {
+                stream_ = _fdopen(fd, "r+b");
+                if (!stream_) _close(fd);
+            }
+            if (stream_) { path = candidate; return; }
+            std::error_code ignored; fs::remove(candidate, ignored);
+            break;
         }
         if (GetLastError() != ERROR_FILE_EXISTS) break;
 #else
-        int fd = ::open(candidate.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        int fd = ::open(candidate.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
         if (fd >= 0) {
+            stream_ = ::fdopen(fd, "r+b");
+            if (stream_) { path = candidate; return; }
             ::close(fd);
-            return candidate;
+            std::error_code ignored; fs::remove(candidate, ignored);
+            break;
         }
         if (errno != EEXIST) break;
 #endif
     }
     throw WorkerError("io_error", "Не удалось создать временный файл в каталоге назначения");
+}
+
+TemporaryFile::~TemporaryFile() {
+    if (stream_) std::fclose(stream_);
+    if (!keep && !path.empty()) { std::error_code ignored; fs::remove(path, ignored); }
+}
+
+void TemporaryFile::write(const std::string& bytes) {
+    if (std::fwrite(bytes.data(), 1, bytes.size(), stream_) != bytes.size())
+        throw WorkerError("write_failed", "Не удалось записать временный файл");
+}
+
+void TemporaryFile::flush() {
+    if (std::fflush(stream_) != 0 || std::ferror(stream_))
+        throw WorkerError("write_failed", "Не удалось записать временный файл");
+}
+
+void TemporaryFile::close() {
+    if (!stream_) return;
+    auto file = stream_; stream_ = nullptr;
+    if (std::fclose(file) != 0) throw WorkerError("write_failed", "Не удалось завершить запись временного файла");
+}
+
+fs::path tempPathIn(const fs::path& dir) {
+    TemporaryFile temporary(dir);
+    temporary.close();
+    temporary.keep = true;
+    return temporary.path;
 }
 
 void carryOverProtection(const fs::path& source, const fs::path& target, const fs::path& temp) {

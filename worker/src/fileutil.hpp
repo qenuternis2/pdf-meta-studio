@@ -3,6 +3,7 @@
 #include "protocol.hpp"
 
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 
@@ -32,6 +33,23 @@ Fingerprint computeFingerprint(const fs::path& p, Context* ctx = nullptr);
 fs::path uniqueSibling(const fs::path& dir, const std::string& stemUtf8, const std::string& ext);
 // Создаёт пустой временный файл в каталоге монопольно (не через существующий файл или ссылку).
 fs::path tempPathIn(const fs::path& dir);
+
+// Keep the exclusively created file open: writers must not reopen its replaceable pathname.
+class TemporaryFile {
+public:
+    explicit TemporaryFile(const fs::path& dir);
+    ~TemporaryFile();
+    TemporaryFile(const TemporaryFile&) = delete;
+    TemporaryFile& operator=(const TemporaryFile&) = delete;
+    std::FILE* stream() const { return stream_; }
+    void write(const std::string& bytes);
+    void flush();
+    void close();
+    fs::path path;
+    bool keep = false;
+private:
+    std::FILE* stream_ = nullptr;
+};
 
 // Перенос защиты на новый файл до его переименования в target:
 // POSIX — права доступа файла назначения (если он есть) или исходного;

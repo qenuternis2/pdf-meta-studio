@@ -1,6 +1,5 @@
 #include "private_data.hpp"
 #include "logical_graph.hpp"
-#include <fstream>
 #include <unordered_set>
 #include <qpdf/Buffer.hh>
 #include <qpdf/Pipeline.hh>
@@ -29,12 +28,13 @@ json exportMetadata(const json& request, Context& context) {
     auto stream = pdf.q->getObject(parseRef(request.at("stream").get<std::string>()));
     if (!stream.isStream()) throw WorkerError("bad_request", "Поток метаданных не найден в исходном снимке");
     auto bytes = streamBytes(stream);
-    auto temporary = tempPathIn(target.has_parent_path() ? target.parent_path() : fs::current_path());
-    try {
-        std::ofstream output(temporary, std::ios::binary); output.write(bytes.data(), bytes.size()); output.close();
-        if (!output) throw WorkerError("write_failed", "Не удалось сохранить исходные байты XMP");
-        carryOverProtection(readPath, target, temporary); replaceFile(temporary, target);
-    } catch (...) { std::error_code ignored; fs::remove(temporary, ignored); throw; }
+    TemporaryFile temporary(target.has_parent_path() ? target.parent_path() : fs::current_path());
+    temporary.write(bytes);
+    temporary.flush();
+    carryOverProtection(readPath, target, temporary.path);
+    temporary.close();
+    replaceFile(temporary.path, target);
+    temporary.keep = true;
     return json{{"target", pathToUtf8(target)}, {"bytes", bytes.size()}};
 }
 
@@ -117,17 +117,15 @@ json exportPrivate(const json& request, Context& context) {
         if (object.isDictionary()) for (const auto& key : object.getKeys()) queue.push_back(object.getKey(key));
         else if (object.isArray()) for (int index = 0; index < object.getArrayNItems(); ++index) queue.push_back(object.getArrayItem(index));
     }
-    auto temporary = tempPathIn(target.has_parent_path() ? target.parent_path() : fs::current_path());
-    try {
-        std::ofstream output(temporary, std::ios::binary);
-        auto serialized = result.dump(2);
-        if (serialized.size() > (128ull << 20)) throw WorkerError("export_too_large", "Экспорт превышает 128 МиБ");
-        output << serialized;
-        output.close();
-        if (!output) throw WorkerError("write_failed", "Не удалось записать экспорт");
-        carryOverProtection(readPath, target, temporary);
-        replaceFile(temporary, target);
-    } catch (...) { std::error_code ignored; fs::remove(temporary, ignored); throw; }
+    TemporaryFile temporary(target.has_parent_path() ? target.parent_path() : fs::current_path());
+    auto serialized = result.dump(2);
+    if (serialized.size() > (128ull << 20)) throw WorkerError("export_too_large", "Экспорт превышает 128 МиБ");
+    temporary.write(serialized);
+    temporary.flush();
+    carryOverProtection(readPath, target, temporary.path);
+    temporary.close();
+    replaceFile(temporary.path, target);
+    temporary.keep = true;
     return json{{"target", pathToUtf8(target)}, {"objects", seen.size()}, {"compatibility", "not verified; opaque bytes may contain internal offsets"}};
 }
 }

@@ -415,6 +415,17 @@ def test_xxe_and_doctype_blocked(c):
     assert "root:" not in json.dumps(o)
 
 
+def test_utf16_xmp_rejects_unpaired_surrogate(c):
+    # Small synthetic regression for Expat CVE-2026-93990; valid UTF-16 must still work.
+    xml = pdfgen.xmp_packet('<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:format="AXB"/>').decode('utf-8')
+    good = c.pdf("utf16-valid.pdf", raw_xmp=xml.encode('utf-16'))
+    assert doc_stream(c.open(good))["parse"]["ok"] is True
+    broken = xml.replace('AXB', 'A\ud800B').encode('utf-16', errors='surrogatepass')
+    bad = c.pdf("utf16-invalid-surrogate.pdf", raw_xmp=broken)
+    parsed = doc_stream(c.open(bad))["parse"]
+    assert parsed["ok"] is False and parsed["code"] == "xmp_invalid", parsed
+
+
 def test_shared_stream_scope(c):
     src = c.pdf("shared.pdf", page_meta=[0, 1], shared_page_meta=True)
     o = c.open(src)
@@ -1046,6 +1057,15 @@ def test_original_packet_export_is_byte_exact(c):
     c.w.call("exportMetadata", path=source, stream=stream["ref"], target=target)
     assert open(target, "rb").read() == stream["packet"].encode("utf-8")
     expect_error("target_is_source", lambda: c.w.call("exportMetadata", path=source, stream=stream["ref"], target=source))
+
+
+def test_secure_temporary_file_descriptor_and_permissions(c):
+    name = 'pdfmeta-fileutil-tests.exe' if os.name == 'nt' or WINE else 'pdfmeta-fileutil-tests'
+    helper = os.environ.get('PDFMETA_FILEUTIL_TESTS') or os.path.join(os.path.dirname(c.exe), name)
+    assert os.path.isfile(helper), 'Build test-tools and provide the secure temporary-file helper'
+    command = ['wine', helper, to_wire(c.tmp, 'path')] if WINE else [helper, c.tmp]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_windows_locked_original_can_only_be_copied(c):
