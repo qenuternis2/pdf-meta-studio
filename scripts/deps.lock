@@ -2,4 +2,4 @@
 # name  url                                             tag       commit
 qpdf    https://github.com/qpdf/qpdf                    v12.4.2   4eba95899886e851cc41d76886483b347612f2a8
 xmp     https://github.com/adobe/XMP-Toolkit-SDK        v2025.03  581c41213ddcee1fbc72cbb532531102a6617a25
-expat   https://github.com/libexpat/libexpat            R_2_7_1   f9a3eeb3e09fbea04b1c451ffc422ab2f1e45744
+expat   https://github.com/libexpat/libexpat            R_2_9_0   a76b1174c1ea52abb639a4c69d52b630a8a106a2

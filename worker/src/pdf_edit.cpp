@@ -573,20 +573,20 @@ json saveEdits(const json& req, Context& ctx) {
     fs::path backup;
     if (mode == "replace") {
         backup = uniqueSibling(dir, pathToUtf8(src.stem()) + ".backup-" + timestamp(), pathToUtf8(src.extension()));
-        backupGuard.path = backup;
         copyFileExact(src, backup);
+        // A failed exclusive copy may collide with another writer's file; only guard an owned backup.
+        backupGuard.path = backup;
         if (computeFingerprint(backup, &ctx).sha256 != srcFp.sha256)
             throw WorkerError("io_error", "Резервная копия не совпадает с оригиналом");
     }
 
     requireUnrepairedInput(pdf, a);
-    TempGuard tempGuard;
-    tempGuard.path = tempPathIn(dir);
+    TemporaryFile tempGuard(dir);
     std::map<std::string, QPDFObjGen> renumber;
     {
         ctx.progress("write", 0);
         std::string tmp8 = pathToUtf8(tempGuard.path);
-        QPDFWriter w(q, tmp8.c_str());
+        QPDFWriter w(q, tmp8.c_str(), tempGuard.stream(), false);
         w.setLinearization(false);
         w.setObjectStreamMode(qpdf_o_preserve);
         w.setDecodeLevel(qpdf_dl_none);
@@ -615,9 +615,10 @@ json saveEdits(const json& req, Context& ctx) {
         for (auto& o : a.objects)
             if (o.kind == "annotation") renumber[refOf(o.og)] = w.getRenumberedObjGen(o.og);
     }
+    tempGuard.flush();
     ctx.checkCancel();
 
-    // Повторное открытие и проверка записанного файла.
+    // Parse the completed output independently using the retained descriptor, not its pathname.
     ctx.progress("verify", 0);
     json checks = json::array();
     bool allOk = true;
@@ -629,7 +630,7 @@ json saveEdits(const json& req, Context& ctx) {
     {
         LoadedPdf out;
         try {
-            out = openPdf(tempGuard.path, password, &ctx);
+            out = openPdfFromStream(tempGuard.path, tempGuard.stream(), password, &ctx);
             check("reopen", true, "Файл открывается заново");
         } catch (const WorkerError& e) {
             check("reopen", false, e.what());
@@ -721,6 +722,7 @@ json saveEdits(const json& req, Context& ctx) {
             throw WorkerError("external_change", "Исходный файл изменён другой программой во время сохранения");
     }
     carryOverProtection(mode == "copy" && req.contains("snapshotPath") ? readPath : fs::exists(src) ? src : readPath, target, tempGuard.path);
+    tempGuard.close();
     replaceFile(tempGuard.path, target);
     tempGuard.keep = true;
     backupGuard.keep = true;

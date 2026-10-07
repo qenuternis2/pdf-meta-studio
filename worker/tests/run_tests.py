@@ -407,12 +407,34 @@ def test_damaged_xmp(c):
 
 
 def test_xxe_and_doctype_blocked(c):
-    evil = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "file:///etc/passwd">]><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:format="&e;"/></rdf:RDF></x:xmpmeta>'
+    from pathlib import Path
+    sentinel = 'SYNTHETIC-ENTITY-CONTENT-MUST-NOT-BE-READ'
+    local_file = Path(c.tmp) / 'external-entity.txt'
+    local_file.write_text(sentinel, encoding='utf-8')
+    evil = b'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "file:///synthetic-placeholder">]><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:format="&e;"/></rdf:RDF></x:xmpmeta>'
+    evil = evil.replace(b'file:///synthetic-placeholder', local_file.as_uri().encode('ascii'))
     src = c.pdf("xxe.pdf", raw_xmp=evil)
     o = c.open(src)
     ds = doc_stream(o)
     assert ds["parse"]["ok"] is False and ds["parse"]["code"] == "xmp_forbidden_dtd"
-    assert "root:" not in json.dumps(o)
+    assert sentinel not in json.dumps(o)
+    # UTF-16 bypasses the ASCII precheck, so the parser's DTD/entity ban must enforce the rule.
+    for name, packet in [('le', evil.decode('ascii').encode('utf-16')), ('be', b'\xfe\xff' + evil.decode('ascii').encode('utf-16-be'))]:
+        encoded = c.open(c.pdf('xxe-utf16-' + name + '.pdf', raw_xmp=packet))
+        parsed = doc_stream(encoded)['parse']
+        assert parsed['ok'] is False and parsed['code'] in ('xmp_invalid', 'xmp_forbidden_dtd'), parsed
+        assert sentinel not in json.dumps(encoded)
+
+
+def test_utf16_xmp_rejects_unpaired_surrogate(c):
+    # Small synthetic regression for Expat CVE-2026-93990; valid UTF-16 must still work.
+    xml = pdfgen.xmp_packet('<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" dc:format="AXB"/>').decode('utf-8')
+    good = c.pdf("utf16-valid.pdf", raw_xmp=xml.encode('utf-16'))
+    assert doc_stream(c.open(good))["parse"]["ok"] is True
+    broken = xml.replace('AXB', 'A\ud800B').encode('utf-16', errors='surrogatepass')
+    bad = c.pdf("utf16-invalid-surrogate.pdf", raw_xmp=broken)
+    parsed = doc_stream(c.open(bad))["parse"]
+    assert parsed["ok"] is False and parsed["code"] == "xmp_invalid", parsed
 
 
 def test_shared_stream_scope(c):
@@ -580,6 +602,13 @@ def test_password_and_encryption_preserved(c):
     expect_error("password_required", lambda: c.open(out))
     o2 = c.open(out, "user-pw")
     assert info_map(o2)["/Title"][1] == "Новый секрет" and o2["encryption"]["R"] == 6
+    # Independently decrypt AES-256 output with the approved pypdf/cryptography versions.
+    from pypdf import PdfReader
+    independent_before = PdfReader(enc, password='user-pw')
+    independent_after = PdfReader(out, password='user-pw')
+    assert independent_after.metadata.title == "Новый секрет"
+    assert len(independent_before.pages) == len(independent_after.pages)
+    assert [p.extract_text() for p in independent_before.pages] == [p.extract_text() for p in independent_after.pages]
     # Ограничения соблюдаются: изменение запрещено → нужен пароль владельца
     restricted = os.path.join(c.tmp, "restricted.pdf")
     subprocess.run([q, "--encrypt", "u", "o", "256", "--modify=none", "--", plain, restricted], check=True)
@@ -1046,6 +1075,16 @@ def test_original_packet_export_is_byte_exact(c):
     c.w.call("exportMetadata", path=source, stream=stream["ref"], target=target)
     assert open(target, "rb").read() == stream["packet"].encode("utf-8")
     expect_error("target_is_source", lambda: c.w.call("exportMetadata", path=source, stream=stream["ref"], target=source))
+
+
+def test_secure_temporary_file_descriptor_and_permissions(c):
+    name = 'pdfmeta-fileutil-tests.exe' if os.name == 'nt' or WINE else 'pdfmeta-fileutil-tests'
+    helper = os.environ.get('PDFMETA_FILEUTIL_TESTS') or os.path.join(os.path.dirname(c.exe), name)
+    assert os.path.isfile(helper), 'Build test-tools and provide the secure temporary-file helper'
+    source = c.pdf('secure-temporary-source.pdf')
+    command = ['wine', helper, to_wire(c.tmp, 'path'), to_wire(source, 'path')] if WINE else [helper, c.tmp, source]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_windows_locked_original_can_only_be_copied(c):

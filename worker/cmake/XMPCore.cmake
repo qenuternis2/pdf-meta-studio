@@ -10,6 +10,19 @@ if(NOT EXISTS "${EXPAT_DIR}/xmlparse.c")
   message(FATAL_ERROR "Expat not found in ${EXPAT_DIR}. Run scripts/fetch-deps.")
 endif()
 
+# Use Expat's own source selection and generated platform configuration, including entropy helpers.
+set(EXPAT_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(EXPAT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(EXPAT_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(EXPAT_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+set(EXPAT_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(EXPAT_DTD OFF CACHE BOOL "" FORCE)
+set(EXPAT_GE OFF CACHE BOOL "" FORCE)
+set(EXPAT_MSVC_STATIC_CRT ON CACHE BOOL "" FORCE)
+add_subdirectory("${PDFMETA_EXTERNAL_DIR}/expat/expat" expat EXCLUDE_FROM_ALL)
+
 set(XC "${XMP_DIR}/XMPCore/source")
 
 # Обязательный патч scripts/patches/xmp-keep-translations.patch: без него SDK при разборе
@@ -35,10 +48,8 @@ add_library(xmpcore_static STATIC
   "${XMP_DIR}/source/UnicodeConversions.cpp"
   "${XMP_DIR}/source/XML_Node.cpp"
   "${XMP_DIR}/source/XMP_LibUtils.cpp"
-  "${EXPAT_DIR}/xmlparse.c"
-  "${EXPAT_DIR}/xmlrole.c"
-  "${EXPAT_DIR}/xmltok.c"
 )
+target_link_libraries(xmpcore_static PUBLIC expat::expat)
 
 if(MINGW)
   # Только проверочная кросс-сборка из Linux: ветка WIN_ENV в SDK рассчитана на MSVC
@@ -53,7 +64,6 @@ elseif(WIN32)
 else()
   set(XMP_PLATFORM_RES "${XMP_DIR}/XMPCore/resource/linux")
   set(XMP_ENV_DEFS UNIX_ENV=1)
-  set(EXPAT_ENTROPY_DEFS HAVE_GETRANDOM=1)
 endif()
 
 # ExpatAdapter.cpp подключает "third-party/expat/lib/expat.h" относительно корня SDK;
@@ -81,8 +91,7 @@ target_compile_definitions(xmpcore_static
     ENABLE_CPP_DOM_MODEL=0
     # Запрет DOCTYPE и любых сущностей в XMP (защита от XXE и «billion laughs»).
     BanAllEntityUsage=1
-    ${EXPAT_ENTROPY_DEFS}
-    XML_STATIC=1 HAVE_EXPAT_CONFIG_H=1 XML_GE=0 XML_CONTEXT_BYTES=1024
+    XML_STATIC=1
     $<$<CONFIG:Release>:NDEBUG=1>)
 
 # Исходники Adobe не рассчитаны на строгие предупреждения.

@@ -1,6 +1,8 @@
 using PdfMetaStudio.Core.Editing;
 using PdfMetaStudio.Core.Model;
 using PdfMetaStudio.Core.Protocol;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Xunit;
 
 namespace PdfMetaStudio.Core.Tests;
@@ -26,6 +28,52 @@ public class WorkerIntegrationTests
         var path = Path.Combine(dir, name);
         File.Copy(Fixture(name), path);
         return path;
+    }
+
+    [WorkerFact]
+    public async Task SnapshotPreservesProtectionAndBytesAndIsCleanedUp()
+    {
+        string root = Directory.CreateTempSubdirectory("pdfmeta-snapshot-security-").FullName;
+        string source = Path.Combine(root, "source.pdf");
+        File.Copy(Fixture("rich.pdf"), source);
+        try {
+            if (OperatingSystem.IsWindows()) {
+                File.WriteAllText(source + ":Zone.Identifier", "[ZoneTransfer]\r\nZoneId=3\r\n");
+                using var identity = WindowsIdentity.GetCurrent();
+                var acl = new FileSecurity();
+                acl.SetAccessRuleProtection(true, false);
+                acl.AddAccessRule(new FileSystemAccessRule(identity.User!, FileSystemRights.Read, AccessControlType.Allow));
+                new FileInfo(source).SetAccessControl(acl);
+            } else File.SetUnixFileMode(source, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            byte[] original = await File.ReadAllBytesAsync(source);
+            string snapshot;
+            await using (var service = new DocumentService(Worker)) {
+                var document = await service.OpenAsync(source, null);
+                snapshot = Assert.IsType<string>(document.SnapshotPath);
+                Assert.NotEqual(source, snapshot);
+                Assert.Equal(original, await File.ReadAllBytesAsync(snapshot));
+                if (OperatingSystem.IsWindows()) {
+                    var expected = new FileInfo(source).GetAccessControl(AccessControlSections.Access);
+                    var actual = new FileInfo(snapshot).GetAccessControl(AccessControlSections.Access);
+                    Assert.True(expected.AreAccessRulesProtected);
+                    Assert.True(actual.AreAccessRulesProtected);
+                    Assert.Equal(expected.GetSecurityDescriptorSddlForm(AccessControlSections.Access), actual.GetSecurityDescriptorSddlForm(AccessControlSections.Access));
+                    Assert.Equal(await File.ReadAllTextAsync(source + ":Zone.Identifier"), await File.ReadAllTextAsync(snapshot + ":Zone.Identifier"));
+                } else Assert.Equal(File.GetUnixFileMode(source), File.GetUnixFileMode(snapshot));
+                var session = new EditSession(document);
+                session.SetField("title", FieldValue.OfText("Protected source copy"));
+                string copy = Path.Combine(root, "edited-copy.pdf");
+                var saved = await service.SaveAsync(session, session.Build(), copy, SaveMode.Copy, false);
+                Assert.All(saved.Checks, check => Assert.True(check.Ok, check.Detail));
+                if (OperatingSystem.IsWindows()) {
+                    Assert.Equal(new FileInfo(source).GetAccessControl(AccessControlSections.Access).GetSecurityDescriptorSddlForm(AccessControlSections.Access),
+                        new FileInfo(copy).GetAccessControl(AccessControlSections.Access).GetSecurityDescriptorSddlForm(AccessControlSections.Access));
+                    Assert.Equal(await File.ReadAllTextAsync(source + ":Zone.Identifier"), await File.ReadAllTextAsync(copy + ":Zone.Identifier"));
+                }
+            }
+            Assert.False(File.Exists(snapshot));
+            Assert.Equal(original, await File.ReadAllBytesAsync(source));
+        } finally { Directory.Delete(root, true); }
     }
 
     [WorkerFact]

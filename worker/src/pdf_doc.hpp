@@ -22,6 +22,9 @@ struct LoadedPdf {
 
 // Открыть PDF только для чтения. Пароль не логируется.
 LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ctx);
+// Read a retained binary stream without reopening its replaceable path or taking ownership.
+LoadedPdf openPdfFromStream(const fs::path& description, std::FILE* stream,
+                            const std::string& password, Context* ctx);
 
 std::string refOf(QPDFObjGen og);
 QPDFObjGen parseRef(const std::string& ref);

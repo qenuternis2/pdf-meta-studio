@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pypdf==5.1.0 cryptography==46.0.3
+      - run: pip install pypdf==6.19.0 cryptography==50.0.2
       - name: vcpkg (baseline from worker/vcpkg.json)
         shell: pwsh
         run: |
@@ -129,6 +129,7 @@ jobs:
         run: |
           New-Item -ItemType Directory build/native-tools -Force | Out-Null
           Copy-Item build/worker/Release/pdfmeta-test-worker.exe build/native-tools
+          Copy-Item build/worker/Release/pdfmeta-fileutil-tests.exe build/native-tools
           $qpdf = Get-ChildItem build/worker/qpdf -Recurse -Filter qpdf.exe | Select-Object -First 1
           if (-not $qpdf) { throw 'Native qpdf test tool missing' }
           Copy-Item $qpdf.FullName build/native-tools/qpdf.exe
@@ -157,7 +158,7 @@ jobs:
         with:
           python-version: '3.12'
           architecture: x64
-      - run: pip install pypdf==5.1.0 cryptography==46.0.3
+      - run: pip install pypdf==6.19.0 cryptography==50.0.2
       - uses: actions/download-artifact@v4
         with:
           name: PdfMetaStudio-win-x64
@@ -197,6 +198,7 @@ jobs:
           ./scripts/fetch-deps.ps1
           $env:PDFMETA_WORKER = "$PWD/dist/PdfMetaStudio/pdfmeta-worker.exe"
           $env:PDFMETA_TEST_WORKER = "$PWD/build/native-tools/pdfmeta-test-worker.exe"
+          $env:PDFMETA_FILEUTIL_TESTS = "$PWD/build/native-tools/pdfmeta-fileutil-tests.exe"
           $env:QPDF_CLI = "$PWD/build/native-tools/qpdf.exe"
           python worker/tests/run_tests.py $env:PDFMETA_WORKER --corpus worker/external/qpdf/qpdf/qtest/qpdf --report windows11-acceptance/native-worker.json
           if ($LASTEXITCODE) { throw 'Windows 11 native tests failed' }
