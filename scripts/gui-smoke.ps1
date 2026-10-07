@@ -212,6 +212,7 @@ try {
         $long.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
         $input = WaitFor { ByName $win 'Значение выбранного тега' } 15
         if (-not $input -or (Value $input).Length -ne 1048576) { throw 'The 1 MiB multiline value was truncated' }
+        $stressValue = Value $input
         $input.SetFocus(); Keys '{TAB}'; Keys '+{TAB}'
         if ((FocusId $AE::FocusedElement) -ne (FocusId $input)) { throw 'Keyboard navigation failed in the long-value editor' }
         Shot 'stress-long-value'
@@ -314,6 +315,17 @@ try {
     $c = $result.data.annotations[0].hasContents
     if (-not $c) { throw 'в копии у аннотации пропал текст комментария' }
     Log ("OK  независимое чтение копии: /Title = «{0}», автор аннотации = «{1}»" -f $t, $a)
+    if ($StressChecks) {
+        $loadNodes = @($result.data.metadataStreams | Where-Object { $_.document } | ForEach-Object { $_.model.nodes } | Where-Object { $_.ns -eq 'https://example.org/acceptance/load/' })
+        $tags = @($loadNodes | Where-Object { $_.steps.Count -eq 1 -and $_.steps[0].name -match '^Tag\d{5}$' })
+        if ($tags.Count -ne 10000 -or @($tags | Group-Object { $_.steps[0].name }).Count -ne 10000) { throw 'Saved copy did not preserve all 10,000 distinct tags' }
+        foreach ($tag in $tags) {
+            if ($tag.value -cne ('value ' + $tag.steps[0].name.Substring(3))) { throw 'Saved copy changed a stress tag value' }
+        }
+        $savedLong = @($loadNodes | Where-Object { $_.steps.Count -eq 1 -and $_.steps[0].name -eq 'LongValue' })
+        if ($savedLong.Count -ne 1 -or $savedLong[0].value -cne $stressValue) { throw 'Saved copy changed the complete multiline stress value' }
+        Log 'OK  independent read preserves every stress tag and the exact 1 MiB multiline value'
+    }
 
     if ($KeyboardChecks) {
         $openAgain = WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Button)) | Where-Object { $_.Current.Name -like 'Change meta info*' -and -not $_.Current.IsOffscreen } | Select-Object -First 1 } 15
