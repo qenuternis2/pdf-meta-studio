@@ -28,7 +28,7 @@ public class WorkerIntegrationTests
         return path;
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task FullScenarioOnRealPdf()
     {
         if (Worker is null) return;
@@ -68,7 +68,7 @@ public class WorkerIntegrationTests
         Assert.Contains(again.Streams, s => s.Owners.Any(o => o.Kind == "page"));
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task ConflictsVisibleOnRealPdf()
     {
         if (Worker is null) return;
@@ -81,7 +81,7 @@ public class WorkerIntegrationTests
         Assert.False(s.Origins["producer"].Conflict);
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task CreatesXmpForBarePdf13()
     {
         if (Worker is null) return;
@@ -96,7 +96,7 @@ public class WorkerIntegrationTests
         Assert.Contains(outcome.WriterNotes, n => n.Contains("1.3 → 1.4"));
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task ExternalChangeReported()
     {
         if (Worker is null) return;
@@ -112,7 +112,7 @@ public class WorkerIntegrationTests
         Assert.Equal("external_change", ex.Code);
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task EditsAnnotationAndAttachmentFields()
     {
         if (Worker is null) return;

@@ -436,8 +436,8 @@ def test_removed_stream_not_left_orphaned(c):
     assert_checks_ok(r)
     data = open(out, "rb").read()
     assert b"PAGE-MARKER-1" not in data, "удалённые данные остались в файле"
-    assert b"ORPHAN-MARKER-55" not in data, "осиротевший поток перенесён"
-    assert r["writer"]["unreachableDropped"] >= 1
+    assert b"ORPHAN-MARKER-55" in data, "unrelated orphan metadata was lost"
+    assert r["writer"]["unreachableDropped"] == 0
 
 
 def test_object_metadata_addressed(c):
@@ -789,6 +789,105 @@ def test_independent_read_and_visual(c):
         assert imgs[0] == imgs[1] and imgs[0], "страницы визуально различаются"
     else:
         return "PARTIAL: pdftoppm не найден, визуальное сравнение пропущено"
+
+
+def test_unrelated_orphan_metadata_preserved(c):
+    src = c.pdf("orphan-preserved.pdf", info={"Title": "Before"}, orphan_meta=True)
+    opened = c.open(src)
+    out = os.path.join(c.tmp, "orphan-preserved_meta.pdf")
+    result = c.save(src, opened, {"info": [{"op": "set", "key": "/Title", "value": "After"}]}, target=out)
+    assert_checks_ok(result)
+    orphan = [s for s in c.open(out)["metadataStreams"] if not s["reachable"]]
+    assert len(orphan) == 1 and "ORPHAN-MARKER-55" in orphan[0]["packet"]
+
+
+def test_discovery_includes_orphan_containers_not_arbitrary_xml(c):
+    b = pdfgen.Builder()
+    pages = b.add(b"<< /Type /Pages /Kids [] /Count 0 >>")
+    root = b.add(b"<< /Type /Catalog /Pages %d 0 R >>" % pages)
+    b.add(b.stream(b"<ordinary>not XMP</ordinary>", b" /Subtype /XML"))
+    meta = b.add(b.stream(pdfgen.page_xmp("Orphan owner", "OWNED-ORPHAN"), b" /Type /Metadata /Subtype /XML"))
+    b.add(b"<< /Metadata %d 0 R /PieceInfo << /AuditApp << /Private (opaque) >> >> >>" % meta)
+    src = os.path.join(c.tmp, "orphan-containers.pdf")
+    with open(src, "wb") as f:
+        f.write(b.build(root))
+    opened = c.open(src)
+    assert opened["scan"]["complete"]
+    assert len(opened["pieceInfo"]) == 1
+    assert len(opened["metadataStreams"]) == 1
+    assert opened["metadataStreams"][0]["owners"]
+    assert not opened["metadataStreams"][0]["reachable"]
+
+
+def test_unchanged_broken_xmp_requires_copy(c):
+    src = c.pdf("broken-copy-only.pdf", info={"Title": "Before"}, raw_xmp=b"<broken")
+    opened = c.open(src)
+    edits = {"info": [{"op": "set", "key": "/Title", "value": "After"}]}
+    expect_error("xmp_copy_only", lambda: c.save(src, opened, edits, mode="replace"))
+    assert sha(src) == opened["file"]["fingerprint"]["sha256"]
+    out = os.path.join(c.tmp, "broken-copy-only_meta.pdf")
+    assert_checks_ok(c.save(src, opened, edits, target=out))
+    assert doc_stream(c.open(out))["packet"] == doc_stream(opened)["packet"]
+
+
+def test_known_date_shape_rejected(c):
+    src = c.pdf("date-shape.pdf")
+    opened = c.open(src)
+    packet = pdfgen.xmp_packet(
+        '<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" '
+        'xmlns:ex="https://example.org/audit/">'
+        '<xmp:CreateDate rdf:parseType="Resource"><ex:value>not a date</ex:value></xmp:CreateDate>'
+        '</rdf:Description>').decode()
+    expect_error("invalid_value", lambda: c.w.call("preview", path=src, edits={"xmp": [
+        {"stream": doc_stream(opened)["ref"], "ops": [{"op": "replacePacket", "xml": packet}]}]}))
+
+
+def test_nested_shared_owner_detach_and_remove(c):
+    b = pdfgen.Builder()
+    pages = b.add(b"<< /Type /Pages /Kids [] /Count 0 >>")
+    meta = b.add(b.stream(pdfgen.page_xmp("Shared", "NESTED-MARKER"), b" /Type /Metadata /Subtype /XML"))
+    root = b.add(b"<< /Type /Catalog /Pages %d 0 R /First << /Metadata %d 0 R >> /Second << /Metadata %d 0 R >> >>" % (pages, meta, meta))
+    src = os.path.join(c.tmp, "nested-shared.pdf")
+    with open(src, "wb") as f:
+        f.write(b.build(root))
+    opened = c.open(src)
+    stream = opened["metadataStreams"][0]
+    first = next(o for o in stream["owners"] if o["path"] == ["/First"])
+    out = os.path.join(c.tmp, "nested-detached.pdf")
+    assert_checks_ok(c.save(src, opened, {"xmp": [{"stream": stream["ref"], "scope": "detach",
+        "owner": first["ref"], "ownerPath": first["path"], "ops": [
+        {"op": "set", "steps": [prop(PM, "Marker")], "value": "DETACHED-MARKER"}]}]}, target=out))
+    detached = c.open(out)
+    assert len(detached["metadataStreams"]) == 2
+    selected = next(s for s in detached["metadataStreams"] if any(o["path"] == ["/First"] for o in s["owners"]))
+    assert "DETACHED-MARKER" in selected["packet"]
+    remaining = next(s for s in detached["metadataStreams"] if any(o["path"] == ["/Second"] for o in s["owners"]))
+    assert "NESTED-MARKER" in remaining["packet"]
+    removed = os.path.join(c.tmp, "nested-removed.pdf")
+    assert_checks_ok(c.save(out, detached, {"xmp": [{"stream": selected["ref"], "action": "remove"}]}, target=removed))
+    assert b"DETACHED-MARKER" not in open(removed, "rb").read()
+    assert b"NESTED-MARKER" in open(removed, "rb").read()
+
+
+def test_conflicting_object_generations_cannot_change_pages(c):
+    corpus = os.environ.get("QPDF_CORPUS")
+    src = os.path.join(corpus, "issue-149.pdf") if corpus else None
+    if not src or not os.path.exists(src):
+        return "SKIP: qpdf issue-149 fixture is unavailable"
+    opened = c.open(src)
+    original_hash = sha(src)
+    out = os.path.join(c.tmp, "issue-149_meta.pdf")
+    try:
+        result = c.save(src, opened, {"info": [{"op": "set", "key": "/Title", "value": "Edited"}]}, target=out)
+        # A future writer fix may preserve both generations without refusing this file.
+        assert_checks_ok(result)
+        import pypdf
+        assert pypdf.PdfReader(out).pages[0].extract_text() == pypdf.PdfReader(src).pages[0].extract_text()
+    except WorkerError as error:
+        assert error.code == "verification_failed", error.code
+        assert any(check["name"] == "pages" and not check["ok"] for check in error.details["checks"])
+        assert not os.path.exists(out)
+    assert sha(src) == original_hash
 
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]

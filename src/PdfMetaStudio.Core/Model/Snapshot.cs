@@ -177,10 +177,10 @@ public sealed record InfoEntry(string Key, string Kind, string Value, string? En
         new((string)n["key"]!, (string?)n["kind"] ?? "other", (string?)n["value"] ?? "", (string?)n["encoding"]);
 }
 
-public sealed record MetadataOwner(string Ref, string Kind, string Label, int? Page)
+public sealed record MetadataOwner(string Ref, string Kind, string Label, int? Page, JsonArray? Path = null)
 {
     public static MetadataOwner FromJson(JsonNode n) =>
-        new((string)n["ref"]!, (string?)n["kind"] ?? "object", (string?)n["label"] ?? "", (int?)n["page"]);
+        new((string)n["ref"]!, (string?)n["kind"] ?? "object", (string?)n["label"] ?? "", (int?)n["page"], n["path"]?.DeepClone() as JsonArray);
 }
 
 public sealed record MetadataStream(
@@ -192,9 +192,15 @@ public sealed record MetadataStream(
     bool ParseOk,
     string? ParseError,
     XmpModel Model,
-    bool ModelIsLenient)
+    bool ModelIsLenient,
+    string? Scope = null,
+    string? TargetOwner = null,
+    JsonArray? OwnerPath = null)
 {
     public bool IsShared => Owners.Count > 1;
+    public string Key => Ref + ":" + Scope + ":" + TargetOwner + ":" + OwnerPath?.ToJsonString();
+    public string Title => IsDocument ? "XMP документа" : Owners.Count > 0
+        ? string.Join(", ", Owners.Select(o => o.Label)) : "XMP без владельца · " + Ref;
 
     public static MetadataStream FromJson(JsonNode n)
     {
@@ -214,7 +220,7 @@ public sealed record MetadataStream(
 }
 
 /// <summary>Снимок открытого документа (результат команды open).</summary>
-public sealed class DocumentSnapshot
+public sealed record DocumentSnapshot
 {
     public required string FilePath { get; init; }
     public required string FileName { get; init; }

@@ -63,6 +63,7 @@ LoadedPdf openPdf(const fs::path& path, const std::string& password, Context* ct
 json MetaOwner::toJson() const {
     json j{{"ref", refOf(og)}, {"kind", kind}, {"label", label}};
     if (!keyPath.empty()) j["keyPath"] = keyPath;
+    j["path"] = path;
     if (pageIndex >= 0) j["page"] = pageIndex + 1;
     return j;
 }
@@ -177,6 +178,7 @@ Discovery discover(QPDF& q, Context* ctx) {
         QPDFObjectHandle obj;
         QPDFObjGen owner;
         std::string keyPath;
+        json path = json::array();
     };
     std::vector<Item> stack;
     std::unordered_set<std::string> visited;
@@ -184,7 +186,7 @@ Discovery discover(QPDF& q, Context* ctx) {
     std::unordered_map<std::string, size_t> streamIndex;
     size_t steps = 0;
 
-    auto recordOwner = [&](QPDFObjectHandle holder, QPDFObjGen ownerOg, const std::string& keyPath,
+    auto recordOwner = [&](QPDFObjectHandle holder, QPDFObjGen ownerOg, const std::string& keyPath, const json& path,
                            QPDFObjectHandle meta) {
         if (!meta.isStream() || !meta.isIndirect()) {
             d.issues.push_back({"metadata", "Ключ /Metadata в " + refOf(ownerOg) + " не указывает на поток"});
@@ -203,6 +205,7 @@ Discovery discover(QPDF& q, Context* ctx) {
         MetaOwner o;
         o.og = ownerOg;
         o.keyPath = keyPath;
+        o.path = path;
         o.kind = classify(holder, rootOg, pageIndex, page);
         o.pageIndex = page;
         o.label = labelFor(o.kind, ownerOg, page, holder);
@@ -210,61 +213,86 @@ Discovery discover(QPDF& q, Context* ctx) {
         d.streams[it->second].owners.push_back(o);
     };
 
-    while (!stack.empty()) {
-        Item it = stack.back();
-        stack.pop_back();
-        if (++steps % 2000 == 0 && ctx) ctx->checkCancel();
-        try {
-            QPDFObjectHandle obj = it.obj;
-            QPDFObjGen owner = it.owner;
-            std::string keyPath = it.keyPath;
-            if (obj.isIndirect()) {
-                std::string r = refOf(obj.getObjGen());
-                if (!visited.insert(r).second) continue;
-                owner = obj.getObjGen();
-                keyPath.clear();
-            }
-            if (obj.isArray()) {
-                int n = obj.getArrayNItems();
-                for (int i = n - 1; i >= 0; --i)
-                    stack.push_back({obj.getArrayItem(i), owner, keyPath + "[" + std::to_string(i) + "]"});
-                continue;
-            }
-            if (!obj.isDictionary() && !obj.isStream()) continue;
-            QPDFObjectHandle dict = obj.isStream() ? obj.getDict() : obj;
-            if (owner.isIndirect() && dict.hasKey("/Metadata"))
-                recordOwner(obj, owner, keyPath, dict.getKey("/Metadata"));
-            if (owner.isIndirect() && dict.hasKey("/PieceInfo")) {
-                QPDFObjectHandle pi = dict.getKey("/PieceInfo");
-                json entry{{"owner", refOf(owner)}, {"keyPath", keyPath}, {"apps", json::array()}};
-                if (pi.isDictionary()) {
-                    for (const auto& app : pi.getKeys()) {
-                        QPDFObjectHandle a = pi.getKey(app);
-                        json aj{{"name", sanitizeUtf8(app)}};
-                        if (a.isDictionary()) {
-                            if (a.getKey("/LastModified").isString())
-                                aj["lastModified"] = sanitizeUtf8(a.getKey("/LastModified").getUTF8Value());
-                            QPDFObjectHandle priv = a.getKey("/Private");
-                            aj["private"] = priv.isNull() ? "none" : priv.isStream() ? "stream" : priv.isDictionary() ? "dictionary" : "other";
-                        }
-                        entry["apps"].push_back(aj);
+    auto walk = [&] {
+        while (!stack.empty()) {
+            Item it = stack.back();
+            stack.pop_back();
+            if (++steps % 2000 == 0 && ctx) ctx->checkCancel();
+            try {
+                QPDFObjectHandle obj = it.obj;
+                QPDFObjGen owner = it.owner;
+                std::string keyPath = it.keyPath;
+                json path = it.path;
+                if (obj.isIndirect()) {
+                    std::string r = refOf(obj.getObjGen());
+                    if (!visited.insert(r).second) continue;
+                    owner = obj.getObjGen();
+                    keyPath.clear();
+                    path = json::array();
+                }
+                if (obj.isArray()) {
+                    int n = obj.getArrayNItems();
+                    for (int i = n - 1; i >= 0; --i) {
+                        json child = path;
+                        child.push_back(i);
+                        stack.push_back({obj.getArrayItem(i), owner, keyPath + "[" + std::to_string(i) + "]", child});
+                    }
+                    continue;
+                }
+                if (!obj.isDictionary() && !obj.isStream()) continue;
+                QPDFObjectHandle dict = obj.isStream() ? obj.getDict() : obj;
+                // Standalone streams must explicitly identify themselves as PDF metadata.
+                // A generic XML stream is not an XMP container.
+                if (obj.isStream() && nameOr(dict, "/Type") == "/Metadata" &&
+                    nameOr(dict, "/Subtype") == "/XML") {
+                    std::string r = refOf(obj.getObjGen());
+                    if (!streamIndex.count(r)) {
+                        MetaStream ms;
+                        ms.stream = obj;
+                        ms.og = obj.getObjGen();
+                        streamIndex[r] = d.streams.size();
+                        d.streams.push_back(ms);
                     }
                 }
-                d.pieceInfo.push_back(entry);
+                if (owner.isIndirect() && dict.hasKey("/Metadata"))
+                    recordOwner(obj, owner, keyPath, path, dict.getKey("/Metadata"));
+                if (owner.isIndirect() && dict.hasKey("/PieceInfo")) {
+                    QPDFObjectHandle pi = dict.getKey("/PieceInfo");
+                    json entry{{"owner", refOf(owner)}, {"keyPath", keyPath}, {"path", path}, {"apps", json::array()}};
+                    if (pi.isDictionary()) {
+                        for (const auto& app : pi.getKeys()) {
+                            QPDFObjectHandle a = pi.getKey(app);
+                            json aj{{"name", sanitizeUtf8(app)}};
+                            if (a.isDictionary()) {
+                                if (a.getKey("/LastModified").isString())
+                                    aj["lastModified"] = sanitizeUtf8(a.getKey("/LastModified").getUTF8Value());
+                                QPDFObjectHandle priv = a.getKey("/Private");
+                                aj["private"] = priv.isNull() ? "none" : priv.isStream() ? "stream" : priv.isDictionary() ? "dictionary" : "other";
+                            }
+                            entry["apps"].push_back(aj);
+                        }
+                    }
+                    d.pieceInfo.push_back(entry);
+                }
+                std::string base = keyPath.empty() ? "" : keyPath;
+                for (const auto& key : dict.getKeys()) {
+                    QPDFObjectHandle v = dict.getKey(key);
+                    if (v.isIndirect() || v.isArray() || v.isDictionary() || v.isStream()) {
+                        json child = path;
+                        child.push_back(key);
+                        stack.push_back({v, owner, base + key, child});
+                    }
+                }
+            } catch (const Cancelled&) {
+                throw;
+            } catch (const std::exception& e) {
+                d.issues.push_back({"object " + refOf(it.owner), sanitizeUtf8(e.what())});
             }
-            std::string base = keyPath.empty() ? "" : keyPath;
-            for (const auto& key : dict.getKeys()) {
-                QPDFObjectHandle v = dict.getKey(key);
-                if (v.isIndirect() || v.isArray() || v.isDictionary() || v.isStream())
-                    stack.push_back({v, owner, base + key});
-            }
-        } catch (const Cancelled&) {
-            throw;
-        } catch (const std::exception& e) {
-            d.issues.push_back({"object " + refOf(it.owner), sanitizeUtf8(e.what())});
         }
-    }
-    d.reachableObjects = visited.size();
+    };
+    walk();
+    const auto reachable = visited;
+    d.reachableObjects = reachable.size();
 
     // Объекты текущей таблицы ссылок, в том числе без владельцев.
     try {
@@ -273,17 +301,12 @@ Discovery discover(QPDF& q, Context* ctx) {
         for (auto& obj : all) {
             if (++steps % 2000 == 0 && ctx) ctx->checkCancel();
             try {
-                if (!obj.isStream()) continue;
-                QPDFObjectHandle dict = obj.getDict();
-                if (nameOr(dict, "/Type") != "/Metadata" && nameOr(dict, "/Subtype") != "/XML") continue;
-                std::string r = refOf(obj.getObjGen());
-                if (streamIndex.count(r)) continue;
-                MetaStream ms;
-                ms.stream = obj;
-                ms.og = obj.getObjGen();
-                ms.reachable = visited.count(r) > 0;
-                d.streams.push_back(ms);
-                streamIndex[r] = d.streams.size() - 1;
+                // Traverse unreferenced dictionaries and their direct children too.
+                // They can own Metadata or PieceInfo even without a catalog link.
+                stack.push_back({obj, obj.getObjGen(), ""});
+                walk();
+            } catch (const Cancelled&) {
+                throw;
             } catch (const std::exception& e) {
                 d.issues.push_back({"xref " + refOf(obj.getObjGen()), sanitizeUtf8(e.what())});
             }
@@ -293,6 +316,7 @@ Discovery discover(QPDF& q, Context* ctx) {
     } catch (const std::exception& e) {
         d.issues.push_back({"xref", sanitizeUtf8(e.what())});
     }
+    for (auto& ms : d.streams) ms.reachable = reachable.count(refOf(ms.og)) > 0;
     return d;
 }
 

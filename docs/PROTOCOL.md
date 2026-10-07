@@ -1,117 +1,96 @@
-# Протокол GUI ↔ pdfmeta-worker
+# GUI ↔ worker protocol
 
-Транспорт — стандартные потоки процесса `pdfmeta-worker.exe`: одна строка UTF-8 = один JSON-объект (JSON Lines).
-GUI запускает worker без аргументов (только `--no-limits` для отладки), без повышения прав.
-Пароли передаются только в теле запроса через stdin; в командную строку, stderr и журналы они не попадают
-(проверяется тестом `test_password_not_logged`).
+The GUI starts `pdfmeta-worker.exe` without elevation. Transport is UTF-8 JSON Lines over stdin/stdout. Passwords appear only in request bodies, never in command-line arguments or logs. After startup the worker emits `{"type":"ready","protocol":1}`.
 
-## Запуск
+Requests use unique integer `id` values. Commands run serially; a separate reader handles cancellation immediately.
 
-После старта worker пишет `{"type":"ready","protocol":1}`.
-
-## Запрос
-
-```json
-{"id": 7, "cmd": "open", "path": "C:\\Docs\\a.pdf", "password": "…"}
-```
-
-`id` — целое, уникальное в пределах сеанса. Команды выполняются по одной, в порядке поступления.
-
-| cmd | Назначение | Основные поля |
-|---|---|---|
-| `hello` | Версии worker, qpdf, XMP Toolkit | — |
-| `open` | Прочитать документ (ничего не пишет) | `path`, `password?` |
-| `preview` | Применить правки в памяти и вернуть «Было → Станет» | `path`, `password?`, `edits` |
-| `save` | Записать копию или заменить оригинал | `path`, `password?`, `expect` (отпечаток файла из `open`), `edits`, `mode`: `copy`/`replace`, `target` (для copy), `options.allowSignedCopy` |
-| `cancel` | Отменить выполняющуюся команду | `target`: id отменяемого запроса |
-| `shutdown` | Завершить процесс | — |
-
-`cancel` обрабатывается отдельным потоком чтения сразу, не дожидаясь очереди.
-
-## Ответы
+| Command | Inputs and behavior |
+|---|---|
+| `hello` | Worker, qpdf and XMP versions |
+| `open` | `path`, optional `password`; read-only snapshot |
+| `validateXmp` | `xml`; parse and validate known values without opening/writing a PDF; return `model` and serialized `packet` |
+| `preview` | `path`, optional `password`, `edits`; apply in memory and return before/after metadata |
+| `save` | `path`, optional `password`, source fingerprint `expect`, `edits`, `mode` (`copy`/`replace`), copy `target`, `options.allowSignedCopy` |
+| `cancel` | `target`: request id |
+| `shutdown` | Stop the worker |
 
 ```json
-{"id": 7, "type": "progress", "stage": "write", "percent": 40}
-{"id": 7, "type": "result", "data": { … }}
-{"id": 7, "type": "error", "code": "file_locked", "message": "…", "details": { … }}
+{"id":7,"cmd":"open","path":"C:\\Docs\\example.pdf"}
+{"id":7,"type":"progress","stage":"inspect","percent":40}
+{"id":7,"type":"result","data":{}}
+{"id":7,"type":"error","code":"file_locked","message":"...","details":{}}
 ```
 
-Стадии прогресса: `hash`, `open`, `inspect`, `check`, `apply`, `write`, `verify`, `commit`.
+Progress stages include `hash`, `open`, `inspect`, `check`, `apply`, `write`, `verify` and `commit`.
 
-## Правки (`edits`)
+## Edits
 
 ```json
 {
-  "info": [ {"op": "set", "key": "/Title", "value": "…", "type": "string|name"},
-            {"op": "delete", "key": "/Custom"} ],
-  "xmp": [ {"stream": "12 0" | null, "owner": "catalog" | "5 0", "scope": "all" | "detach",
-            "action": "edit" | "remove", "ops": [ … ] } ],
-  "objects": [ {"kind": "annotation", "address": "7 0", "field": "author", "op": "set", "value": "…"},
-               {"kind": "attachment", "address": "данные.bin", "field": "modified", "op": "delete"} ]
+  "info": [{"op":"set","key":"/Title","value":"...","type":"string"},
+           {"op":"delete","key":"/Custom"}],
+  "xmp": [{"stream":"12 0","scope":"detach","owner":"5 0","ownerPath":["/Nested",0],
+           "action":"edit","ops":[]}],
+  "objects": [{"kind":"annotation","address":"7 0","field":"author","op":"set","value":"..."},
+              {"kind":"attachment","address":"data.bin","field":"modified","op":"delete"}]
 }
 ```
 
-- `stream: null` с `owner` — создать новый поток XMP (для документа: `owner: "catalog"`).
-- Для общего потока (несколько владельцев) обязателен `scope`: `all` — изменить для всех,
-  `detach` + `owner` — отделить копию для одного владельца. Без него — ошибка `scope_required`.
-- `action: "remove"` убирает `/Metadata` у владельцев; поток не остаётся в файле осиротевшим.
+Info values support `string` and `name`. `stream: null` creates a packet for `owner` (`catalog` or an object reference). Shared packets require `scope: all` or `detach`. Detach selects exactly one owner using its reference and structured `ownerPath`: dictionary keys and zero-based array indices from the containing indirect object to the direct owner dictionary. Use the path returned by discovery; a missing path means `[]`. Owner discovery also retains a display `keyPath`.
 
-### Поля аннотаций и вложений (`objects`)
+`action: remove` removes Metadata links from selected owners. The target stream is discarded only when no current reference remains. Unrelated orphan objects and packets are retained.
 
-Аннотация адресуется ссылкой на её словарь (`ref` из `open`; только аннотации — косвенные объекты, `editable: true`),
-вложение — ключом в дереве `/EmbeddedFiles` (`name` из `open`). Текущие значения — в `fields` каждой аннотации
-и вложения (`null` — ключа нет).
+XMP paths use namespace URIs rather than prefixes:
 
-| kind | field | Ключ PDF | Удаление |
+```json
+[{"t":"prop","ns":"https://example.org/ns/","name":"Record"},
+ {"t":"field","ns":"https://example.org/ns/","name":"Label"},
+ {"t":"qual","ns":"https://example.org/ns/","name":"Source"}]
+```
+
+Array items use `{"t":"item","i":1}` (one-based).
+
+| XMP operation | Behavior |
+|---|---|
+| `set` | Change a simple value; preserve its URI flag unless explicit `uri` is supplied |
+| `create` | Create `simple`, `seq`, `bag`, `alt`, `altText` or `struct`; simple values use `value`/optional `uri`; qualifier paths create simple qualifiers on existing parents |
+| `delete` | Remove an addressed node |
+| `restore` | Copy the addressed subtree from original packet `xml`, retaining structure and qualifiers |
+| `appendItem`, `insertItem` | Add array `value`; insertion uses one-based `index` |
+| `setArray` | Update Seq/Bag using `form` and string `items`; retained positions preserve qualifiers |
+| `setLangAlt`, `deleteLangAlt` | Set/delete language `lang`; setting uses `value`, and preserves other translations |
+| `replacePacket` | Replace the complete packet with `xml` |
+
+Operations apply transactionally to a cloned XMP model, then validate known date/boolean fields. Serialization is reparsed and compared semantically. XMP decompression is capped at 64 MiB per packet; total packet bytes in `open` are capped at 256 MiB. Oversized packets report `xmp_too_large`; complete replacement/removal can still be requested. DTD and entity declarations are rejected.
+
+## Annotation and attachment fields
+
+Indirect annotation dictionaries are addressed by `ref` from `open`; direct annotations remain read-only. Attachments use their EmbeddedFiles tree `name`. A `null` current field value means absent.
+
+| Kind | Field | PDF keys | Deletable |
 |---|---|---|---|
-| `annotation` | `author`, `subject` | `/T`, `/Subj` | да |
-| `annotation` | `modified`, `created` | `/M`, `/CreationDate` (дата PDF) | да |
-| `attachment` | `filename` | `/UF` (и `/F`, если имя в ASCII) | нет |
-| `attachment` | `description` | `/Desc` | да |
-| `attachment` | `created`, `modified` | `/Params /CreationDate`, `/Params /ModDate` (дата PDF) | да |
+| `annotation` | `author`, `subject` | `/T`, `/Subj` | Yes |
+| `annotation` | `modified`, `created` | `/M`, `/CreationDate` | Yes |
+| `attachment` | `filename` | `/UF`, also `/F` for ASCII names | No |
+| `attachment` | `description` | `/Desc` | Yes |
+| `attachment` | `created`, `modified` | `/Params /CreationDate`, `/Params /ModDate` | Yes |
 
-Даты проверяются строго: `D:YYYY[MM[DD[HH[mm[SS]]]]]` с необязательным поясом, по календарю (`invalid_value`).
-Текст комментария (`/Contents`) и байты вложенного файла не изменяются: поля для них нет (`bad_request`),
-а проверка после записи сравнивает хеши `/Contents` всех аннотаций (`annotation_contents`) и каждое записанное поле (`objects`).
-В ответе `preview` массив `objects` содержит `{kind, address, label, field, key, fieldLabel, before, after}`.
+PDF dates use strict calendar validation: `D:YYYY[MM[DD[HH[mm[SS]]]]]` with an optional zone. Annotation Contents and attachment bytes cannot be edited and are checked after writing. Preview object entries report `kind`, `address`, `label`, `field`, `key`, `fieldLabel`, `before` and `after`.
 
-Операции XMP адресуют узел по точному пути — массиву шагов
-`{"t":"prop","ns":URI,"name":…}`, `{"t":"item","i":N}`, `{"t":"field","ns":…,"name":…}`, `{"t":"qual","ns":…,"name":…}`.
-Префикс не является идентификатором.
+## Save checks and errors
 
-| op | Действие |
+Save returns `checks`, `writer`, and `changes`. The writer reports rewritten versions/numbering, preserved unreferenced objects and incremental history removal. Metadata notes include preserved source XMP errors; the GUI shows these alongside writer notes.
+
+| Errors | Meaning |
 |---|---|
-| `set` | Изменить простое значение (флаг URI сохраняется) |
-| `create` | Создать свойство: `form` = `simple`/`seq`/`bag`/`alt`/`altText`/`struct`; для `simple` — `value`, контейнеры создаются пустыми и заполняются следующими операциями |
-| `delete` | Удалить узел |
-| `appendItem`, `insertItem` | Элемент массива (`value`, для вставки — `index` с 1) |
-| `setArray` | Заменить элементы Seq/Bag: `form`, `items` (квалификаторы сохранившихся элементов не теряются) |
-| `setLangAlt`, `deleteLangAlt` | Языковой вариант: `lang`, `value`; `x-default` не перезаписывает другие переводы |
-| `replacePacket` | Заменить весь пакет исходным XML из редактора |
+| `password_required`, `password_incorrect`, `unsupported_encryption`, `permission_denied` | Password/encryption/modification restrictions |
+| `pdf_damaged`, `pdf_open_failed`, `unsupported` | Unsupported or unreadable source |
+| `file_not_found`, `file_locked`, `access_denied`, `io_error`, `no_space`, `write_failed` | File/write failures |
+| `external_change`, `target_is_source` | Source fingerprint changed or copy points to source |
+| `signed_document`, `private_data_copy_only`, `xmp_copy_only` | Separate-copy policy; signed copies additionally require acknowledgement |
+| `no_changes`, `scope_required`, `bad_request` | Missing changes/scope or invalid request |
+| `xmp_invalid`, `xmp_forbidden_dtd`, `xmp_too_large`, `xmp_source_invalid`, `xmp_op_failed`, `invalid_value`, `xmp_roundtrip_mismatch` | XMP parse/edit/validation failures |
+| `verification_unavailable`, `verification_failed` | Preservation cannot be established; failed checks appear in `details.checks` |
+| `cancelled`, `out_of_memory`, `internal` | Cancellation/resource/internal errors |
 
-Поток метаданных распаковывается не более чем до 64 МиБ, а суммарный объём пакетов в ответе `open` ограничен 256 МиБ;
-сверх этого поток отмечается `parse.code = "xmp_too_large"` без пакета (его можно удалить или заменить целиком).
-
-Все операции одного потока применяются транзакционно к копии модели; затем пакет сериализуется,
-повторно разбирается и семантически сравнивается с ожидаемым (`xmp_roundtrip_mismatch` при расхождении).
-
-## Коды ошибок
-
-| code | Смысл |
-|---|---|
-| `password_required`, `password_incorrect` | Нужен пароль / неверный пароль |
-| `unsupported_encryption`, `unsupported` | Защита или формат не поддерживаются — запись заблокирована |
-| `pdf_damaged`, `pdf_open_failed` | Документ повреждён |
-| `file_not_found`, `file_locked`, `access_denied`, `io_error`, `no_space` | Файловые ошибки |
-| `external_change` | Файл изменён после открытия (сравнение размера, времени и SHA-256) |
-| `target_is_source` | Копия указывает на исходный файл |
-| `signed_document` | Подписанный документ: только копия с `allowSignedCopy` |
-| `private_data_copy_only` | Есть `/PieceInfo` без адаптера: только копия |
-| `permission_denied` | Ограничения документа запрещают изменение |
-| `no_changes` | Нет изменений — файл не перезаписывается |
-| `scope_required`, `unsupported_owner` | Ошибка адресации общего/объектного потока |
-| `xmp_invalid`, `xmp_forbidden_dtd`, `xmp_too_large`, `xmp_source_invalid`, `xmp_op_failed`, `invalid_value`, `xmp_roundtrip_mismatch` | Ошибки XMP |
-| `write_failed`, `verification_failed` | Запись не удалась или проверка записанного файла не пройдена (`details.checks`) |
-| `cancelled`, `out_of_memory`, `bad_request`, `internal` | Прочее |
-
-При любой ошибке `save` исходный файл не изменён, временные файлы удалены.
+Save errors leave the source unchanged and remove temporary files. Unchanged damaged XMP is copied byte-for-byte only in separate-copy mode; replacement requires fixing or removing the damaged packet first.

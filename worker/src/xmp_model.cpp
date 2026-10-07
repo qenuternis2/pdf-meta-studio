@@ -373,12 +373,31 @@ static void applyOne(Meta& meta, const json& op) {
             throw WorkerError("xmp_op_failed", "Свойство уже существует: " + t.path);
         std::string form = op.value("form", "simple");
         XMP_OptionBits bits = formBits(form);
-        if (form == "simple") {
+        const auto& steps = op.at("steps");
+        if (steps.back().value("t", "") == "qual") {
+            if (form != "simple") throw WorkerError("bad_request", "Квалификатор должен быть простым значением");
+            json parentSteps = steps;
+            parentSteps.erase(parentSteps.size() - 1);
+            Target parent = composePath(parentSteps);
+            const auto& qualifier = steps.back();
+            meta.SetQualifier(parent.schemaNS.c_str(), parent.path.c_str(),
+                              qualifier.at("ns").get<std::string>().c_str(),
+                              qualifier.at("name").get<std::string>().c_str(), op.value("value", "").c_str());
+        } else if (form == "simple") {
             if (op.value("uri", false)) bits |= kXMP_PropValueIsURI;
             meta.SetProperty(ns, path, op.value("value", "").c_str(), bits);
         } else {
             meta.SetProperty(ns, path, nullptr, bits);
         }
+    } else if (kind == "restore") {
+        std::string xml = op.at("xml").get<std::string>();
+        precheckPacket(xml);
+        Meta original;
+        original.ParseFromBuffer(xml.data(), static_cast<XMP_StringLen>(xml.size()), kXMP_RequireXMPMeta);
+        if (!original.DoesPropertyExist(ns, path))
+            throw WorkerError("xmp_op_failed", "Исходное свойство не найдено: " + t.path);
+        meta.DeleteProperty(ns, path);
+        SXMPUtils::DuplicateSubtree(original, &meta, ns, path, ns, path);
     } else if (kind == "delete") {
         if (!meta.DoesPropertyExist(ns, path))
             throw WorkerError("xmp_op_failed", "Свойство не найдено: " + t.path);
@@ -464,7 +483,9 @@ static void validateKnown(Meta& meta) {
     for (const auto& k : known) {
         std::string v;
         XMP_OptionBits o = 0;
-        if (!meta.GetProperty(k.ns, k.name, &v, &o) || !XMP_PropIsSimple(o)) continue;
+        if (!meta.GetProperty(k.ns, k.name, &v, &o)) continue;
+        if (!XMP_PropIsSimple(o))
+            throw WorkerError("invalid_value", std::string("Поле ") + k.name + " должно быть простым значением, а не структурой или массивом");
         if (k.kind == 'd') {
             if (!isValidXmpDate(v))
                 throw WorkerError("invalid_value", std::string("Некорректная дата в ") + k.name + ": " + v);

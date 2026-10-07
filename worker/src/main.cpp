@@ -58,6 +58,11 @@ json handle(const json& req, Context& ctx) {
         return json{{"worker", PDFMETA_VERSION}, {"qpdf", QPDF::QPDFVersion()}, {"xmp", xmpToolkitVersion()},
                     {"protocol", 1}};
     if (cmd == "open") return openDocument(req, ctx);
+    if (cmd == "validateXmp") {
+        auto doc = XmpDoc::parse(req.at("xml").get<std::string>());
+        doc->apply(json::array());
+        return json{{"model", doc->model()}, {"packet", doc->serialize()}};
+    }
     if (cmd == "preview") return previewEdits(req, ctx);
     if (cmd == "save") return saveEdits(req, ctx);
     throw WorkerError("bad_request", "Неизвестная команда: " + cmd);

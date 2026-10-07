@@ -7,6 +7,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/PdfMetaStudio.App/ViewModels/TagTreeViewModel.cs" Link="ViewModels/TagTreeViewModel.cs" />
+    <Compile Include="../../src/PdfMetaStudio.App/ViewModels/ObjectsViewModel.cs" Link="ViewModels/ObjectsViewModel.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PdfMetaStudio.Core\PdfMetaStudio.Core.csproj" />

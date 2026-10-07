@@ -27,12 +27,15 @@ public sealed record InfoKeyEdit(string InfoKey, string? NewValue, string ValueK
     : Edit("info:" + InfoKey, "/Info " + InfoKey);
 
 /// <summary>Произвольная операция XMP над выбранным потоком (расширенный редактор).</summary>
-public sealed record XmpOpEdit(string StreamRef, string? Scope, string? Owner, string OpKey, JsonObject Op, string Label)
-    : Edit("xmp:" + StreamRef + ":" + Scope + ":" + Owner + ":" + OpKey, Label);
+public sealed record XmpOpEdit(string StreamRef, string? Scope, string? Owner, string OpKey, JsonObject Op, string Label,
+    JsonArray? OwnerPath = null, long Sequence = 0)
+    : Edit("xmp:" + StreamRef + ":" + Scope + ":" + Owner + ":" + OpKey +
+        (OwnerPath?.Count > 0 ? ":" + OwnerPath.ToJsonString() : ""), Label);
 
 /// <summary>Замена всего XMP-пакета исходным XML (редактор XML).</summary>
-public sealed record RawPacketEdit(string StreamRef, string? Scope, string? Owner, string Xml)
-    : Edit("raw:" + StreamRef + ":" + Scope + ":" + Owner, "XML пакета " + StreamRef);
+public sealed record RawPacketEdit(string StreamRef, string? Scope, string? Owner, string Xml, JsonArray? OwnerPath = null)
+    : Edit("raw:" + StreamRef + ":" + Scope + ":" + Owner +
+        (OwnerPath?.Count > 0 ? ":" + OwnerPath.ToJsonString() : ""), "XML пакета " + StreamRef);
 
 /// <summary>Правка поля аннотации или вложения. NewValue = null — удаление ключа.</summary>
 public sealed record ObjectFieldEdit(string Kind, string Address, string Field, string? NewValue, string Label)
@@ -56,6 +59,11 @@ public sealed class EditSession
     private readonly Stack<ImmutableDictionary<string, Edit>> _undo = new();
     private readonly Stack<ImmutableDictionary<string, Edit>> _redo = new();
     private ImmutableDictionary<string, Edit> _edits = ImmutableDictionary<string, Edit>.Empty;
+    private long _sequence;
+    private DocumentSnapshot? _working;
+    public long Revision { get; private set; }
+    public DocumentSnapshot WorkingDocument => _working ?? Document;
+    public event EventHandler? PreviewChanged;
 
     public DocumentSnapshot Document { get; }
     public IReadOnlyDictionary<string, FieldOrigin> Origins { get; }
@@ -81,7 +89,48 @@ public sealed class EditSession
     public FieldEdit? GetField(string id) => _edits.GetValueOrDefault("field:" + id) as FieldEdit;
 
     /// <summary>Текущее значение поля с учётом правок.</summary>
-    public FieldValue CurrentValue(string fieldId) => GetField(fieldId)?.NewValue ?? Origins[fieldId].Effective;
+    public FieldValue CurrentValue(string fieldId)
+    {
+        if (_working is null) return GetField(fieldId)?.NewValue ?? Origins[fieldId].Effective;
+        var current = FieldReader.Read(StandardFields.Get(fieldId), _working);
+        return GetField(fieldId)?.Sync == SyncMode.InfoOnly ? current.Info : current.Effective;
+    }
+
+    public void UpdatePreview(JsonNode preview, long revision)
+    {
+        if (revision != Revision) return;
+        var streams = Document.Streams.ToList();
+        foreach (var change in (JsonArray?)preview["xmp"] ?? new JsonArray())
+        {
+            string reference = (string?)change!["stream"] ?? "";
+            string action = (string?)change["action"] ?? "edit";
+            var original = streams.FirstOrDefault(s => s.Ref == reference);
+            var owners = ((JsonArray?)change["owners"] ?? new JsonArray()).Select(o => MetadataOwner.FromJson(o!)).ToList();
+            if (action is "detach" or "remove")
+            {
+                if (original != null)
+                {
+                    var remaining = original.Owners.Where(o => !owners.Any(a => a.Ref == o.Ref &&
+                        (a.Path?.ToJsonString() ?? "[]") == (o.Path?.ToJsonString() ?? "[]"))).ToList();
+                    if (action == "remove" && remaining.Count == 0) streams.Remove(original);
+                    else streams[streams.IndexOf(original)] = original with { Owners = remaining, IsDocument = remaining.Any(o => o.Kind == "catalog" && o.Path?.Count is null or 0) };
+                }
+            }
+            else if (original != null) streams.Remove(original);
+            if (action == "remove") continue;
+            string? packet = change["after"]?["packet"] is JsonValue pv && pv.TryGetValue<string>(out var text) ? text : null;
+            streams.Add(new MetadataStream(reference, original?.Reachable ?? true,
+                owners.Any(o => o.Kind == "catalog" && o.Path?.Count is null or 0), owners, packet, true, null,
+                XmpModel.FromJson(change["after"]?["model"]), false,
+                action == "detach" ? "detach" : null,
+                action == "detach" ? owners.FirstOrDefault()?.Ref : null,
+                action == "detach" ? owners.FirstOrDefault()?.Path : null));
+        }
+        var info = ((JsonArray?)preview["info"]?["after"]?["entries"] ?? new JsonArray())
+            .Select(i => InfoEntry.FromJson(i!)).ToList();
+        _working = Document with { Streams = streams, Info = info, InfoPresent = (bool?)preview["info"]?["after"]?["present"] ?? Document.InfoPresent };
+        PreviewChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     public void SetField(string fieldId, FieldValue value, SyncMode? sync = null)
     {
@@ -127,8 +176,22 @@ public sealed class EditSession
         Apply(unchanged ? _edits.Remove(key) : _edits.SetItem(key, new ObjectFieldEdit(kind, address, field, value, label)));
     }
 
-    public void AddXmpOp(XmpOpEdit edit) => Apply(_edits.SetItem(edit.Key, edit));
-    public void SetRawPacket(RawPacketEdit edit) => Apply(_edits.SetItem(edit.Key, edit));
+    public void AddXmpOp(XmpOpEdit edit) => Apply(_edits.SetItem(edit.Key, edit with { Sequence = ++_sequence }));
+    public void SetRawPacket(RawPacketEdit edit)
+    {
+        var next = _edits.RemoveRange(_edits.Values.OfType<XmpOpEdit>().Where(e => e.StreamRef == edit.StreamRef &&
+            e.Scope == edit.Scope && e.Owner == edit.Owner && (e.OwnerPath?.ToJsonString() ?? "[]") == (edit.OwnerPath?.ToJsonString() ?? "[]")).Select(e => e.Key));
+        Apply(next.SetItem(edit.Key, edit));
+    }
+    public void RevertXmpPath(string reference, IReadOnlyList<XmpStep> steps, string? scope = null, string? owner = null, JsonArray? ownerPath = null)
+    {
+        string path = XmpPath.Key(steps);
+        Apply(_edits.RemoveRange(_edits.Values.OfType<XmpOpEdit>().Where(e => e.StreamRef == reference &&
+            e.Scope == scope && e.Owner == owner && (e.OwnerPath?.ToJsonString() ?? "[]") == (ownerPath?.ToJsonString() ?? "[]") &&
+            e.Op["steps"] is JsonArray st && st.Count >= steps.Count &&
+            XmpPath.Key(st.Take(steps.Count).Select(s => XmpStep.FromJson(s!))) == path)
+            .Select(e => e.Key)));
+    }
     public void Revert(string key) => Apply(_edits.Remove(key));
     public void RevertAll() => Apply(ImmutableDictionary<string, Edit>.Empty);
 
@@ -137,6 +200,7 @@ public sealed class EditSession
         if (_undo.Count == 0) return;
         _redo.Push(_edits);
         _edits = _undo.Pop();
+        InvalidatePreview();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -145,6 +209,7 @@ public sealed class EditSession
         if (_redo.Count == 0) return;
         _undo.Push(_edits);
         _edits = _redo.Pop();
+        InvalidatePreview();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -154,8 +219,11 @@ public sealed class EditSession
         _undo.Push(_edits);
         _redo.Clear();
         _edits = next;
+        InvalidatePreview();
         Changed?.Invoke(this, EventArgs.Empty);
     }
+
+    private void InvalidatePreview() { Revision++; _working = null; }
 
     private SyncMode DefaultSync(FieldOrigin o)
     {
@@ -171,6 +239,7 @@ public sealed class EditSession
         public required string? StreamRef;
         public string? Owner;
         public string? Scope;
+        public JsonArray? OwnerPath;
         public JsonObject? Replace;
         public readonly JsonArray Ops = new();
     }
@@ -227,13 +296,13 @@ public sealed class EditSession
 
         foreach (var r in _edits.Values.OfType<RawPacketEdit>())
         {
-            var so = GetStream(streams, r.StreamRef, r.Scope, r.Owner);
+            var so = GetStream(streams, r.StreamRef, r.Scope, r.Owner, r.OwnerPath);
             so.Replace = new JsonObject { ["op"] = "replacePacket", ["xml"] = r.Xml };
             requested.Add("xmp:" + r.StreamRef + ":*");
         }
-        foreach (var x in _edits.Values.OfType<XmpOpEdit>())
+        foreach (var x in _edits.Values.OfType<XmpOpEdit>().OrderBy(e => e.Sequence))
         {
-            var so = GetStream(streams, x.StreamRef, x.Scope, x.Owner);
+            var so = GetStream(streams, x.StreamRef, x.Scope, x.Owner, x.OwnerPath);
             so.Ops.Add(x.Op.DeepClone());
             if (x.Op["steps"] is JsonArray st && st.Count > 0)
                 requested.Add("xmp:" + x.StreamRef + ":" + XmpStep.FromJson(st[0]!).Key);
@@ -276,6 +345,7 @@ public sealed class EditSession
             var t = new JsonObject { ["stream"] = so.StreamRef, ["ops"] = ops };
             if (so.Owner != null) t["owner"] = so.Owner;
             if (so.Scope != null) t["scope"] = so.Scope;
+            if (so.OwnerPath != null) t["ownerPath"] = so.OwnerPath.DeepClone();
             xmp.Add(t);
         }
         var edits = new JsonObject { ["info"] = info, ["xmp"] = xmp };
@@ -283,7 +353,7 @@ public sealed class EditSession
         return new BuiltRequest(edits, issues, requested);
     }
 
-    private StreamOps GetStream(Dictionary<string, StreamOps> streams, string streamRef, string? scope, string? owner)
+    private StreamOps GetStream(Dictionary<string, StreamOps> streams, string streamRef, string? scope, string? owner, JsonArray? ownerPath = null)
     {
         var ds = Document.DocumentStream;
         if (streamRef.Length == 0)
@@ -298,10 +368,10 @@ public sealed class EditSession
             scope = DocumentStreamScope;
             if (scope == "detach") owner = ds.Owners.First(o => o.Kind == "catalog").Ref;
         }
-        string key = streamRef + "|" + scope + "|" + owner;
+        string key = streamRef + "|" + scope + "|" + owner + "|" + (ownerPath?.ToJsonString() ?? "[]");
         if (!streams.TryGetValue(key, out var so))
         {
-            so = new StreamOps { StreamRef = streamRef, Scope = scope, Owner = owner };
+            so = new StreamOps { StreamRef = streamRef, Scope = scope, Owner = owner, OwnerPath = ownerPath };
             streams[key] = so;
         }
         return so;
