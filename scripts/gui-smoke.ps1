@@ -210,7 +210,7 @@ try {
     $proc.CloseMainWindow() | Out-Null
     $closed = WaitFor { $proc.Refresh(); $proc.HasExited } 15
     Log ("{0}  закрытие окна после сохранения{1}" -f $(if ($closed) { 'OK ' } else { 'WARN' }), $(if ($closed) { '' } else { ': окно не закрылось (возможен запрос о несохранённых правках)' }))
-    if (-not $closed) { Shot '5-close' }
+    if (-not $closed) { Shot '5-close'; throw 'The application did not close after a successful save' }
     Log 'GUI SMOKE PASSED'
     exit 0
 }

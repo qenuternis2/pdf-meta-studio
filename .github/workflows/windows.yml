@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pypdf==5.1.0
+      - run: pip install pypdf==5.1.0 cryptography==46.0.3
       - name: vcpkg (baseline from worker/vcpkg.json)
         shell: pwsh
         run: |

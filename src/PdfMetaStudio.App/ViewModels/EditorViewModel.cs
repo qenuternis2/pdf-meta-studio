@@ -100,6 +100,7 @@ public sealed partial class EditorViewModel : ObservableObject
     [ObservableProperty] private ScopeOption? _selectedDocumentScope;
     partial void OnSelectedDocumentScopeChanged(ScopeOption? value) => DocumentScope = value?.Scope;
     public bool IsSigned => Document.Signed;
+    public bool IsEncrypted => Document.Encrypted;
     public string CopyName => Path.GetFileName(ReviewBuilder.DefaultCopyName(Document.FilePath));
 
     public event EventHandler? CloseRequested;

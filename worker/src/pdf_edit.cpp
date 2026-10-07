@@ -100,6 +100,8 @@ void applyInfoOps(QPDF& q, const json& ops, Applied& a) {
         std::string key = op.at("key").get<std::string>();
         if (key.size() < 2 || key[0] != '/') throw WorkerError("bad_request", "Ключ /Info должен начинаться с /: " + key);
         if (kind == "set") {
+            if (q.getPDFVersion() >= "2.0" && !info.hasKey(key) && key != "/CreationDate" && key != "/ModDate")
+                throw WorkerError("unsupported_profile_edit", "В PDF 2.0 новые описательные значения создаются в XMP; /Info допускает создание только дат");
             std::string type = op.value("type", "string");
             std::string value = op.at("value").get<std::string>();
             if (type == "string") {
@@ -263,11 +265,61 @@ void applyObjectOps(QPDF& q, const json& ops, Applied& a) {
     std::erase_if(a.objects, [](const ObjectChange& c) { return c.before == c.after; });
 }
 
+static bool declares(const json& model, const std::string& uri, const std::string& name) {
+    for (const auto& node : model.value("nodes", json::array())) {
+        const auto& steps = node.at("steps");
+        if (steps.size() == 1 && steps[0].value("ns", "") == uri && steps[0].value("name", "") == name &&
+            !node.value("value", std::string()).empty()) return true;
+    }
+    return false;
+}
+static void checkProfileEdits(const Applied& changes, bool infoPdfX) {
+    bool pdfX = infoPdfX;
+    const std::set<std::string> predefined{
+        "http://purl.org/dc/elements/1.1/", "http://ns.adobe.com/xap/1.0/", "http://ns.adobe.com/pdf/1.3/",
+        "http://ns.adobe.com/xap/1.0/rights/", "http://ns.adobe.com/xap/1.0/mm/", "http://ns.adobe.com/photoshop/1.0/",
+        "http://ns.adobe.com/exif/1.0/", "http://ns.adobe.com/tiff/1.0/", "http://www.aiim.org/pdfa/ns/id/",
+        "http://www.aiim.org/pdfa/ns/extension/", "http://www.aiim.org/pdfa/ns/schema#", "http://www.aiim.org/pdfa/ns/property#",
+        "http://www.aiim.org/pdfa/ns/type#", "http://www.aiim.org/pdfa/ns/field#"
+    };
+    for (const auto& stream : changes.streams) {
+        if (!std::any_of(stream.owners.begin(), stream.owners.end(), [](const auto& owner) { return owner.kind == "catalog" && owner.path.empty(); })) continue;
+        pdfX = pdfX || declares(stream.beforeModel, "http://www.npes.org/pdfx/ns/id/", "GTS_PDFXVersion");
+        if (stream.action == "remove" || !declares(stream.beforeModel, "http://www.aiim.org/pdfa/ns/id/", "part")) continue;
+        std::set<std::string> existing, registered;
+        for (const auto& node : stream.beforeModel.value("nodes", json::array())) if (node.at("steps").size() == 1) existing.insert(node.at("steps")[0].value("ns", "") + "#" + node.at("steps")[0].value("name", ""));
+        for (const auto& node : stream.afterModel.value("nodes", json::array())) {
+            const auto& steps = node.at("steps");
+            if (!steps.empty() && steps.back().value("ns", "") == "http://www.aiim.org/pdfa/ns/schema#" && steps.back().value("name", "") == "namespaceURI")
+                registered.insert(node.value("value", std::string()));
+        }
+        for (const auto& node : stream.afterModel.value("nodes", json::array())) {
+            const auto& steps = node.at("steps");
+            if (steps.size() != 1 || existing.count(steps[0].value("ns", "") + "#" + steps[0].value("name", ""))) continue;
+            auto ns = steps[0].value("ns", "");
+            if (!predefined.count(ns) && !registered.count(ns)) throw WorkerError("unsupported_profile_edit",
+                "Заявленный PDF/A: новая пользовательская схема XMP требует описания pdfaExtension. Добавьте описание схемы через XML или используйте документ без этого профиля; соответствие всё равно требует валидатора");
+        }
+    }
+    if (pdfX && changes.infoBefore != changes.infoAfter) {
+        for (const auto& entry : changes.infoAfter.at("entries"))
+            if (entry.value("key", "") == "/Trapped" && entry.value("value", "") == "/Unknown") {
+                bool changed = true;
+                for (const auto& original : changes.infoBefore.at("entries")) if (original.value("key", "") == "/Trapped" && original.value("value", "") == "/Unknown") changed = false;
+                if (changed) throw WorkerError("unsupported_profile_edit", "PDF/X не допускает создание /Trapped /Unknown; выберите True или False");
+            }
+    }
+}
+
 Applied applyEdits(QPDF& q, Discovery& d, const json& edits) {
     Applied a;
+    auto originalInfo = q.getTrailer().getKey("/Info");
+    auto originalPdfX = originalInfo.isDictionary() ? originalInfo.getKey("/GTS_PDFXVersion") : QPDFObjectHandle::newNull();
+    bool infoPdfX = originalPdfX.isString() && originalPdfX.getUTF8Value().find("PDF/X") != std::string::npos;
     applyInfoOps(q, edits.value("info", json::array()), a);
     applyXmpTargets(q, d, edits.value("xmp", json::array()), a);
     applyObjectOps(q, edits.value("objects", json::array()), a);
+    checkProfileEdits(a, infoPdfX);
     // Preserve unrelated orphan objects, but erase explicitly removed metadata
     // when no remaining object references it (including non-Metadata references).
     for (const auto& change : a.streams) {
@@ -403,6 +455,19 @@ json previewEdits(const json& req, Context& ctx) {
     return out;
 }
 
+static void requireUnrepairedInput(LoadedPdf& pdf, const Applied& changes) {
+    for (auto& warning : pdf.q->getWarnings()) pdf.warnings.push_back(sanitizeUtf8(warning.what()));
+    bool removedOversizeMetadata = std::any_of(changes.streams.begin(), changes.streams.end(), [](const auto& stream) {
+        return stream.action == "remove" && stream.beforePacket.empty();
+    });
+    if (removedOversizeMetadata) pdf.warnings.erase(std::remove_if(pdf.warnings.begin(), pdf.warnings.end(), [](const auto& warning) {
+        return warning.find("input stream is complete but output may still be valid") != std::string::npos;
+    }), pdf.warnings.end());
+    if (!pdf.warnings.empty()) throw WorkerError("pdf_damaged",
+        "qpdf обнаружил или восстановил повреждённую структуру PDF. Редактирование и запись заблокированы: интерпретация другими просмотрщиками может отличаться; исходные данные доступны для просмотра и экспорта",
+        json{{"warnings", pdf.warnings}});
+}
+
 json saveEdits(const json& req, Context& ctx) {
     fs::path src = requirePath(req, "path");
     std::string mode = req.value("mode", "copy");
@@ -508,6 +573,7 @@ json saveEdits(const json& req, Context& ctx) {
             throw WorkerError("io_error", "Резервная копия не совпадает с оригиналом");
     }
 
+    requireUnrepairedInput(pdf, a);
     TempGuard tempGuard;
     tempGuard.path = tempPathIn(dir);
     std::map<std::string, QPDFObjGen> renumber;
@@ -625,6 +691,9 @@ json saveEdits(const json& req, Context& ctx) {
             same("forms", after["formFields"] == before["formFields"], "Поля форм на месте", "Поля форм отличаются");
             same("attachments", after["attachments"] == before["attachments"], "Вложения и их байты не изменились",
                  "Вложения отличаются от исходных");
+            auto outputWarnings = n.getWarnings();
+            check("parser_warnings", out.warnings.empty() && outputWarnings.empty(),
+                  out.warnings.empty() && outputWarnings.empty() ? "Повторное чтение не требует восстановления структуры" : "После записи qpdf обнаружил повреждённую структуру");
             int R1 = 0, P1 = 0;
             bool isEnc = n.isEncrypted(R1, P1);
             bool encOk = isEnc == wasEncrypted && R1 == R0 && P1 == P0;

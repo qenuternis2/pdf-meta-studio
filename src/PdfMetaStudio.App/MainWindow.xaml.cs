@@ -24,7 +24,7 @@ public partial class MainWindow : Window
         {
             _closeConfirmed = true;
             await _vm.DisposeAsync();
-            Close();
+            _ = Dispatcher.BeginInvoke(new Action(Close));
         }
     }
 }

@@ -90,7 +90,7 @@
                     <WrapPanel><Button Content="Добавить элемент" Command="{Binding AddItemCommand}"/><Button Content="Изменить элемент" Command="{Binding UpdateItemCommand}"/><Button Content="Удалить элемент" Command="{Binding DeleteItemCommand}"/><Button Content="Выше" Command="{Binding MoveItemUpCommand}"/><Button Content="Ниже" Command="{Binding MoveItemDownCommand}"/></WrapPanel>
                 </StackPanel>
                 <Grid Margin="0,6,0,0">
-                    <TextBox x:Name="Input" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox x:Name="Input" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=300}"
                              IsEnabled="{Binding IsDeleted, Converter={StaticResource Not}}"
                              Visibility="{Binding IsTextBox, Converter={StaticResource BoolToVis}}"
                              AutomationProperties.Name="{Binding AccessibleName}"
@@ -174,7 +174,7 @@
         <StackPanel Margin="22,16,22,12">
             <TextBlock Text="{Binding FileName}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                        AutomationProperties.HeadingLevel="Level1"/>
-            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}" Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVis}}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
             <TextBlock Text="{Binding ReadOnlyMessage}" Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}" Style="{StaticResource Warn}"/>
             <ComboBox ItemsSource="{Binding DocumentScopeOptions}" SelectedItem="{Binding SelectedDocumentScope}" DisplayMemberPath="Title" Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Область правки XMP документа"/>
             <Expander Header="Размеры страниц (только чтение)"><TextBox Text="{Binding PageDimensions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="140" VerticalScrollBarVisibility="Auto"/></Expander>
@@ -265,7 +265,7 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="2*" MinWidth="220"/>
                             </Grid.ColumnDefinitions>
-                            <TreeView x:Name="Tree" ItemsSource="{Binding Roots}" SelectedItemChanged="OnTreeSelection"
+                            <TreeView x:Name="Tree" VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling" ItemsSource="{Binding Roots}" SelectedItemChanged="OnTreeSelection"
                                       AutomationProperties.Name="Дерево тегов: источник, пространство имён, свойство">
                                 <TreeView.ItemContainerStyle>
                                     <Style TargetType="TreeViewItem" BasedOn="{StaticResource {x:Type TreeViewItem}}">

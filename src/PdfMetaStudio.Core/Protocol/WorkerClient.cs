@@ -133,10 +133,12 @@ public sealed class WorkerClient : IAsyncDisposable
     {
         try
         {
-            await foreach (string line in ReadLinesAsync(_process.StandardError, 4096))
+            char[] buffer = new char[4096];
+            int count;
+            while ((count = await _process.StandardError.ReadAsync(buffer).ConfigureAwait(false)) != 0)
                 lock (_stderrTail)
                 {
-                    _stderrTail.AppendLine(line);
+                    _stderrTail.Append(buffer, 0, count);
                     if (_stderrTail.Length > 4000) _stderrTail.Remove(0, _stderrTail.Length - 4000);
                 }
         }

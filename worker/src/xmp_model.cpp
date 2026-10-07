@@ -1,3 +1,6 @@
+#include <regex>
+#include <set>
+#include <cctype>
 #include "xmp_model.hpp"
 
 #include <XMP.incl_cpp>
@@ -572,6 +575,7 @@ static void validateKnown(Meta& meta) {
             throw WorkerError("invalid_value", std::string("Неверная структура известного поля ") + shape.name + ": требуется " + shape.form);
         if (std::string(shape.form) == "seq" || std::string(shape.form) == "bag" || std::string(shape.form) == "altText") {
             int count = meta.CountArrayItems(shape.ns, shape.name);
+            std::set<std::string> languages;
             for (int index = 1; index <= count; ++index) {
                 std::string item, language;
                 SXMPUtils::ComposeArrayItemPath(shape.ns, shape.name, index, &item);
@@ -580,6 +584,12 @@ static void validateKnown(Meta& meta) {
                 if (!XMP_PropIsSimple(itemOptions)) throw WorkerError("invalid_value", std::string("Элементы ") + shape.name + " должны быть текстом");
                 if (std::string(shape.form) == "altText" && !meta.GetQualifier(shape.ns, item.c_str(), kXMP_NS_XML, "lang", &language, nullptr))
                     throw WorkerError("invalid_value", "У языкового варианта отсутствует xml:lang");
+                if (std::string(shape.form) == "altText") {
+                    std::string normalized = language;
+                    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char character) { return std::tolower(character); });
+                    if (!std::regex_match(language, std::regex("^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*|[xX](-[A-Za-z0-9]{1,8})+|[iI]-(ami|bnn|default|enochian|hak|klingon|lux|mingo|navajo|pwn|tao|tay|tsu))$")) || !languages.insert(normalized).second)
+                        throw WorkerError("invalid_value", "Некорректная или повторяющаяся языковая метка");
+                }
             }
         }
     }

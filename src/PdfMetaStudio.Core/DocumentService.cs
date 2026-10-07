@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
+using System.Security.AccessControl;
 using PdfMetaStudio.Core.Editing;
 using PdfMetaStudio.Core.Model;
 using PdfMetaStudio.Core.Protocol;
@@ -72,6 +73,17 @@ public sealed class DocumentService : IAsyncDisposable
             await using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true))
             await using (var output = new FileStream(snapshot, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, true))
                 await input.CopyToAsync(output, ct).ConfigureAwait(false);
+            if (OperatingSystem.IsWindows()) {
+                var acl = FileSystemAclExtensions.GetAccessControl(new FileInfo(path), AccessControlSections.Access);
+                FileSystemAclExtensions.SetAccessControl(new FileInfo(snapshot), acl);
+                string zone = path + ":Zone.Identifier";
+                if (File.Exists(zone)) {
+                    await using var input = File.OpenRead(zone);
+                    if (input.Length > 64 * 1024) throw new WorkerException("snapshot_failed", "Отметка безопасности файла превышает 64 КиБ");
+                    await using var output = File.Create(snapshot + ":Zone.Identifier");
+                    await input.CopyToAsync(output, ct).ConfigureAwait(false);
+                }
+            } else File.SetUnixFileMode(snapshot, File.GetUnixFileMode(path));
             await using var cached = File.OpenRead(snapshot);
             string hash = Convert.ToHexString(await SHA256.HashDataAsync(cached, ct).ConfigureAwait(false)).ToLowerInvariant();
             if (hash != (string?)document.Fingerprint["sha256"])

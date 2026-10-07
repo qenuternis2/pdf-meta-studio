@@ -73,4 +73,30 @@ public class TypedWorkflowTests
         Assert.Equal(originalDefault, session.WorkingDocument.DocumentStream!.Model.LangAlt(XmpNamespaces.Dc, "title", "x-default"));
         Assert.Equal(session.Document.InfoValue("/Title")!.Value, session.WorkingDocument.InfoValue("/Title")!.Value);
     }
+    [WorkerFact] public async Task ReadOnlyAndWorkerRestartKeepTheSessionSafe() {
+        await using var service = new DocumentService();
+        var session = new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null)) { IsReadOnly = true };
+        session.SetField("title", FieldValue.OfText("Forbidden"));
+        Assert.Equal(0, session.ChangeCount);
+        session.IsReadOnly = false;
+        session.SetField("title", FieldValue.OfText("Retained"));
+        await service.RestartWorkerAsync();
+        await service.PreviewAsync(session);
+        Assert.Equal("Retained", session.WorkingDocument.InfoValue("/Title")!.Value);
+    }
+
+    [WorkerFact] public async Task CachedCopySurvivesDeletionOfTheOriginal() {
+        string directory = Directory.CreateTempSubdirectory("pdfmeta-deleted-source-").FullName;
+        string source = Path.Combine(directory, "source.pdf"), target = Path.Combine(directory, "copy.pdf");
+        try {
+            File.Copy(Fixture("rich.pdf"), source);
+            await using var service = new DocumentService();
+            var session = new EditSession(await service.OpenAsync(source, null));
+            File.Delete(source);
+            session.SetField("title", FieldValue.OfText("Cached"));
+            var result = await service.SaveAsync(session, session.Build(), target, SaveMode.Copy, false);
+            Assert.All(result.Checks, check => Assert.True(check.Ok));
+            Assert.Equal("Cached", (await service.OpenAsync(target, null)).InfoValue("/Title")!.Value);
+        } finally { Directory.Delete(directory, true); }
+    }
 }

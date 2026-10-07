@@ -528,7 +528,7 @@ public sealed partial class TagTreeViewModel : ObservableObject
                 op = new JsonObject { ["op"] = "setArray", ["steps"] = steps, ["form"] = type.Id, ["items"] = new JsonArray(lines) };
                 break;
             case "lang":
-                if (!System.Text.RegularExpressions.Regex.IsMatch(NewLanguage, @"^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"))
+                if (!System.Text.RegularExpressions.Regex.IsMatch(NewLanguage, @"^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*|[xX](-[A-Za-z0-9]{1,8})+|[iI]-(ami|bnn|default|enochian|hak|klingon|lux|mingo|navajo|pwn|tao|tay|tsu))$"))
                 { AddError = "Укажите языковую метку, например ru-RU или en-US"; return; }
                 op = new JsonObject { ["op"] = "setLangAlt", ["steps"] = steps, ["lang"] = NewLanguage, ["value"] = NewValue };
                 break;

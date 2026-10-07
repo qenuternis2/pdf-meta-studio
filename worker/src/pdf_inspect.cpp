@@ -633,6 +633,7 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
                 if (isDocument) catalogDoc = std::move(doc);
             } catch (const WorkerError& e) {
                 s["parse"] = json{{"ok", false}, {"code", e.code}, {"error", sanitizeUtf8(e.what())}};
+                issues.push_back({"metadata " + refOf(ms.og), sanitizeUtf8(e.what())});
                 // Для просмотра — модель из нестрогого разбора; правка такого пакета заблокирована.
                 if (e.code == "xmp_invalid") {
                     try {
@@ -674,6 +675,10 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
     out["scan"] = scan;
     out["warnings"] = pdf.warnings;
     for (auto& w : q.getWarnings()) out["warnings"].push_back(sanitizeUtf8(w.what()));
+    if (!out["warnings"].empty()) {
+        out["scan"]["complete"] = false;
+        out["scan"]["issues"].push_back(json{{"area", "pdf_structure"}, {"reason", "qpdf reported a malformed or repaired structure; writing is blocked until it can be read without repairs"}});
+    }
     ctx.progress("inspect", 100);
     return out;
 }

@@ -17,7 +17,7 @@ def render(pdf, prefix, pages):
     command = ['pdftoppm', '-r', '72', '-scale-to', '1024', '-f', '1', '-l', str(pages), str(pdf), str(prefix)]
     result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=10)
     images = sorted(prefix.parent.glob(prefix.name + '-*.ppm'))
-    if result.returncode != 0 or len(images) != pages:
+    if result.returncode != 0 or len(images) != pages or b'Syntax Error' in result.stderr or b'Internal Error' in result.stderr:
         raise ValueError('Poppler could not render every page')
     return [hashlib.sha256(image.read_bytes()).hexdigest() for image in images]
 
@@ -50,7 +50,7 @@ def main():
                 target = root / 'output.pdf'
                 try:
                     document = worker.call('open', path=str(source.resolve()))
-                    pages = document['pdf']['pageCount']
+                    pages = document['pdf'].get('pageCount', 0)
                     if not 1 <= pages <= 50:
                         record.update(status='excluded_page_limit', pages=pages)
                     else:

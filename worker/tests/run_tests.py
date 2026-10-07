@@ -650,7 +650,7 @@ def test_metadata_bomb_capped(c):
     b = pdfgen.Builder()
     cat = b.reserve()
     pages = b.reserve()
-    page = b.add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] >>" % pages)
+    page = b.add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] /Resources << >> >>" % pages)
     b.set(pages, b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
     meta = b.add(b"<< /Type /Metadata /Subtype /XML /Filter /FlateDecode /Length %d >>\nstream\n" % len(bomb)
                  + bomb + b"\nendstream")
@@ -884,8 +884,11 @@ def test_conflicting_object_generations_cannot_change_pages(c):
         import pypdf
         assert pypdf.PdfReader(out).pages[0].extract_text() == pypdf.PdfReader(src).pages[0].extract_text()
     except WorkerError as error:
-        assert error.code == "verification_failed", error.code
-        assert any(check["name"] == "pages" and not check["ok"] for check in error.details["checks"])
+        assert error.code in ("verification_failed", "pdf_damaged"), error.code
+        if error.code == "verification_failed":
+            assert any(check["name"] == "pages" and not check["ok"] for check in error.details["checks"])
+        else:
+            assert error.details["warnings"]
         assert not os.path.exists(out)
     assert sha(src) == original_hash
 
@@ -988,6 +991,85 @@ def test_invalid_protocol_envelopes_do_not_crash_worker(c):
         response = json.loads(c.w.p.stdout.readline())
         assert response["code"] == "bad_request", response
     assert c.w.call("hello")["protocol"] == 1
+
+
+def test_declared_profile_edit_constraints(c):
+    description = pdfgen.RICH_XMP.replace('xmp:CreateDate=', 'xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="2" pdfaid:conformance="B" xmp:CreateDate=', 1)
+    source = c.pdf("profile.pdf", xmp=description)
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    expect_error("unsupported_profile_edit", lambda: c.w.call("preview", path=source, edits={"xmp": [{"stream": stream["ref"], "ops": [
+        {"op": "create", "steps": [prop("https://example.org/new-schema/", "Custom")], "value": "New"}]}]}))
+    modern = c.pdf("pdf20.pdf", version="2.0")
+    modern_opened = c.open(modern)
+    expect_error("unsupported_profile_edit", lambda: c.save(modern, modern_opened, {"info": [
+        {"op": "set", "key": "/NewCustom", "value": "New"}]}, target=os.path.join(c.tmp, "modern-out.pdf")))
+    pdfx = c.pdf("pdfx.pdf", info={"GTS_PDFXVersion": "PDF/X-4", "Title": "Original"})
+    opened_x = c.open(pdfx)
+    expect_error("unsupported_profile_edit", lambda: c.w.call("preview", path=pdfx, edits={"info": [
+        {"op": "set", "key": "/Trapped", "type": "name", "value": "/Unknown"}]}))
+
+
+def test_repaired_structure_is_never_silently_saved(c):
+    corpus = os.environ.get("QPDF_CORPUS")
+    if not corpus:
+        return "SKIP: qpdf damaged fixtures are unavailable"
+    for name in ["bad39.pdf", "direct-pages.pdf", "stream-line-enders.pdf"]:
+        source = os.path.join(corpus, name)
+        opened = c.open(source)
+        assert not opened["scan"]["complete"]
+        before = sha(source)
+        target = os.path.join(c.tmp, name)
+        expect_error("pdf_damaged", lambda: c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "Blocked"}]}, target=target))
+        assert sha(source) == before and not os.path.exists(target)
+
+
+def test_original_packet_export_is_byte_exact(c):
+    source = c.pdf("packet.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    target = os.path.join(c.tmp, "packet.xmp")
+    c.w.call("exportMetadata", path=source, stream=stream["ref"], target=target)
+    assert open(target, "rb").read() == stream["packet"].encode("utf-8")
+    expect_error("target_is_source", lambda: c.w.call("exportMetadata", path=source, stream=stream["ref"], target=source))
+
+
+def test_windows_locked_original_can_only_be_copied(c):
+    if os.name != "nt":
+        return "SKIP: Windows sharing modes require Windows"
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    source = c.pdf("locked.pdf")
+    opened = c.open(source)
+    before = sha(source)
+    handle = kernel.CreateFileW(source, 0x80000000, 1, None, 3, 0, None)
+    assert handle != wintypes.HANDLE(-1).value
+    try:
+        edits = {"info": [{"op": "set", "key": "/Title", "value": "Copy"}]}
+        expect_error("file_locked", lambda: c.save(source, opened, edits, mode="replace"))
+        assert_checks_ok(c.save(source, opened, edits, target=os.path.join(c.tmp, "unlocked-copy.pdf")))
+        assert sha(source) == before
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def test_windows_backup_retains_protected_acl(c):
+    if os.name != "nt":
+        return "SKIP: Windows DACL acceptance requires Windows"
+    source = c.pdf("acl.pdf")
+    def quote(value):
+        return "'" + value.replace("'", "''") + "'"
+    setup = "$p=" + quote(source) + ";$acl=Get-Acl -LiteralPath $p;$acl.SetAccessRuleProtection($true,$true);Set-Acl -LiteralPath $p -AclObject $acl"
+    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', setup], check=True, capture_output=True)
+    opened = c.open(source)
+    result = c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "ACL"}]}, mode="replace")
+    assert_checks_ok(result)
+    check = "$a=(Get-Acl -LiteralPath " + quote(source) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);$b=(Get-Acl -LiteralPath " + quote(result['backup']) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);if($a -ne $b){throw 'Backup ACL differs'}"
+    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', check], check=True, capture_output=True)
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 

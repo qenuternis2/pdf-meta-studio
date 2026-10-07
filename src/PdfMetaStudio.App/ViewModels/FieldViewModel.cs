@@ -220,7 +220,7 @@ public sealed partial class FieldViewModel : ObservableObject
     [RelayCommand] private async Task DeleteLanguage() => await ChangeLanguage(true);
     private async Task ChangeLanguage(bool delete) {
         if (!IsLocalized || _service is null) return;
-        if (!System.Text.RegularExpressions.Regex.IsMatch(SelectedLanguage, @"^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$")) {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(SelectedLanguage, @"^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*|[xX](-[A-Za-z0-9]{1,8})+|[iI]-(ami|bnn|default|enochian|hak|klingon|lux|mingo|navajo|pwn|tao|tay|tsu))$")) {
             Problem = "Укажите языковую метку, например ru-RU"; return; }
         var stream = _session.WorkingDocument.DocumentStream;
         if (!RequireStream(stream)) return;
