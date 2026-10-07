@@ -14,6 +14,10 @@ param(
     [ValidateSet('', 'light', 'dark')][string]$ExpectedTheme = ''
 )
 $ErrorActionPreference = 'Stop'
+# Shell file dialogs require native separators even when CI supplied mixed paths.
+$Exe = [IO.Path]::GetFullPath($Exe).Replace('/', '\')
+$Pdf = [IO.Path]::GetFullPath($Pdf).Replace('/', '\')
+$OutDir = [IO.Path]::GetFullPath($OutDir).Replace('/', '\')
 # Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
