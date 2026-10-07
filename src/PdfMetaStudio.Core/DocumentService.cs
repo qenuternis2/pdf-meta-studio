@@ -73,7 +73,6 @@ public sealed class DocumentService : IAsyncDisposable
             await using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true))
             await using (var output = new FileStream(snapshot, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, true))
             {
-                await input.CopyToAsync(output, ct).ConfigureAwait(false);
                 if (OperatingSystem.IsWindows()) {
                     FileStream? zoneInput = null;
                     try { zoneInput = File.OpenRead(path + ":Zone.Identifier"); }
@@ -81,16 +80,17 @@ public sealed class DocumentService : IAsyncDisposable
                     await using var sourceZone = zoneInput;
                     if (sourceZone is { Length: > 64 * 1024 })
                         throw new WorkerException("snapshot_failed", "Отметка безопасности файла превышает 64 КиБ");
-                    // Open/write the alternate stream before a read-only source ACL is applied.
+                    // Acquire both write handles before a read-only source ACL is applied.
                     await using var snapshotZone = sourceZone == null ? null : File.Create(snapshot + ":Zone.Identifier");
-                    if (sourceZone != null) await sourceZone.CopyToAsync(snapshotZone!, ct).ConfigureAwait(false);
                     var sourceAcl = FileSystemAclExtensions.GetAccessControl(new FileInfo(path), AccessControlSections.Access);
                     var acl = new FileSecurity();
                     // Persist applies modified sections only; a loaded FileSecurity alone is a no-op.
                     acl.SetSecurityDescriptorBinaryForm(sourceAcl.GetSecurityDescriptorBinaryForm(), AccessControlSections.Access);
-                    // Protect both streams before releasing their exclusive handles, including in shared TEMP.
+                    // Protect even partial/cancelled copies before writing any document or zone bytes.
                     FileSystemAclExtensions.SetAccessControl(new FileInfo(snapshot), acl);
-                }
+                    await input.CopyToAsync(output, ct).ConfigureAwait(false);
+                    if (sourceZone != null) await sourceZone.CopyToAsync(snapshotZone!, ct).ConfigureAwait(false);
+                } else await input.CopyToAsync(output, ct).ConfigureAwait(false);
             }
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(snapshot, File.GetUnixFileMode(path));
             await using var cached = File.OpenRead(snapshot);
