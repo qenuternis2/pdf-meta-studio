@@ -76,9 +76,9 @@ public sealed partial class FieldViewModel : ObservableObject
         _loading = true;
         var edit = _session.Get("field:" + Id);
         bool present = _session.CurrentValue(Id).Present;
-        IsModified = edit != null;
-        IsDeleted = !present && edit != null;
-        IsAbsent = !present && edit == null;
+        IsModified = edit != null || !_session.CurrentValue(Id).SameAs(Origin.Effective);
+        IsDeleted = !present && IsModified;
+        IsAbsent = !present && !IsModified;
         var mode = (edit as FieldEdit)?.Sync ?? (Field.InfoKey is null ? SyncMode.XmpOnly : XmpBlocked != null ? SyncMode.InfoOnly : SyncMode.Both);
         SelectedSync = SyncOptions.FirstOrDefault(o => o.Mode == mode) ?? SyncOptions[0];
         ConflictState = edit switch

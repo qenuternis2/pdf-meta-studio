@@ -6,6 +6,8 @@ using CommunityToolkit.Mvvm.Input;
 using PdfMetaStudio.Core.Dates;
 using PdfMetaStudio.Core.Editing;
 using PdfMetaStudio.Core.Model;
+using PdfMetaStudio.Core;
+using PdfMetaStudio.Core.Protocol;
 
 namespace PdfMetaStudio.App.ViewModels;
 
@@ -25,12 +27,13 @@ public sealed partial class TagNodeViewModel : ObservableObject
     public InfoEntry? Info { get; init; }
     public string? PendingValue { get; set; }
     public bool PendingDelete { get; set; }
+    public bool IsAdded { get; init; }
 
     [ObservableProperty] private bool _isExpanded;
     [ObservableProperty] private bool _isSelected;
 
-    public bool IsEditable => (Kind == TagNodeKind.XmpProperty && Node is { IsSimple: true } && Stream is { ParseOk: true })
-                              || (Kind == TagNodeKind.InfoKey && Info is { Kind: "string" or "name" });
+    public bool IsEditable => !PendingDelete && ((Kind == TagNodeKind.XmpProperty && Node is { IsSimple: true } && Stream is { ParseOk: true })
+                              || (Kind == TagNodeKind.InfoKey && (Info is null || Info is { Kind: "string" or "name" })));
     public bool CanDelete => (Kind == TagNodeKind.XmpProperty && Stream is { ParseOk: true }) || Kind == TagNodeKind.InfoKey;
     public string Display => Title + (Value != null ? " = " + Shorten(Value) : "") + (PendingDelete ? "  · будет удалено" : PendingValue != null ? "  · изменено" : "");
     public string AccessibleName => Title + ", " + Subtitle + (Value != null ? ", значение " + Value : "") + (PendingDelete ? ", будет удалено" : PendingValue != null ? ", изменено" : "");
@@ -43,20 +46,43 @@ public sealed partial class TagNodeViewModel : ObservableObject
 }
 
 public sealed record AddTagType(string Id, string Title);
+public sealed record TagScopeOption(string? Scope, string? Owner, JsonArray? Path, string Title);
 
 /// <summary>Раздел «Все теги»: поиск, дерево, правка выбранного значения, добавление, удаление, XML пакета.</summary>
 public sealed partial class TagTreeViewModel : ObservableObject
 {
     private readonly EditSession _session;
+    private readonly DocumentService _service;
+    private bool _loadingXml;
+    private bool _rawDirty;
+    private string? _sourceKey;
 
-    public TagTreeViewModel(EditSession session)
+    public TagTreeViewModel(EditSession session, DocumentService service)
     {
         _session = session;
+        _service = service;
         RawXml = session.Document.DocumentStream?.Packet ?? "";
+        _session.PreviewChanged += (_, _) => Rebuild();
         Rebuild();
     }
 
     public ObservableCollection<TagNodeViewModel> Roots { get; } = new();
+    public ObservableCollection<MetadataStream> Sources { get; } = new();
+    public ObservableCollection<TagScopeOption> ScopeOptions { get; } = new();
+    [ObservableProperty] private MetadataStream? _selectedStream;
+    [ObservableProperty] private TagScopeOption? _selectedScope;
+    [ObservableProperty] private string _newLanguage = "x-default";
+    [ObservableProperty] private bool _addToSelected;
+    [ObservableProperty] private AddTagType? _selectedValueType;
+    public IReadOnlyList<AddTagType> ValueTypes { get; } = new[] {
+        new AddTagType("text", "Текст"), new AddTagType("bool", "Логическое"),
+        new AddTagType("date", "Дата"), new AddTagType("number", "Число"), new AddTagType("uri", "URI") };
+    public IReadOnlyList<string> BooleanValues { get; } = new[] { "True", "False" };
+    public bool IsBooleanInput => SelectedValueType?.Id == "bool";
+    public bool IsTextInput => !IsBooleanInput;
+    partial void OnSelectedValueTypeChanged(AddTagType? value)
+    { OnPropertyChanged(nameof(IsBooleanInput)); OnPropertyChanged(nameof(IsTextInput)); }
+    public bool HasScopeChoice => SelectedStream?.IsShared == true;
 
     [ObservableProperty] private string _search = "";
     [ObservableProperty] private TagNodeViewModel? _selected;
@@ -74,9 +100,9 @@ public sealed partial class TagTreeViewModel : ObservableObject
 
     // XML пакета
     [ObservableProperty] private string _rawXml = "";
-    public bool HasDocumentXmp => _session.Document.DocumentStream != null;
-    public string? DocumentXmpProblem => _session.Document.DocumentStream is { ParseOk: false } s
-        ? "XMP документа повреждён: " + s.ParseError + ". Пакет сохранится без изменений, пока вы не замените его исправленным XML."
+    public bool HasDocumentXmp => SelectedStream != null;
+    public string? DocumentXmpProblem => SelectedStream is { ParseOk: false } s
+        ? "XMP выбранного объекта повреждён: " + s.ParseError + ". Без исправления пакет можно сохранить только в отдельную копию."
         : null;
 
     public IReadOnlyList<AddTagType> AddTypes { get; } = new[]
@@ -88,7 +114,62 @@ public sealed partial class TagTreeViewModel : ObservableObject
         new AddTagType("date", "Дата"),
         new AddTagType("bool", "Логическое значение"),
         new AddTagType("info", "Ключ /Info (строка)"),
+        new AddTagType("struct", "Структура"),
+        new AddTagType("alt", "Альтернативы (Alt)"),
+        new AddTagType("uri", "URI"),
+        new AddTagType("qual", "Квалификатор выбранного узла"),
+        new AddTagType("number", "Число (точность сохраняется)"),
     };
+
+    partial void OnRawXmlChanged(string value) { if (!_loadingXml) _rawDirty = true; }
+    partial void OnSelectedStreamChanged(MetadataStream? value)
+    {
+        var scope = SelectedScope;
+        bool changed = _sourceKey != value?.Key;
+        _sourceKey = value?.Key;
+        if (changed) { _rawDirty = false; SelectedScope = null; }
+        if (!_rawDirty) LoadXml(value?.Packet ?? "");
+        ScopeOptions.Clear();
+        ScopeOptions.Add(new(null, null, null, "Выберите область правки…"));
+        ScopeOptions.Add(new("all", null, null, "Для всех владельцев"));
+        foreach (var o in value?.Owners ?? Array.Empty<MetadataOwner>())
+            ScopeOptions.Add(new("detach", o.Ref, o.Path, "Отдельная копия: " + o.Label));
+        if (!changed && scope != null)
+            SelectedScope = ScopeOptions.FirstOrDefault(s => s.Scope == scope.Scope && s.Owner == scope.Owner &&
+                (s.Path?.ToJsonString() ?? "[]") == (scope.Path?.ToJsonString() ?? "[]"));
+        OnPropertyChanged(nameof(HasDocumentXmp));
+        OnPropertyChanged(nameof(HasScopeChoice));
+        OnPropertyChanged(nameof(DocumentXmpProblem));
+    }
+    private void LoadXml(string packet) { _loadingXml = true; RawXml = packet; _loadingXml = false; }
+
+    private XmpOpEdit Operation(MetadataStream? stream, string key, JsonObject op, string label) =>
+        new(stream?.Ref ?? "", stream?.Scope ?? SelectedScope?.Scope,
+            stream?.TargetOwner ?? SelectedScope?.Owner ?? (stream is null || stream.Ref.Length == 0 ? "catalog" : null), key, op, label,
+            stream?.OwnerPath ?? SelectedScope?.Path);
+
+    private bool RequireScope(MetadataStream? stream)
+    {
+        if (stream?.IsShared != true || stream.Scope != null || SelectedScope?.Scope != null) return true;
+        Message = "Выберите область правки общего XMP-потока";
+        return false;
+    }
+
+    public async Task<bool> RefreshAsync()
+    {
+        try
+        {
+            var result = await _service.PreviewAsync(_session);
+            Rebuild();
+            if (result.Request.Blocked)
+            {
+                Message = string.Join("; ", result.Request.Issues.Where(i => i.Severity == IssueSeverity.Blocking).Select(i => i.Message));
+                return false;
+            }
+            return true;
+        }
+        catch (WorkerException ex) { Rebuild(); Message = ex.Message; return false; }
+    }
 
     partial void OnSearchChanged(string value) => Rebuild();
 
@@ -96,9 +177,14 @@ public sealed partial class TagTreeViewModel : ObservableObject
     {
         Message = null;
         EditValue = value?.PendingValue ?? value?.Value ?? "";
+        var node = value?.Node;
+        string type = node is null ? "text" : node.IsUri ? "uri" : IsKnownDate(node) ? "date" :
+            node.Steps.Count == 1 && node.Steps[0].Ns == XmpNamespaces.XmpRights && node.Steps[0].Name == "Marked" ? "bool" : "text";
+        SelectedValueType = ValueTypes.First(t => t.Id == type);
         ApplyCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
         RestoreCommand.NotifyCanExecuteChanged();
+        if (value?.Stream is { } stream) SelectedStream = Sources.FirstOrDefault(s => s.Key == stream.Key) ?? stream;
     }
 
     public void Rebuild()
@@ -108,19 +194,32 @@ public sealed partial class TagTreeViewModel : ObservableObject
         string q = Search.Trim();
         bool Match(string s) => q.Length == 0 || s.Contains(q, StringComparison.OrdinalIgnoreCase);
 
-        var doc = _session.Document;
+        var doc = _session.WorkingDocument;
+        string? sourceKey = SelectedStream?.Key;
+        Sources.Clear();
+        foreach (var stream in doc.Streams) Sources.Add(stream);
+        if (doc.DocumentStream is null)
+            Sources.Insert(0, new MetadataStream("", true, true, Array.Empty<MetadataOwner>(), "", true, null, XmpModel.Empty, false));
+        var detached = SelectedScope?.Scope == "detach" ? Sources.FirstOrDefault(s => s.Scope == "detach" &&
+            s.TargetOwner == SelectedScope.Owner && (s.OwnerPath?.ToJsonString() ?? "[]") == (SelectedScope.Path?.ToJsonString() ?? "[]")) : null;
+        if (detached != null && sourceKey != null && selectedPath != null)
+            selectedPath = selectedPath.Replace("{" + sourceKey + "}", "{" + detached.Key + "}");
+        SelectedStream = detached ?? Sources.FirstOrDefault(s => s.Key == sourceKey) ?? Sources.FirstOrDefault(s => s.IsDocument) ?? Sources.FirstOrDefault();
         var infoRoot = new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "/Info", Subtitle = "Словарь сведений документа", IsExpanded = true };
-        foreach (var e in doc.Info)
+        foreach (var e in _session.Document.Info.Concat(doc.Info.Where(e => _session.Document.InfoValue(e.Key) is null)))
         {
             var pending = _session.Get("info:" + e.Key) as InfoKeyEdit;
-            if (!Match(e.Key + " " + e.Value)) continue;
+            var current = doc.InfoValue(e.Key);
+            if (!Match(e.Key + " " + (current?.Value ?? e.Value))) continue;
             infoRoot.Children.Add(new TagNodeViewModel
             {
                 Kind = TagNodeKind.InfoKey, Title = e.Key, Subtitle = InfoKind(e), Value = e.Value, ExactPath = "/Info" + e.Key,
-                Info = e, PendingValue = pending?.NewValue, PendingDelete = pending is { NewValue: null },
+                Info = e, PendingValue = pending?.NewValue ?? (current?.Value != e.Value ? current?.Value : null),
+                PendingDelete = pending is { NewValue: null } || current is null,
             });
         }
-        foreach (var added in _session.Edits.OfType<InfoKeyEdit>().Where(k => doc.InfoValue(k.InfoKey) is null && k.NewValue != null))
+        foreach (var added in _session.Edits.OfType<InfoKeyEdit>().Where(k => doc.InfoValue(k.InfoKey) is null &&
+            _session.Document.InfoValue(k.InfoKey) is null && k.NewValue != null))
             infoRoot.Children.Add(new TagNodeViewModel
             {
                 Kind = TagNodeKind.InfoKey, Title = added.InfoKey, Subtitle = "новый ключ", Value = null, PendingValue = added.NewValue,
@@ -128,14 +227,17 @@ public sealed partial class TagTreeViewModel : ObservableObject
             });
         Roots.Add(infoRoot);
 
-        if (doc.DocumentStream is { } ds)
+        foreach (var ds in doc.Streams)
         {
             var xmpRoot = new TagNodeViewModel
             {
                 Kind = TagNodeKind.Source, IsExpanded = true,
-                Title = "XMP документа", Subtitle = ds.ParseOk ? "Поток " + ds.Ref + " R" : "Повреждён — только просмотр",
+                Title = ds.Title, Stream = ds, Subtitle = ds.ParseOk ? "Поток " + ds.Ref + " R" : "Повреждён — только просмотр",
             };
-            var m = ds.Model;
+            var originalModel = _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Model ?? XmpModel.Empty;
+            var missing = originalModel.Nodes.Where(n => ds.Model.Find(n.Steps) is null);
+            var m = new XmpModel(ds.Model.About, originalModel.Prefixes.Concat(ds.Model.Prefixes)
+                .GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value), ds.Model.Nodes.Concat(missing).ToList());
             foreach (var group in m.TopLevel.GroupBy(n => n.Steps[0].Ns ?? "").OrderBy(g => m.PrefixOf(g.Key)))
             {
                 var nsNode = new TagNodeViewModel
@@ -151,21 +253,26 @@ public sealed partial class TagTreeViewModel : ObservableObject
             }
             Roots.Add(xmpRoot);
         }
-        else
+        if (doc.DocumentStream is null)
         {
             Roots.Add(new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "XMP документа", Subtitle = "Отсутствует — будет создан при добавлении тега" });
         }
 
         if (selectedPath != null)
+        {
+            bool found = false;
             foreach (var n in Flatten(Roots))
-                if (n.ExactPath == selectedPath) { n.IsSelected = true; Selected = n; break; }
+                if (n.ExactPath == selectedPath) { n.IsSelected = true; Selected = n; found = true; break; }
+            if (!found) Selected = null;
+        }
     }
 
     private TagNodeViewModel? BuildXmpNode(MetadataStream ds, XmpModel m, XmpNode n, Func<string, bool> match)
     {
         string path = m.Display(n);
-        var set = _session.Get(OpKeyFull(ds.Ref, "set", n)) as XmpOpEdit;
-        var del = _session.Get(OpKeyFull(ds.Ref, "delete", n)) as XmpOpEdit;
+        var set = _session.Get(Operation(ds, "set:" + n.Key, new JsonObject(), "").Key) as XmpOpEdit;
+        var del = _session.Get(Operation(ds, "delete:" + n.Key, new JsonObject(), "").Key) as XmpOpEdit;
+        var original = _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Model.Find(n.Steps);
         var vm = new TagNodeViewModel
         {
             Kind = TagNodeKind.XmpProperty,
@@ -177,10 +284,11 @@ public sealed partial class TagTreeViewModel : ObservableObject
             },
             Subtitle = XmpNode.FormTitle(n.Form) + (n.IsQualifier ? " · квалификатор" : "") + (n.IsUri ? " · URI" : ""),
             Value = n.IsSimple ? n.Value : null,
-            ExactPath = "{" + ds.Ref + "}" + path + "  (" + n.Key + ")",
+            ExactPath = "{" + ds.Key + "}" + path + "  (" + n.Key + ")",
             Node = n, Stream = ds,
-            PendingValue = (string?)set?.Op["value"],
-            PendingDelete = del != null,
+            IsAdded = original is null,
+            PendingValue = (string?)set?.Op["value"] ?? (original?.Value != n.Value ? n.Value : null),
+            PendingDelete = del != null || (original != null && ds.Model.Find(n.Steps) is null),
         };
         foreach (var c in m.Children(n).OrderBy(c => c.Steps[^1].Kind == "qual" ? 1 : 0).ThenBy(c => c.Steps[^1].Index ?? 0))
         {
@@ -192,8 +300,6 @@ public sealed partial class TagTreeViewModel : ObservableObject
         if (!self || Search.Length > 0) vm.IsExpanded = vm.Children.Count > 0 && Search.Length > 0;
         return vm;
     }
-
-    private static string OpKeyFull(string streamRef, string op, XmpNode n) => "xmp:" + streamRef + "::" + ":" + op + ":" + n.Key;
 
     private static string InfoKind(InfoEntry e) => e.Kind switch
     {
@@ -212,8 +318,9 @@ public sealed partial class TagTreeViewModel : ObservableObject
     private bool CanRestore() => Selected is { } s && (s.PendingDelete || s.PendingValue != null);
 
     [RelayCommand(CanExecute = nameof(CanApply))]
-    private void Apply()
+    private async Task Apply()
     {
+        if (!ValidValue(SelectedValueType?.Id ?? "text", EditValue, out var error)) { Message = error; return; }
         var s = Selected!;
         if (s.Kind == TagNodeKind.InfoKey)
         {
@@ -224,23 +331,27 @@ public sealed partial class TagTreeViewModel : ObservableObject
         }
         else
         {
+            if (!RequireScope(s.Stream)) return;
             var n = s.Node!;
             if (IsKnownDate(n) && !XmpDateCodec.Parse(EditValue).Ok)
             {
                 Message = "Значение должно быть датой: " + XmpDateCodec.Parse(EditValue).Error;
                 return;
             }
-            _session.Revert(OpKeyFull(s.Stream!.Ref, "delete", n));
-            if (EditValue == n.Value) _session.Revert(OpKeyFull(s.Stream.Ref, "set", n));
+            _session.Revert(Operation(s.Stream, "delete:" + n.Key, new JsonObject(), "").Key);
+            var original = _session.Document.Streams.FirstOrDefault(t => t.Ref == s.Stream!.Ref)?.Model.Find(n.Steps);
+            if (original != null && EditValue == original.Value && original.IsUri == (SelectedValueType?.Id == "uri"))
+                _session.Revert(Operation(s.Stream, "set:" + n.Key, new JsonObject(), "").Key);
             else
-                _session.AddXmpOp(new XmpOpEdit(s.Stream.Ref, null, null, "set:" + n.Key,
-                    new JsonObject { ["op"] = "set", ["steps"] = XmpPath.ToJson(n.Steps), ["value"] = EditValue }, s.ExactPath));
+                _session.AddXmpOp(Operation(s.Stream, "set:" + n.Key,
+                    new JsonObject { ["op"] = "set", ["steps"] = XmpPath.ToJson(n.Steps), ["value"] = EditValue,
+                        ["uri"] = SelectedValueType?.Id == "uri" }, s.ExactPath));
         }
-        Rebuild();
+        await RefreshAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanDelete))]
-    private void Delete()
+    private async Task Delete()
     {
         var s = Selected!;
         if (s.Kind == TagNodeKind.InfoKey)
@@ -250,24 +361,40 @@ public sealed partial class TagTreeViewModel : ObservableObject
         }
         else
         {
-            _session.Revert(OpKeyFull(s.Stream!.Ref, "set", s.Node!));
-            _session.AddXmpOp(new XmpOpEdit(s.Stream.Ref, null, null, "delete:" + s.Node!.Key,
+            if (!RequireScope(s.Stream)) return;
+            if (s.IsAdded && _session.Edits.OfType<XmpOpEdit>().Any(e => e.Op["op"]?.ToString() is "create" or "setArray" or "setLangAlt" &&
+                e.Op["steps"] is JsonArray steps && XmpPath.Key(steps.Select(st => XmpStep.FromJson(st!))) == s.Node!.Key))
+            {
+                var target = Operation(s.Stream, "", new JsonObject(), "");
+                _session.RevertXmpPath(s.Stream!.Ref, s.Node!.Steps, target.Scope, target.Owner, target.OwnerPath);
+                await RefreshAsync();
+                return;
+            }
+            _session.Revert(Operation(s.Stream, "set:" + s.Node!.Key, new JsonObject(), "").Key);
+            _session.AddXmpOp(Operation(s.Stream, "delete:" + s.Node!.Key,
                 new JsonObject { ["op"] = "delete", ["steps"] = XmpPath.ToJson(s.Node.Steps) }, s.ExactPath + " — удаление"));
         }
-        Rebuild();
+        await RefreshAsync();
     }
 
     [RelayCommand(CanExecute = nameof(CanRestore))]
-    private void Restore()
+    private async Task Restore()
     {
         var s = Selected!;
         if (s.Kind == TagNodeKind.InfoKey) _session.Revert("info:" + s.Title);
         else
         {
-            _session.Revert(OpKeyFull(s.Stream!.Ref, "set", s.Node!));
-            _session.Revert(OpKeyFull(s.Stream.Ref, "delete", s.Node!));
+            if (!RequireScope(s.Stream)) return;
+            var target = Operation(s.Stream, "", new JsonObject(), "");
+            _session.RevertXmpPath(s.Stream!.Ref, s.Node!.Steps, target.Scope, target.Owner, target.OwnerPath);
+            var original = _session.Document.Streams.FirstOrDefault(t => t.Ref == s.Stream.Ref);
+            if (original?.Model.Find(s.Node.Steps) != null && _session.Edits.OfType<RawPacketEdit>().Any(e =>
+                e.StreamRef == s.Stream.Ref && e.Scope == target.Scope && e.Owner == target.Owner &&
+                (e.OwnerPath?.ToJsonString() ?? "[]") == (target.OwnerPath?.ToJsonString() ?? "[]")))
+                _session.AddXmpOp(Operation(s.Stream, "restore:" + s.Node.Key,
+                    new JsonObject { ["op"] = "restore", ["steps"] = XmpPath.ToJson(s.Node.Steps), ["xml"] = original.Packet }, s.ExactPath));
         }
-        Rebuild();
+        await RefreshAsync();
     }
 
     private static bool IsKnownDate(XmpNode n) =>
@@ -282,11 +409,14 @@ public sealed partial class TagTreeViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Add()
+    private async Task Add()
     {
         AddError = null;
         var type = NewType ?? AddTypes[0];
         string name = NewName.Trim();
+        if (!ValidValue(type.Id, NewValue, out var valueError)) { AddError = valueError; return; }
+        if (type.Id == "qual" && (!AddToSelected || Selected?.Node is null))
+        { AddError = "Для квалификатора выберите узел и добавление к выбранному узлу"; return; }
         if (type.Id == "info")
         {
             if (!System.Text.RegularExpressions.Regex.IsMatch(name.TrimStart('/'), @"^[A-Za-z][A-Za-z0-9_.\-]*$"))
@@ -295,7 +425,7 @@ public sealed partial class TagTreeViewModel : ObservableObject
             if (_session.Document.InfoValue(key) != null) { AddError = "Такой ключ уже есть"; return; }
             _session.SetInfoKey(key, NewValue);
             IsAdding = false;
-            Rebuild();
+            await RefreshAsync();
             return;
         }
         if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[\p{L}_][\p{L}\p{N}\p{M}_.\-·]*$"))
@@ -303,10 +433,20 @@ public sealed partial class TagTreeViewModel : ObservableObject
         string uri = NewUri.Trim();
         if (!Uri.TryCreate(uri, UriKind.Absolute, out _) || uri.Contains(' '))
         { AddError = "Укажите абсолютный URI пространства имён, например https://example.org/ns/1.0/"; return; }
-        var ds = _session.Document.DocumentStream;
+        var ds = SelectedStream ?? _session.WorkingDocument.DocumentStream;
+        if (!RequireScope(ds)) { AddError = Message; return; }
         if (ds is { ParseOk: false }) { AddError = "XMP документа повреждён — сначала исправьте его в редакторе XML"; return; }
-        var steps = XmpPath.ToJson(new[] { XmpStep.Prop(uri, name, NewPrefix.Trim().Length > 0 ? NewPrefix.Trim() : null) });
-        if (ds?.Model.Find(uri, name) != null) { AddError = "Такой тег уже есть. Если он помечен удалённым, восстановите его."; return; }
+        var parent = AddToSelected ? Selected?.Node : null;
+        if (AddToSelected && (parent is null || Selected?.Stream?.Key != ds?.Key))
+        { AddError = "Выберите узел в выбранном XMP-потоке"; return; }
+        var prefix = NewPrefix.Trim().Length > 0 ? NewPrefix.Trim() : null;
+        if (parent != null && parent.Form != "struct" && type.Id != "qual" && parent.Form != "altText")
+        { AddError = "Выберите структуру, языковые варианты или добавление квалификатора"; return; }
+        var path = parent == null ? new[] { XmpStep.Prop(uri, name, prefix) } :
+            parent.Form == "altText" ? parent.Steps.ToArray() :
+            parent.Steps.Append(type.Id == "qual" ? XmpStep.Qual(uri, name, prefix) : XmpStep.Field(uri, name, prefix)).ToArray();
+        var steps = XmpPath.ToJson(path);
+        if (ds?.Model.Find(path) != null && type.Id != "lang") { AddError = "Такой тег уже есть. Если он помечен удалённым, восстановите его."; return; }
         JsonObject op;
         var lines = NewValue.Replace("\r\n", "\n").Split('\n').Where(l => l.Length > 0).Select(l => (JsonNode)JsonValue.Create(l)!).ToArray();
         switch (type.Id)
@@ -316,7 +456,17 @@ public sealed partial class TagTreeViewModel : ObservableObject
                 op = new JsonObject { ["op"] = "setArray", ["steps"] = steps, ["form"] = type.Id, ["items"] = new JsonArray(lines) };
                 break;
             case "lang":
-                op = new JsonObject { ["op"] = "setLangAlt", ["steps"] = steps, ["lang"] = "x-default", ["value"] = NewValue };
+                if (!System.Text.RegularExpressions.Regex.IsMatch(NewLanguage, @"^(x-default|[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*)$"))
+                { AddError = "Укажите языковую метку, например ru-RU или en-US"; return; }
+                op = new JsonObject { ["op"] = "setLangAlt", ["steps"] = steps, ["lang"] = NewLanguage, ["value"] = NewValue };
+                break;
+            case "struct":
+            case "alt":
+                op = new JsonObject { ["op"] = "create", ["steps"] = steps, ["form"] = type.Id };
+                break;
+            case "uri":
+                if (!Uri.TryCreate(NewValue, UriKind.Absolute, out _)) { AddError = "Значение должно быть абсолютным URI"; return; }
+                op = new JsonObject { ["op"] = "create", ["steps"] = steps, ["uri"] = true, ["value"] = NewValue };
                 break;
             case "date":
                 var d = XmpDateCodec.Parse(NewValue);
@@ -331,21 +481,43 @@ public sealed partial class TagTreeViewModel : ObservableObject
                 op = new JsonObject { ["op"] = "create", ["steps"] = steps, ["value"] = NewValue };
                 break;
         }
-        string streamRef = ds?.Ref ?? "";
-        _session.AddXmpOp(new XmpOpEdit(streamRef, null, ds is null ? "catalog" : null, "add:{" + uri + "}" + name, op,
-            "Новый тег " + name));
+        _session.AddXmpOp(Operation(ds, "add:" + XmpPath.Key(path) + (type.Id == "lang" ? ":" + NewLanguage : ""), op, "Новый тег " + name));
         IsAdding = false;
         NewName = NewValue = "";
-        Rebuild();
+        await RefreshAsync();
     }
 
     [RelayCommand]
-    private void ApplyRawXml()
+    private async Task ApplyRawXml()
     {
-        var ds = _session.Document.DocumentStream;
+        var ds = SelectedStream;
         if (ds is null) { Message = "В документе нет XMP"; return; }
-        if (RawXml == ds.Packet) _session.Revert("raw:" + ds.Ref + "::");
-        else _session.SetRawPacket(new RawPacketEdit(ds.Ref, null, null, RawXml));
-        Message = "XML будет проверен при «Проверить и сохранить»";
+        if (!RequireScope(ds)) return;
+        var target = Operation(ds, "", new JsonObject(), "");
+        try
+        {
+            await _service.ValidateXmpAsync(RawXml);
+            var edit = new RawPacketEdit(ds.Ref, target.Scope, target.Owner, RawXml, target.OwnerPath);
+            if (RawXml == _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Packet) _session.Revert(edit.Key);
+            else _session.SetRawPacket(edit);
+            _rawDirty = false;
+            if (await RefreshAsync()) Message = "XML проверен; дерево и сравнение обновлены";
+        }
+        catch (WorkerException ex) { Message = ex.Message; }
+    }
+
+    [RelayCommand]
+    private void ResetXml() { _rawDirty = false; LoadXml(SelectedStream?.Packet ?? ""); Message = null; }
+
+    private static bool ValidValue(string type, string value, out string? error)
+    {
+        error = type switch {
+            "date" when !XmpDateCodec.Parse(value).Ok => "Дата: " + XmpDateCodec.Parse(value).Error,
+            "bool" when value is not ("True" or "False") => "Выберите True или False",
+            "number" when !System.Text.RegularExpressions.Regex.IsMatch(value, @"^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$") => "Укажите число без разделителей групп",
+            "uri" when !Uri.TryCreate(value, UriKind.Absolute, out _) => "Укажите абсолютный URI",
+            _ => null
+        };
+        return error is null;
     }
 }

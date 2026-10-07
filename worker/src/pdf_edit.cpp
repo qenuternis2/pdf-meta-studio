@@ -61,6 +61,18 @@ QPDFObjectHandle resolveOwner(QPDF& q, const std::string& ref) {
 
 QPDFObjectHandle ownerDict(QPDFObjectHandle o) { return o.isStream() ? o.getDict() : o; }
 
+QPDFObjectHandle metadataOwner(QPDF& q, const MetaOwner& owner) {
+    QPDFObjectHandle obj = ownerDict(q.getObject(owner.og));
+    for (const auto& step : owner.path) {
+        if (step.is_string()) obj = ownerDict(obj).getKey(step.get<std::string>());
+        else if (step.is_number_integer() && obj.isArray()) obj = obj.getArrayItem(step.get<int>());
+        else throw WorkerError("bad_request", "Некорректный путь владельца метаданных");
+    }
+    obj = ownerDict(obj);
+    if (!obj.isDictionary()) throw WorkerError("bad_request", "Владелец метаданных не является словарём");
+    return obj;
+}
+
 QPDFObjectHandle newMetadataStream(QPDF& q, const std::string& packet) {
     QPDFObjectHandle s = q.newStream(packet);
     s.getDict().replaceKey("/Type", QPDFObjectHandle::newName("/Metadata"));
@@ -152,8 +164,10 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
         std::vector<MetaOwner> affected;
         if (scope == "detach") {
             std::string ownerRef = t.at("owner").get<std::string>();
+            json ownerPath = t.value("ownerPath", json::array());
             for (auto& o : ms->owners)
-                if (refOf(o.og) == ownerRef || (ownerRef == "catalog" && o.kind == "catalog")) affected.push_back(o);
+                if ((refOf(o.og) == ownerRef || (ownerRef == "catalog" && o.kind == "catalog")) &&
+                    o.path == ownerPath) affected.push_back(o);
             if (affected.empty()) throw WorkerError("bad_request", "Владелец " + ownerRef + " не использует поток " + sref);
             affected.resize(1);
         } else {
@@ -170,9 +184,7 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
 
         if (action == "remove") {
             for (auto& o : affected) {
-                if (!o.keyPath.empty())
-                    throw WorkerError("unsupported_owner", "Удаление /Metadata из вложенного словаря пока не поддерживается");
-                ownerDict(q.getObject(o.og)).removeKey("/Metadata");
+                metadataOwner(q, o).removeKey("/Metadata");
             }
             ch.action = "remove";
             ch.stream = ms->stream;
@@ -199,10 +211,8 @@ void applyXmpTargets(QPDF& q, Discovery& d, const json& targets, Applied& a) {
         ch.afterPacket = doc->serialize();
         ch.afterModel = doc->model();
         if (scope == "detach") {
-            if (!affected[0].keyPath.empty())
-                throw WorkerError("unsupported_owner", "Отделение потока для вложенного словаря пока не поддерживается");
             ch.stream = newMetadataStream(q, ch.afterPacket);
-            ownerDict(q.getObject(affected[0].og)).replaceKey("/Metadata", ch.stream);
+            metadataOwner(q, affected[0]).replaceKey("/Metadata", ch.stream);
             ch.action = "detach";
         } else {
             ms->stream.replaceStreamData(ch.afterPacket, QPDFObjectHandle::newNull(), QPDFObjectHandle::newNull());
@@ -256,6 +266,37 @@ Applied applyEdits(QPDF& q, Discovery& d, const json& edits) {
     applyInfoOps(q, edits.value("info", json::array()), a);
     applyXmpTargets(q, d, edits.value("xmp", json::array()), a);
     applyObjectOps(q, edits.value("objects", json::array()), a);
+    // Preserve unrelated orphan objects, but erase explicitly removed metadata
+    // when no remaining object references it (including non-Metadata references).
+    for (const auto& change : a.streams) {
+        if (change.action != "remove" && change.action != "detach") continue;
+        const auto removed = parseRef(change.originalRef);
+        auto references = [&](auto&& self, QPDFObjectHandle obj) -> bool {
+            if (obj.isIndirect()) return obj.getObjGen() == removed;
+            if (obj.isArray()) {
+                for (int i = 0; i < obj.getArrayNItems(); ++i)
+                    if (self(self, obj.getArrayItem(i))) return true;
+            } else if (obj.isDictionary()) {
+                for (const auto& key : obj.getKeys())
+                    if (self(self, obj.getKey(key))) return true;
+            }
+            return false;
+        };
+        bool used = references(references, q.getTrailer());
+        for (auto obj : q.getAllObjects()) {
+            if (used) break;
+            if (obj.getObjGen() == removed) continue;
+            if (obj.isStream()) obj = obj.getDict();
+            if (obj.isDictionary()) {
+                for (const auto& key : obj.getKeys())
+                    if (references(references, obj.getKey(key))) { used = true; break; }
+            } else if (obj.isArray()) {
+                for (int i = 0; i < obj.getArrayNItems(); ++i)
+                    if (references(references, obj.getArrayItem(i))) { used = true; break; }
+            }
+        }
+        if (!used) q.replaceObject(removed, QPDFObjectHandle::newNull());
+    }
     return a;
 }
 
@@ -412,13 +453,27 @@ json saveEdits(const json& req, Context& ctx) {
     if (!a.infoChanged && a.streams.empty() && a.objects.empty())
         throw WorkerError("no_changes", "Нет изменений для записи");
     for (auto& ms : d.streams) {
+        if (!ms.stream.isStream()) continue;
         bool touched = false;
         for (auto& s : a.streams)
-            if (s.originalRef == refOf(ms.og)) touched = true;
-        if (!touched && ms.reachable) {
+            if (s.originalRef == refOf(ms.og) && s.action == "edit") touched = true;
+        if (!touched) {
             try {
-                untouched.emplace_back(ms.og, streamBytes(ms.stream));
+                auto packet = streamBytes(ms.stream);
+                try {
+                    XmpDoc::parse(packet);
+                } catch (const WorkerError& error) {
+                    if (mode == "replace")
+                        throw WorkerError("xmp_copy_only", "Исходный XMP повреждён: исправьте пакет или сохраните отдельную копию");
+                    a.notes.push_back("Исходная ошибка XMP сохранена без изменения в отдельной копии: " +
+                                      refOf(ms.og) + " · " + error.what());
+                }
+                untouched.emplace_back(ms.og, std::move(packet));
+            } catch (const WorkerError& e) {
+                if (e.code == "xmp_copy_only") throw;
+                throw WorkerError("verification_unavailable", "Нельзя проверить сохранность незатронутого XMP: " + refOf(ms.og));
             } catch (const std::exception&) {
+                throw WorkerError("verification_unavailable", "Нельзя прочитать незатронутый XMP: " + refOf(ms.og));
             }
         }
     }
@@ -450,6 +505,7 @@ json saveEdits(const json& req, Context& ctx) {
         w.setDecodeLevel(qpdf_dl_none);
         w.setCompressStreams(false);
         w.setPreserveEncryption(true);
+        w.setPreserveUnreferencedObjects(true);
         if (a.needsPdf14) w.setMinimumPDFVersion("1.4");
         w.registerProgressReporter(std::make_shared<WriterProgress>(ctx));
         try {
@@ -559,7 +615,8 @@ json saveEdits(const json& req, Context& ctx) {
     backupGuard.keep = true;
 
     json writer{{"versionBefore", versionBefore}, {"versionAfter", versionAfter},
-                {"objectsBefore", objectsBefore}, {"unreachableDropped", unreachable},
+                {"objectsBefore", objectsBefore}, {"unreachableDropped", 0},
+                {"unreachablePreserved", unreachable},
                 {"notes", json::array({"Полная перезапись: номера объектов, смещения и таблица ссылок пересозданы",
                                        "Вторая часть trailer /ID обновлена; первая сохранена",
                                        "Прежние incremental revisions не перенесены"})}};

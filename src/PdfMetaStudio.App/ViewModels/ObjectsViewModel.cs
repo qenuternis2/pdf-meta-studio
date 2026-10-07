@@ -8,13 +8,14 @@ using PdfMetaStudio.Core.Model;
 
 namespace PdfMetaStudio.App.ViewModels;
 
-public sealed record ScopeOption(string? Scope, string? Owner, string Title);
+public sealed record ScopeOption(string? Scope, string? Owner, string Title, JsonArray? Path = null);
 
 /// <summary>Простое значение XMP объекта с адресной правкой.</summary>
 public sealed partial class ObjectValueViewModel : ObservableObject
 {
     private readonly EditSession _session;
     private readonly ObjectStreamViewModel _parent;
+    private bool _loading;
 
     public ObjectValueViewModel(EditSession session, ObjectStreamViewModel parent, XmpNode node, string path)
     {
@@ -25,11 +26,19 @@ public sealed partial class ObjectValueViewModel : ObservableObject
         _value = node.Value ?? "";
     }
 
-    public XmpNode Node { get; }
+    public XmpNode Node { get; private set; }
     public string Path { get; }
     [ObservableProperty] private string _value;
 
-    partial void OnValueChanged(string value) => _parent.Push(this);
+    partial void OnValueChanged(string value) { if (!_loading) _parent.Push(this); }
+
+    internal void Update(XmpNode node)
+    {
+        Node = node;
+        _loading = true;
+        Value = node.Value ?? "";
+        _loading = false;
+    }
 }
 
 /// <summary>Поток /Metadata конкретного объекта (страница, изображение, аннотация, вложение…).</summary>
@@ -43,18 +52,19 @@ public sealed partial class ObjectStreamViewModel : ObservableObject
         Stream = stream;
         Title = stream.Owners.Count == 0 ? "Без владельца (объект " + stream.Ref + " R)" : string.Join(", ", stream.Owners.Select(o => o.Label));
         Subtitle = "XMP · поток " + stream.Ref + " R" + (stream.IsShared ? " · общий для " + stream.Owners.Count + " владельцев" : "") +
-                   (stream.Reachable ? "" : " · недостижим из документа и не будет перенесён при записи");
+                   (stream.Reachable ? "" : " · недостижим из документа, сохраняется при записи");
         ScopeOptions = new List<ScopeOption> { new(null, null, "Выберите область правки…"), new("all", null, "Изменить для всех владельцев") };
-        foreach (var o in stream.Owners) ScopeOptions.Add(new ScopeOption("detach", o.Ref, "Отдельная копия только для: " + o.Label));
-        SelectedScope = stream.IsShared ? ScopeOptions[0] : null;
+        foreach (var o in stream.Owners) ScopeOptions.Add(new ScopeOption("detach", o.Ref, "Отдельная копия только для: " + o.Label, o.Path));
+        SelectedScope = stream.IsShared ? ScopeOptions[0] : stream.Scope == "detach"
+            ? new ScopeOption("detach", stream.TargetOwner, "Отдельная копия", stream.OwnerPath) : null;
         foreach (var n in stream.Model.Nodes.Where(n => n.IsSimple && !n.IsQualifier))
             Values.Add(new ObjectValueViewModel(session, this, n, stream.Model.Display(n)));
     }
 
-    public MetadataStream Stream { get; }
+    public MetadataStream Stream { get; private set; }
     public string Title { get; }
     public string Subtitle { get; }
-    public bool Editable => Stream.ParseOk && Stream.Owners.Count > 0;
+    public bool Editable => Stream.ParseOk;
     public bool IsShared => Stream.IsShared;
     public string? Problem => Stream.ParseOk ? null : "XMP повреждён: " + Stream.ParseError + " (только просмотр)";
     public List<ScopeOption> ScopeOptions { get; }
@@ -67,23 +77,37 @@ public sealed partial class ObjectStreamViewModel : ObservableObject
         foreach (var v in Values) Push(v);
     }
 
+    internal void Update(MetadataStream stream)
+    {
+        Stream = stream;
+        var nodes = stream.Model.Nodes.Where(n => n.IsSimple && !n.IsQualifier).ToList();
+        foreach (var value in Values.ToList())
+        {
+            var node = nodes.FirstOrDefault(n => n.Key == value.Node.Key);
+            if (node == null) Values.Remove(value);
+            else value.Update(node);
+        }
+        foreach (var node in nodes.Where(n => !Values.Any(v => v.Node.Key == n.Key)))
+            Values.Add(new ObjectValueViewModel(_session, this, node, stream.Model.Display(node)));
+        OnPropertyChanged(nameof(Editable));
+        OnPropertyChanged(nameof(Problem));
+    }
+
     internal void Push(ObjectValueViewModel v)
     {
         if (!Editable) return;
-        string scopeKey = SelectedScope?.Scope ?? "";
-        // Убрать прежние правки этого значения в любой области.
-        foreach (var e in _session.Edits.OfType<XmpOpEdit>().Where(e => e.StreamRef == Stream.Ref && e.OpKey == "set:" + v.Node.Key).ToList())
-            _session.Revert(e.Key);
-        if (v.Value == (v.Node.Value ?? "")) return;
         if (Stream.IsShared && SelectedScope?.Scope is null)
         {
             Message = "Поток общий: выберите, менять его для всех владельцев или отделить копию";
             return;
         }
         Message = null;
-        _session.AddXmpOp(new XmpOpEdit(Stream.Ref, SelectedScope?.Scope, SelectedScope?.Owner, "set:" + v.Node.Key,
+        var edit = new XmpOpEdit(Stream.Ref, Stream.Scope ?? SelectedScope?.Scope, Stream.TargetOwner ?? SelectedScope?.Owner, "set:" + v.Node.Key,
             new JsonObject { ["op"] = "set", ["steps"] = XmpPath.ToJson(v.Node.Steps), ["value"] = v.Value },
-            Title + " · " + v.Path));
+            Title + " · " + v.Path, Stream.OwnerPath ?? SelectedScope?.Path);
+        var original = _session.Document.Streams.FirstOrDefault(s => s.Ref == Stream.Ref)?.Model.Find(v.Node.Steps);
+        if (original != null && v.Value == (original.Value ?? "")) _session.Revert(edit.Key);
+        else _session.AddXmpOp(edit);
     }
 }
 
@@ -195,7 +219,7 @@ public sealed class ObjectsViewModel
 {
     public ObjectsViewModel(EditSession session)
     {
-        var doc = session.Document;
+        var doc = session.WorkingDocument;
         foreach (var s in doc.Streams.Where(s => !s.IsDocument)) Streams.Add(new ObjectStreamViewModel(session, s));
         foreach (var a in doc.Annotations)
         {
@@ -242,6 +266,21 @@ public sealed class ObjectsViewModel
     public bool HasAnnotations => Annotations.Count > 0;
     public bool HasAttachments => Attachments.Count > 0;
     public bool HasPieceInfo => PieceInfo.Count > 0;
+
+    public void UpdateStreams(EditSession session)
+    {
+        var streams = session.WorkingDocument.Streams.Where(s => !s.IsDocument).ToList();
+        foreach (var current in Streams.ToList())
+        {
+            var stream = streams.FirstOrDefault(s => s.Key == current.Stream.Key);
+            // Ownership changes also change the available scope choices and labels.
+            if (stream == null || !stream.Owners.Select(o => o.Ref + (o.Path?.ToJsonString() ?? "[]"))
+                .SequenceEqual(current.Stream.Owners.Select(o => o.Ref + (o.Path?.ToJsonString() ?? "[]")))) Streams.Remove(current);
+            else current.Update(stream);
+        }
+        foreach (var stream in streams.Where(s => !Streams.Any(v => v.Stream.Key == s.Key)))
+            Streams.Add(new ObjectStreamViewModel(session, stream));
+    }
 
     private IEnumerable<ObjectFieldViewModel> AllFields => Annotations.Concat(Attachments).SelectMany(i => i.Fields);
 

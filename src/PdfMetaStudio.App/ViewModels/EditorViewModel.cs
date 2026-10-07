@@ -26,10 +26,16 @@ public sealed partial class EditorViewModel : ObservableObject
         _dialogs = dialogs;
         Session = new EditSession(doc);
         Fields = StandardFields.All.Select(f => new FieldViewModel(Session, Session.Origins[f.Id])).ToList();
-        Tags = new TagTreeViewModel(Session);
+        Tags = new TagTreeViewModel(Session, service);
         Objects = new ObjectsViewModel(Session);
         SelectedSection = Sections[0];
         Session.Changed += OnSessionChanged;
+        Session.PreviewChanged += (_, _) =>
+        {
+            foreach (var field in Fields) { if (!field.IsPushing) field.Reload(); }
+            Objects.UpdateStreams(Session);
+            Objects.Refresh(Session.Build());
+        };
 
         var notes = new List<string>();
         if (doc.Signed) notes.Add("Документ подписан: правки можно сохранить только в отдельную копию, подпись в ней станет недействительной.");
@@ -66,7 +72,7 @@ public sealed partial class EditorViewModel : ObservableObject
     public IEnumerable<FieldViewModel> MainFields => Fields.Where(f => f.Field.Group == "main");
     public IEnumerable<FieldViewModel> DateFields => Fields.Where(f => f.Field.Group == "dates");
     public TagTreeViewModel Tags { get; }
-    public ObjectsViewModel Objects { get; }
+    [ObservableProperty] private ObjectsViewModel _objects = null!;
 
     [ObservableProperty] private string _status = "Нет изменений";
     [ObservableProperty] private bool _hasChanges;
@@ -94,6 +100,23 @@ public sealed partial class EditorViewModel : ObservableObject
         foreach (var f in Fields)
             if (f.IsPushing) f.RefreshState(); else f.Reload();
         UpdateStatus();
+        _ = RefreshMetadataAsync();
+    }
+
+    private CancellationTokenSource? _metadataRefresh;
+    private async Task RefreshMetadataAsync()
+    {
+        _metadataRefresh?.Cancel();
+        var refresh = new CancellationTokenSource();
+        _metadataRefresh = refresh;
+        try
+        {
+            await Task.Delay(300, refresh.Token);
+            if (!IsBusy) await _service.PreviewAsync(Session, ct: refresh.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (WorkerException ex) { Tags.Message = ex.Message; }
+        finally { refresh.Dispose(); if (_metadataRefresh == refresh) _metadataRefresh = null; }
     }
 
     private void UpdateStatus()
@@ -264,6 +287,7 @@ public sealed partial class EditorViewModel : ObservableObject
             }
         }
         Session.Changed -= OnSessionChanged;
+        _metadataRefresh?.Cancel();
         CloseRequested?.Invoke(this, EventArgs.Empty);
         return true;
     }

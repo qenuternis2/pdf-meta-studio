@@ -32,6 +32,7 @@ struct MetaOwner {
     std::string kind;        // catalog, page, image, form, annotation, filespec, embeddedFile, font, object
     std::string label;       // человекочитаемая подпись
     std::string keyPath;     // путь к словарю внутри объекта (пусто — сам объект)
+    json path = json::array(); // Dictionary keys and array indexes, without string parsing.
     int pageIndex = -1;
     json toJson() const;
 };
