@@ -29,6 +29,11 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
+      - name: Desktop preparation regression checks
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -File ./tests/scripts/PrepareWindowsDesktop.Tests.ps1
+          exit $LASTEXITCODE
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
@@ -137,6 +142,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Desktop preparation regression checks
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -File ./tests/scripts/PrepareWindowsDesktop.Tests.ps1
+          exit $LASTEXITCODE
       - name: Report actual Windows product and architecture
         shell: pwsh
         run: Get-ComputerInfo | Select-Object WindowsProductName, OsArchitecture, OsBuildNumber

@@ -196,8 +196,8 @@ function Dialog([int]$processId) {
     if ($main) { $d = $main.FindFirst($TS::Children, $cls); if ($d) { return $d } }
     $AE::RootElement.FindFirst($TS::Children, (AndCond (Cond $AE::ProcessIdProperty $processId) $cls))
 }
-# Поле имени файла в системном диалоге не всегда видно через UI Automation —
-# вводим путь с клавиатуры, как пользователь: фокус по умолчанию стоит в поле имени.
+# ARM hosted Shell peers can be absent from UIA; use verified native messages there.
+# Other hosts focus the filename control and enter the path through the keyboard.
 function TypeIntoDialog($dlg, [string]$text) {
     if ($desktopGuard) {
         [AcceptanceFocus]::SubmitFileDialog([IntPtr]$dlg.Current.NativeWindowHandle, $text)
@@ -211,8 +211,6 @@ function TypeIntoDialog($dlg, [string]$text) {
     $fileName = $dlg.FindFirst($TS::Descendants, (Cond $AE::AutomationIdProperty '1148'))
     if ($fileName) { try { $fileName.SetFocus() } catch { } }
     $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', '{$0}')
-    # English hosted Shell dialogs expose File name through Alt+N even without UIA edit peers.
-    if ($desktopGuard) { Keys '%n' }
     Keys '^a'
     Keys $escaped
     Start-Sleep -Milliseconds 300

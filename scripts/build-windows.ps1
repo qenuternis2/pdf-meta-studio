@@ -45,7 +45,7 @@ if (-not $SkipTests) {
     Copy-Item -LiteralPath $validation -Destination $publishedValidation -Recurse
     $commit = git -C $root rev-parse HEAD
     $evidence = if ($env:GITHUB_RUN_ID) { "https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" } else { 'Local build; no CI run attached.' }
-    @("Executed native and managed tests for source commit: $commit", "Build host: $([Environment]::OSVersion.VersionString)", "GUI and MSI acceptance execute after packaging; their results are recorded at: $evidence", "Independent corpus reports: https://github.com/qenuternis2/pdf-meta-studio/tree/$commit/docs/validation", 'Real Windows 11, Narrator and physical DPI acceptance remains pending. These reports do not establish those manual results.') | Set-Content (Join-Path $publishedValidation 'README.txt') -Encoding utf8
+    @("Executed native and managed tests for source commit: $commit", "Build host: $([Environment]::OSVersion.VersionString)", "GUI and MSI acceptance execute after packaging; their results are recorded at: $evidence", "Independent corpus reports: https://github.com/qenuternis2/pdf-meta-studio/tree/$commit/docs/validation", 'Clean Windows 11 x64, non-elevated/offline installation, Narrator and physical DPI acceptance remains pending. Windows 11 ARM automation is recorded separately in the linked CI run.') | Set-Content (Join-Path $publishedValidation 'README.txt') -Encoding utf8
 }
 
 & "$PSScriptRoot\collect-licenses.ps1" -PublishDir $out
