@@ -12,6 +12,10 @@ on:
         description: 'Run GUI acceptance using a previously built native worker; skips native/MSI acceptance'
         type: boolean
         default: false
+      desktop_probe:
+        description: 'Inspect Windows 11 desktop blockers without building or running application tests'
+        type: boolean
+        default: false
       package_run_id:
         description: 'Successful run containing PdfMetaStudio-win-x64 (required for GUI-only mode)'
         type: string
@@ -21,7 +25,7 @@ permissions:
   contents: read
 jobs:
   build:
-    if: ${{ !inputs.gui_only }}
+    if: ${{ !inputs.gui_only && !inputs.desktop_probe }}
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -190,6 +194,27 @@ jobs:
             windows11-acceptance
             installer-*.log
             installer-smoke
+  desktop_probe:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_probe }}
+    runs-on: windows-11-arm
+    timeout-minutes: 3
+    steps:
+      - name: Inspect interactive desktop windows
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+          $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)
+          $records = foreach ($window in $windows) {
+            $process = Get-Process -Id $window.Current.ProcessId -ErrorAction SilentlyContinue
+            @{ name = $window.Current.Name; className = $window.Current.ClassName; processName = $process.ProcessName; processId = $window.Current.ProcessId; path = $process.Path }
+          }
+          $records | ConvertTo-Json -Depth 4 | Tee-Object -FilePath desktop-windows.json
+          Get-Process | Where-Object { $_.ProcessName -match 'privacy|oobe|experience|wwahost' } | Select-Object ProcessName, Id, Path | ConvertTo-Json | Tee-Object -FilePath desktop-setup-processes.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows11-desktop-probe
+          path: desktop-*.json
   gui_acceptance:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.gui_only }}
     runs-on: windows-11-arm
