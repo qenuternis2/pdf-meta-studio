@@ -335,7 +335,7 @@ try {
         Press $openAgain
         $dialogAgain = WaitFor { Dialog $proc.Id } 15
         TypeIntoDialog $dialogAgain $Pdf
-        $titleAgain = WaitFor { ByName $win 'Название документа' } 60
+        $titleAgain = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Edit) (Cond $AE::NameProperty 'Название документа'))) } 60
         if (-not $titleAgain) { throw 'Could not reopen the document for Ctrl+W acceptance' }
         $titleAgain.SetFocus(); Keys '^w'
         if (-not (WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Button)) | Where-Object { $_.Current.Name -like 'Change meta info*' -and -not $_.Current.IsOffscreen } | Select-Object -First 1 } 15)) { throw 'Ctrl+W did not close the unchanged editor' }
