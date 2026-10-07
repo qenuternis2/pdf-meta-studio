@@ -86,6 +86,15 @@ public static class AcceptanceFocus {
         // Deliver the button's BN_CLICKED to its parent independently of foreground keyboard input.
         if (!PostMessage(GetParent(button), 0x0111, new IntPtr(1), button)) throw new InvalidOperationException("Native Shell submit command failed");
     }
+    public static void ConfirmResultDialog(IntPtr dialog) {
+        IntPtr button = FindControl(dialog, 0, "Button");
+        if (button == IntPtr.Zero) throw new InvalidOperationException("Native result confirmation button was not found");
+        var label = new StringBuilder(256);
+        SendMessage(button, 0x000D, new IntPtr(label.Capacity), label);
+        string name = label.ToString().Replace("&", "").Trim();
+        if (name != "OK" && name != "\u041e\u041a") throw new InvalidOperationException("Unexpected result confirmation button: " + name);
+        if (!PostMessage(GetParent(button), 0x0111, new IntPtr(GetDlgCtrlID(button)), button)) throw new InvalidOperationException("Native result confirmation failed");
+    }
     public static void Activate(IntPtr window, int controlId) {
         uint current = GetCurrentThreadId();
         uint foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
@@ -449,7 +458,8 @@ try {
     else {
         # Native message-box buttons may be exposed as Pane by the CI accessibility provider.
         try { $box.SetFocus() } catch { }
-        [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
+        if ($desktopGuard) { [AcceptanceFocus]::ConfirmResultDialog([IntPtr]$box.Current.NativeWindowHandle) }
+        else { Keys '{ENTER}' }
     }
     if (-not (WaitFor { -not (Dialog $proc.Id) } 15)) { throw 'The save result dialog did not close after confirmation' }
 
