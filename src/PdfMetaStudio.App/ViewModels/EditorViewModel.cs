@@ -19,6 +19,7 @@ public sealed partial class EditorViewModel : ObservableObject
     private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
     private BuiltRequest? _reviewed;
+    private long _reviewEpoch;
 
     public EditorViewModel(DocumentService service, IDialogService dialogs, DocumentSnapshot doc)
     {
@@ -141,6 +142,8 @@ public sealed partial class EditorViewModel : ObservableObject
 
     private void OnSessionChanged(object? sender, EventArgs e)
     {
+        _reviewed = null;
+        SaveCopyCommand.NotifyCanExecuteChanged(); ReplaceCommand.NotifyCanExecuteChanged();
         foreach (var f in Fields)
             if (f.IsPushing) f.RefreshState(); else f.Reload();
         UpdateStatus();
@@ -166,8 +169,8 @@ public sealed partial class EditorViewModel : ObservableObject
     private void UpdateStatus()
     {
         int n = Session.ChangeCount;
-        HasChanges = n > 0;
-        Status = n == 0 ? "Нет изменений" : "Изменений: " + n;
+        HasChanges = n > 0 || Session.UpdateModifyDate;
+        Status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
         var built = Session.Build();
         foreach (var f in Fields) f.SetProblem(built.Issues.FirstOrDefault(i => i.FieldId == f.Id));
         Objects.Refresh(built);
@@ -198,7 +201,7 @@ public sealed partial class EditorViewModel : ObservableObject
     private bool CanRedo() => Session.CanRedo && !IsBusy;
 
     [RelayCommand(CanExecute = nameof(HasChanges))]
-    private void RevertAll() { Session.RevertAll(); Tags.Rebuild(); }
+    private void RevertAll() { UpdateModifyDate = false; Session.RevertAll(); Tags.Rebuild(); }
 
     [RelayCommand(CanExecute = nameof(CanReview))]
     private async Task Review()
@@ -210,6 +213,7 @@ public sealed partial class EditorViewModel : ObservableObject
 
     private async Task RefreshReviewAsync()
     {
+        long epoch = ++_reviewEpoch;
         ReviewRows.Clear();
         ReviewNotes.Clear();
         ReviewIssues.Clear();
@@ -220,16 +224,17 @@ public sealed partial class EditorViewModel : ObservableObject
         try
         {
             var (review, request) = await RunAsync("Проверка изменений…", (p, ct) => _service.PreviewAsync(Session, p, ct));
+            if (epoch != _reviewEpoch) return;
             foreach (var r in review.Rows) ReviewRows.Add(r);
             foreach (var n in review.Notes) ReviewNotes.Add(n);
             if (review.Rows.Any(r => r.IsSideEffect))
                 ReviewNotes.Add("Отмеченные строки — изменения, которые вы явно не вводили (связанные или автоматические).");
             _reviewed = request;
         }
-        catch (OperationCanceledException) { ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", "Проверка отменена")); }
+        catch (OperationCanceledException) { if (epoch == _reviewEpoch) ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", "Проверка отменена")); }
         catch (WorkerException ex)
         {
-            ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", ReviewBuilder.Explain(ex)));
+            if (epoch == _reviewEpoch) ReviewIssues.Add(new EditIssue(IssueSeverity.Blocking, "", ReviewBuilder.Explain(ex)));
         }
         SaveCopyCommand.NotifyCanExecuteChanged();
         ReplaceCommand.NotifyCanExecuteChanged();
@@ -299,24 +304,27 @@ public sealed partial class EditorViewModel : ObservableObject
         IsBusy = true;
         BusyText = text;
         BusyPercent = 0;
-        _cts = new CancellationTokenSource();
+        _cts?.Cancel();
+        var operation = new CancellationTokenSource();
+        _cts = operation;
         var progress = new Progress<WorkerProgress>(p =>
         {
+            if (_cts != operation) return;
             BusyPercent = p.Percent;
             BusyText = text + " " + StageTitle(p.Stage);
         });
         try
         {
-            return await action(progress, _cts.Token);
+            return await action(progress, operation.Token);
         }
         finally
         {
-            IsBusy = false;
-            _cts.Dispose();
-            _cts = null;
-            UpdateStatus();
-            SaveCopyCommand.NotifyCanExecuteChanged();
-            ReplaceCommand.NotifyCanExecuteChanged();
+            operation.Dispose();
+            if (_cts == operation) {
+                _cts = null; IsBusy = false;
+                UpdateStatus();
+                SaveCopyCommand.NotifyCanExecuteChanged(); ReplaceCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 

@@ -73,8 +73,9 @@ endif()
 if(PDFMETA_BUILD_TESTS)
   # qpdf CLI (для создания зашифрованных PDF в тестах). Цель qpdf лежит в подпроекте с
   # EXCLUDE_FROM_ALL и не видна в решении Visual Studio верхнего уровня — собираем через test-tools.
+  add_executable(pdfmeta-test-worker tests/helpers/unresponsive_worker.cpp)
   add_custom_target(test-tools)
-  add_dependencies(test-tools qpdf)
+  add_dependencies(test-tools qpdf pdfmeta-test-worker)
   enable_testing()
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

@@ -69,9 +69,18 @@ public sealed class EditSession
     public bool IsReadOnly { get; set; }
     public IReadOnlyDictionary<string, FieldOrigin> Origins { get; }
     /// <summary>Обновлять дату изменения при сохранении (по умолчанию выключено).</summary>
-    public bool UpdateModifyDate { get; set; }
+    private bool _updateModifyDate;
+    public bool UpdateModifyDate {
+        get => _updateModifyDate;
+        set { if (_updateModifyDate == value || IsReadOnly) return; _updateModifyDate = value; InvalidateOptions(); }
+    }
     /// <summary>Область правки общего потока XMP документа, если он используется несколькими владельцами.</summary>
-    public string? DocumentStreamScope { get; set; }
+    private string? _documentStreamScope;
+    public string? DocumentStreamScope {
+        get => _documentStreamScope;
+        set { if (_documentStreamScope == value) return; _documentStreamScope = value; InvalidateOptions(); }
+    }
+    private void InvalidateOptions() { _working = null; ++Revision; Changed?.Invoke(this, EventArgs.Empty); }
 
     public event EventHandler? Changed;
 

@@ -1063,13 +1063,32 @@ def test_windows_backup_retains_protected_acl(c):
     source = c.pdf("acl.pdf")
     def quote(value):
         return "'" + value.replace("'", "''") + "'"
-    setup = "$p=" + quote(source) + ";$acl=Get-Acl -LiteralPath $p;$acl.SetAccessRuleProtection($true,$true);Set-Acl -LiteralPath $p -AclObject $acl"
-    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', setup], check=True, capture_output=True)
+    # Change only DACL inheritance, without asking Set-Acl to restore owner/group privileges.
+    setup = subprocess.run(['icacls.exe', source, '/inheritance:d'], capture_output=True)
+    assert setup.returncode == 0, setup.stderr.decode(errors='replace')
     opened = c.open(source)
     result = c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "ACL"}]}, mode="replace")
     assert_checks_ok(result)
     check = "$a=(Get-Acl -LiteralPath " + quote(source) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);$b=(Get-Acl -LiteralPath " + quote(result['backup']) + ").GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access);if($a -ne $b){throw 'Backup ACL differs'}"
-    subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', check], check=True, capture_output=True)
+    result_acl = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', check], capture_output=True)
+    assert result_acl.returncode == 0, result_acl.stderr.decode(errors='replace')
+
+
+def test_bounded_queue_and_queued_cancellation(c):
+    xml = pdfgen.xmp_packet('<rdf:Description rdf:about="" xmlns:ex="https://example.org/queue/"><ex:Rows><rdf:Seq>' + '<rdf:li>item</rdf:li>' * 20000 + '</rdf:Seq></ex:Rows></rdf:Description>').decode('utf-8')
+    primary = c.w.send('validateXmp', xml=xml)
+    queued = [c.w.send('hello') for _ in range(8)]
+    c.w.cancel(queued[1])
+    queued.extend(c.w.send('hello') for _ in range(42))
+    terminal = {}
+    while len(terminal) != 51:
+        response = json.loads(c.w.p.stdout.readline())
+        if response.get('type') in ('result', 'error'):
+            terminal[response['id']] = response
+    assert terminal[primary]['type'] == 'result'
+    assert any(response.get('code') == 'queue_full' for response in terminal.values())
+    assert terminal[queued[1]].get('code') == 'cancelled', terminal[queued[1]]
+    assert c.w.call('hello')['protocol'] == 1
 
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 

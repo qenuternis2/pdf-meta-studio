@@ -77,12 +77,12 @@ public sealed class DocumentService : IAsyncDisposable
                 var acl = FileSystemAclExtensions.GetAccessControl(new FileInfo(path), AccessControlSections.Access);
                 FileSystemAclExtensions.SetAccessControl(new FileInfo(snapshot), acl);
                 string zone = path + ":Zone.Identifier";
-                if (File.Exists(zone)) {
+                try {
                     await using var input = File.OpenRead(zone);
                     if (input.Length > 64 * 1024) throw new WorkerException("snapshot_failed", "Отметка безопасности файла превышает 64 КиБ");
                     await using var output = File.Create(snapshot + ":Zone.Identifier");
                     await input.CopyToAsync(output, ct).ConfigureAwait(false);
-                }
+                } catch (FileNotFoundException) { /* The source has no Zone.Identifier stream. */ }
             } else File.SetUnixFileMode(snapshot, File.GetUnixFileMode(path));
             await using var cached = File.OpenRead(snapshot);
             string hash = Convert.ToHexString(await SHA256.HashDataAsync(cached, ct).ConfigureAwait(false)).ToLowerInvariant();

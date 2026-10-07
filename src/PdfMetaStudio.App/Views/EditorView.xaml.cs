@@ -27,4 +27,19 @@ public partial class EditorView : UserControl
     private void OnSaveMenu(object sender, System.Windows.RoutedEventArgs e) {
         if (sender is System.Windows.Controls.Button { ContextMenu: { } menu }) { menu.PlacementTarget = (System.Windows.UIElement)sender; menu.IsOpen = true; }
     }
+    public static void CommitFocusedInput() {
+        if (System.Windows.Input.Keyboard.FocusedElement is System.Windows.Controls.TextBox text)
+            text.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+    }
+    private void OnEditorPreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => CommitFocusedInput();
+    private void OnEditorPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e) {
+        var modifiers = System.Windows.Input.Keyboard.Modifiers;
+        if (!modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control)) return;
+        if (e.Key is System.Windows.Input.Key.Z or System.Windows.Input.Key.Y or System.Windows.Input.Key.S or System.Windows.Input.Key.W) CommitFocusedInput();
+        if (DataContext is PdfMetaStudio.App.ViewModels.EditorViewModel editor && e.Key is System.Windows.Input.Key.Z or System.Windows.Input.Key.Y) {
+            var command = e.Key == System.Windows.Input.Key.Y || modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift) ? editor.RedoCommand : editor.UndoCommand;
+            if (command.CanExecute(null)) command.Execute(null);
+            e.Handled = true;
+        }
+    }
 }

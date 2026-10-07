@@ -35,12 +35,18 @@ void applyResourceLimits() {
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
         info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION;
         info.ProcessMemoryLimit = static_cast<SIZE_T>(memLimit);
-        SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info, sizeof(info));
-        AssignProcessToJobObject(job, GetCurrentProcess());
-    }
+        if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info, sizeof(info)) ||
+            !AssignProcessToJobObject(job, GetCurrentProcess())) {
+            CloseHandle(job);
+            throw WorkerError("resource_limits_unavailable", "Не удалось установить обязательный лимит памяти обработчика");
+        }
+    } else throw WorkerError("resource_limits_unavailable", "Не удалось создать ограниченный процесс обработки PDF");
 #else
     rlimit rl{memLimit, memLimit};
-    setrlimit(RLIMIT_AS, &rl);
+    rlimit current{};
+    if (getrlimit(RLIMIT_AS, &current) != 0) throw WorkerError("resource_limits_unavailable", "Не удалось прочитать ограничения памяти");
+    if (current.rlim_max != RLIM_INFINITY && current.rlim_max < rl.rlim_max) rl.rlim_cur = rl.rlim_max = current.rlim_max;
+    if (setrlimit(RLIMIT_AS, &rl) != 0) throw WorkerError("resource_limits_unavailable", "Не удалось ограничить память обработчика");
     rlimit core{0, 0};
     setrlimit(RLIMIT_CORE, &core);
 #endif

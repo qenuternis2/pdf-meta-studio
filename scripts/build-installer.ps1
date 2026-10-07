@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 [xml]$props = Get-Content "$root\Directory.Build.props"
 $version = $props.Project.PropertyGroup.Version
-$tools = Join-Path $env:RUNNER_TEMP 'pdfmeta-wix'
-if (-not $env:RUNNER_TEMP) { $tools = Join-Path ([IO.Path]::GetTempPath()) 'pdfmeta-wix' }
+$toolBase = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
+$tools = Join-Path $toolBase 'pdfmeta-wix'
 if (-not (Test-Path "$tools\wix.exe")) {
     dotnet tool install wix --version 5.0.2 --tool-path $tools
     if ($LASTEXITCODE) { throw 'WiX installation failed' }

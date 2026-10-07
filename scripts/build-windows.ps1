@@ -26,6 +26,7 @@ if (-not $SkipTests) {
     python (Join-Path $root "worker\tests\run_tests.py") $worker --corpus $env:QPDF_CORPUS
     if ($LASTEXITCODE) { throw 'worker tests failed' }
     $env:PDFMETA_WORKER = $worker
+    $env:PDFMETA_TEST_WORKER = Join-Path $build "$Configuration\pdfmeta-test-worker.exe"
     dotnet test (Join-Path $root 'tests\PdfMetaStudio.Core.Tests') -c $Configuration
     if ($LASTEXITCODE) { throw 'dotnet test failed' }
 }

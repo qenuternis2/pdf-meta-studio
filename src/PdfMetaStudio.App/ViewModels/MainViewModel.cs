@@ -14,6 +14,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly DocumentService _service = new();
     private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
+    private TaskCompletionSource? _openingFinished;
 
     public MainViewModel(IDialogService dialogs) => _dialogs = dialogs;
 
@@ -34,6 +35,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? password = null;
         bool retry = false;
         IsOpening = true;
+        _openingFinished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ChangeMetaInfoCommand.NotifyCanExecuteChanged();
         _cts = new CancellationTokenSource();
         try
@@ -71,6 +73,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         finally
         {
             IsOpening = false;
+            _openingFinished?.TrySetResult();
             _cts.Dispose();
             _cts = null;
             ChangeMetaInfoCommand.NotifyCanExecuteChanged();
@@ -87,7 +90,10 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     private void CancelOpening() => _cts?.Cancel();
 
-    public async Task<bool> CanExitAsync() => Editor is null || await Editor.TryCloseAsync();
+    public async Task<bool> CanExitAsync() {
+        if (IsOpening) { _cts?.Cancel(); if (_openingFinished != null) await _openingFinished.Task; }
+        return Editor is null || await Editor.TryCloseAsync();
+    }
 
     public ValueTask DisposeAsync() => _service.DisposeAsync();
 }

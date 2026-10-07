@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:PdfMetaStudio.App.Views"
              xmlns:vm="clr-namespace:PdfMetaStudio.App.ViewModels"
+             PreviewKeyDown="OnEditorPreviewKeyDown" PreviewMouseDown="OnEditorPreviewMouseDown"
              AutomationProperties.Name="Редактор метаданных">
     <UserControl.InputBindings>
         <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding UndoCommand}"/>
@@ -174,9 +175,9 @@
         <StackPanel Margin="22,16,22,12">
             <TextBlock Text="{Binding FileName}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                        AutomationProperties.HeadingLevel="Level1"/>
-            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}" Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVis}}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}"><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}" Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVis}}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
             <TextBlock Text="{Binding ReadOnlyMessage}" Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}" Style="{StaticResource Warn}"/>
-            <ComboBox ItemsSource="{Binding DocumentScopeOptions}" SelectedItem="{Binding SelectedDocumentScope}" DisplayMemberPath="Title" Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Область правки XMP документа"/>
+            <ComboBox IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" ItemsSource="{Binding DocumentScopeOptions}" SelectedItem="{Binding SelectedDocumentScope}" DisplayMemberPath="Title" Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Область правки XMP документа"/>
             <Expander Header="Размеры страниц (только чтение)"><TextBox Text="{Binding PageDimensions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="140" VerticalScrollBarVisibility="Auto"/></Expander>
             <ItemsControl ItemsSource="{Binding DocumentNotes}" Visibility="{Binding HasDocumentNotes, Converter={StaticResource BoolToVis}}">
                 <ItemsControl.ItemTemplate>
@@ -215,7 +216,7 @@
                 </ListBox.ItemContainerStyle>
             </ListBox>
 
-            <Border Grid.Column="1" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+            <Border Grid.Column="1" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     Background="{DynamicResource LayerFillColorDefaultBrush}">
                 <Border.Resources>
                     <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="IsReadOnly" Value="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=views:EditorView}}"/></Style>
@@ -445,7 +446,7 @@
         <Border Grid.Row="1" Visibility="{Binding IsReviewing, Converter={StaticResource BoolToVis}}"
                 BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 Background="{DynamicResource LayerFillColorDefaultBrush}">
-            <ScrollViewer Padding="26,22" Focusable="False">
+            <ScrollViewer Padding="26,22" Focusable="False" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
                 <StackPanel MaxWidth="900">
                     <TextBlock Text="Проверка изменений" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
                     <TextBlock Text="Сравните значения перед сохранением. Исходный файл не изменится, пока вы не выберете «Заменить оригинал…»."
@@ -545,7 +546,7 @@
                     <Button DockPanel.Dock="Right" Content="Дополнительно ▾" Margin="8,0,0,0" Click="OnSaveMenu">
                         <Button.ContextMenu><ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"><MenuItem Header="Заменить оригинал…" Command="{Binding ReplaceCommand}"/></ContextMenu></Button.ContextMenu>
                     </Button>
-                    <Button DockPanel.Dock="Right" Content="К редактированию" Command="{Binding BackToEditCommand}" Margin="8,0,0,0" IsCancel="True"/>
+                    <Button DockPanel.Dock="Right" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" Content="К редактированию" Command="{Binding BackToEditCommand}" Margin="8,0,0,0" IsCancel="True"/>
                 </WrapPanel>
             </StackPanel>
         </Border>

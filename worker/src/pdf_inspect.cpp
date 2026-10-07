@@ -272,7 +272,7 @@ Discovery discover(QPDF& q, Context* ctx) {
                     if (pi.isDictionary()) {
                         for (const auto& app : pi.getKeys()) {
                             QPDFObjectHandle a = pi.getKey(app);
-                            json aj{{"name", sanitizeUtf8(app)}};
+                            json aj{{"name", sanitizeUtf8(app)}, {"adapter", nullptr}, {"diagnostic", pdfValueTree(a)}};
                             if (a.isDictionary()) {
                                 aj["address"] = privateAddress(refOf(owner), path, app);
                                 aj["adapter"] = supportedPrivateEntry(a) ? json("PdfMetaStudioV1") : json(nullptr);
@@ -405,6 +405,12 @@ json encryptionInfo(QPDF& q) {
     j["V"] = V;
     j["P"] = P;
     j["streamMethod"] = mname(sm);
+    j["stringMethod"] = mname(stm);
+    j["fileMethod"] = mname(fm);
+    auto dictionary = q.getTrailer().getKey("/Encrypt");
+    auto encryptMetadata = dictionary.getKey("/EncryptMetadata");
+    j["keyBits"] = q.getEncryptionKey().size() * 8;
+    j["encryptMetadata"] = encryptMetadata.isBool() ? encryptMetadata.getBoolValue() : true;
     j["ownerPasswordMatched"] = q.ownerPasswordMatched();
     j["userPasswordMatched"] = q.userPasswordMatched();
     j["allowModifyOther"] = q.allowModifyOther();

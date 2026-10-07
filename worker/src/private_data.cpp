@@ -33,7 +33,7 @@ json exportMetadata(const json& request, Context& context) {
     try {
         std::ofstream output(temporary, std::ios::binary); output.write(bytes.data(), bytes.size()); output.close();
         if (!output) throw WorkerError("write_failed", "Не удалось сохранить исходные байты XMP");
-        carryOverProtection(fs::exists(source) ? source : readPath, target, temporary); replaceFile(temporary, target);
+        carryOverProtection(readPath, target, temporary); replaceFile(temporary, target);
     } catch (...) { std::error_code ignored; fs::remove(temporary, ignored); throw; }
     return json{{"target", pathToUtf8(target)}, {"bytes", bytes.size()}};
 }
@@ -125,7 +125,7 @@ json exportPrivate(const json& request, Context& context) {
         output << serialized;
         output.close();
         if (!output) throw WorkerError("write_failed", "Не удалось записать экспорт");
-        carryOverProtection(fs::exists(source) ? source : pathFromUtf8(request.at("snapshotPath").get<std::string>()), target, temporary);
+        carryOverProtection(readPath, target, temporary);
         replaceFile(temporary, target);
     } catch (...) { std::error_code ignored; fs::remove(temporary, ignored); throw; }
     return json{{"target", pathToUtf8(target)}, {"objects", seen.size()}, {"compatibility", "not verified; opaque bytes may contain internal offsets"}};

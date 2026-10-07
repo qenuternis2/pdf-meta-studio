@@ -30,6 +30,7 @@ public sealed class WorkerClient : IAsyncDisposable
 {
     private readonly Process _process;
     private readonly ConcurrentDictionary<long, Pending> _pending = new();
+    private readonly SemaphoreSlim _requestSlots = new(8, 8);
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _nextId;
@@ -79,7 +80,7 @@ public sealed class WorkerClient : IAsyncDisposable
         return client;
     }
 
-    public bool IsAlive => !_process.HasExited;
+    public bool IsAlive { get { try { return !_process.HasExited; } catch (InvalidOperationException) { return false; } } }
 
     private async Task ReadLoopAsync()
     {
@@ -149,7 +150,15 @@ public sealed class WorkerClient : IAsyncDisposable
     public async Task<JsonNode> CallAsync(string cmd, JsonObject args, IProgress<WorkerProgress>? progress = null,
         CancellationToken ct = default)
     {
+        await _requestSlots.WaitAsync(ct).ConfigureAwait(false);
+        try { return await CallCoreAsync(cmd, args, progress, ct).ConfigureAwait(false); }
+        finally { _requestSlots.Release(); }
+    }
+
+    private async Task<JsonNode> CallCoreAsync(string cmd, JsonObject args, IProgress<WorkerProgress>? progress, CancellationToken ct)
+    {
         ct.ThrowIfCancellationRequested();
+        if (!IsAlive) throw new WorkerException("worker_crashed", "Компонент PDF завершился; перезапустите обработчик, правки сохранены");
         long id = Interlocked.Increment(ref _nextId);
         var request = (JsonObject)args.DeepClone();
         request["id"] = id;
@@ -166,6 +175,15 @@ public sealed class WorkerClient : IAsyncDisposable
             _ = StopUnresponsiveAsync(id);
         });
         try { return await pending.Completion.Task.WaitAsync(OperationTimeout, ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) {
+            // Hold the request slot until acknowledgement or process termination, bounding retired requests too.
+            try {
+                var completed = await pending.Completion.Task.WaitAsync(TimeSpan.FromSeconds(6)).ConfigureAwait(false);
+                if (cmd == "save") return completed; // A verified commit must never be reported as cancelled.
+            }
+            catch (Exception) { }
+            throw;
+        }
         catch (TimeoutException) {
             Kill();
             throw new WorkerException("operation_timeout", "Обработка превысила пять минут; компонент перезапущен, правки и исходный файл сохранены");
@@ -215,9 +233,11 @@ public sealed class WorkerClient : IAsyncDisposable
             await _process.StandardInput.WriteLineAsync(line).ConfigureAwait(false);
             await _process.StandardInput.FlushAsync().ConfigureAwait(false);
         }
-        catch (IOException)
+        catch (Exception error) when (error is IOException or InvalidOperationException)
         {
-            // процесс завершился — ошибку сообщит ReadLoop
+            foreach (var entry in _pending)
+                if (_pending.TryRemove(entry.Key, out var pending)) pending.Completion.TrySetException(
+                    new WorkerException("worker_crashed", "Компонент PDF завершился; правки сохранены"));
         }
         finally
         {
@@ -232,7 +252,7 @@ public sealed class WorkerClient : IAsyncDisposable
             if (!_process.HasExited)
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                try { await CallAsync("shutdown", new JsonObject()).WaitAsync(cts.Token).ConfigureAwait(false); }
+                try { await CallAsync("shutdown", new JsonObject(), ct: cts.Token).WaitAsync(cts.Token).ConfigureAwait(false); }
                 catch (Exception) { }
                 if (!_process.HasExited) _process.Kill(entireProcessTree: true);
             }

@@ -560,6 +560,8 @@ json saveEdits(const json& req, Context& ctx) {
     auto expectedGraph = logicalGraph(q, ctx);
     int R0 = 0, P0 = 0;
     bool wasEncrypted = q.isEncrypted(R0, P0);
+    auto encryptionBefore = encryptionInfo(q);
+    encryptionBefore.erase("ownerPasswordMatched"); encryptionBefore.erase("userPasswordMatched");
     std::string versionBefore = q.getPDFVersion();
     size_t objectsBefore = d.totalObjects;
     size_t unreachable = d.totalObjects > d.reachableObjects ? d.totalObjects - d.reachableObjects : 0;
@@ -697,7 +699,9 @@ json saveEdits(const json& req, Context& ctx) {
                   out.warnings.empty() && outputWarnings.empty() ? "Повторное чтение не требует восстановления структуры" : "После записи qpdf обнаружил повреждённую структуру");
             int R1 = 0, P1 = 0;
             bool isEnc = n.isEncrypted(R1, P1);
-            bool encOk = isEnc == wasEncrypted && R1 == R0 && P1 == P0;
+            auto encryptionAfter = encryptionInfo(n);
+            encryptionAfter.erase("ownerPasswordMatched"); encryptionAfter.erase("userPasswordMatched");
+            bool encOk = isEnc == wasEncrypted && R1 == R0 && P1 == P0 && encryptionBefore == encryptionAfter;
             check("encryption", encOk,
                   !encOk ? "Параметры шифрования изменились" : wasEncrypted ? "Шифрование сохранено" : "Документ не зашифрован");
         }
@@ -713,7 +717,7 @@ json saveEdits(const json& req, Context& ctx) {
         if (!(now == srcFp))
             throw WorkerError("external_change", "Исходный файл изменён другой программой во время сохранения");
     }
-    carryOverProtection(fs::exists(src) ? src : readPath, target, tempGuard.path);
+    carryOverProtection(mode == "copy" && req.contains("snapshotPath") ? readPath : fs::exists(src) ? src : readPath, target, tempGuard.path);
     replaceFile(tempGuard.path, target);
     tempGuard.keep = true;
     backupGuard.keep = true;
