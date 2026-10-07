@@ -208,7 +208,7 @@ try {
     if ($CalendarChecks) {
         $step = 'calendar'
         ($items | Where-Object { $_.Current.Name -eq 'Даты и ПО' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
-        $components = WaitFor { ByName $win 'Компоненты даты, точность и часовой пояс' } 10
+        $components = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Group) (Cond $AE::NameProperty 'Компоненты даты, точность и часовой пояс'))) } 10
         if (-not $components) { throw 'Date component expander is missing' }
         $components.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern).Expand()
         $calendarInput = WaitFor { ByName $win 'Календарь: Дата создания' } 10
