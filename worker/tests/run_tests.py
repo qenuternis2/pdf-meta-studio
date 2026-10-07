@@ -1095,6 +1095,29 @@ def test_windows_backup_retains_protected_acl(c):
     assert acl(result['backup']) == original_acl, 'Backup ACL differs'
 
 
+def test_windows_long_path_copy(c):
+    if os.name != "nt":
+        return "SKIP: Windows long-path acceptance requires Windows"
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\FileSystem') as key:
+        try:
+            enabled = winreg.QueryValueEx(key, 'LongPathsEnabled')[0]
+        except FileNotFoundError:
+            enabled = 0
+    if not enabled:
+        return "SKIP: Windows long paths are not enabled on this host"
+    original = c.pdf('long-path-original.pdf')
+    directory = os.path.join(os.path.dirname(original), *(['long-directory-' + 'x' * 55] * 5))
+    os.makedirs(directory)
+    source = os.path.join(directory, 'источник.pdf')
+    shutil.copyfile(original, source)
+    opened = c.open(source)
+    target = os.path.join(directory, 'результат.pdf')
+    result = c.save(source, opened, {'info': [{'op': 'set', 'key': '/Title', 'value': 'Long path'}]}, target=target)
+    assert_checks_ok(result)
+    assert info_map(c.open(target))['/Title'] == ('string', 'Long path')
+
+
 def test_bounded_queue_and_queued_cancellation(c):
     xml = pdfgen.xmp_packet('<rdf:Description rdf:about="" xmlns:ex="https://example.org/queue/"><ex:Rows><rdf:Seq>' + '<rdf:li>item</rdf:li>' * 20000 + '</rdf:Seq></ex:Rows></rdf:Description>').decode('utf-8')
     primary = c.w.send('validateXmp', xml=xml)

@@ -236,6 +236,11 @@
       "detail": "Windows sharing modes require Windows"
     },
     {
+      "test": "test_windows_long_path_copy",
+      "status": "SKIP",
+      "detail": "Windows long-path acceptance requires Windows"
+    },
+    {
       "test": "test_x_default_does_not_touch_translations",
       "status": "PASS",
       "detail": ""

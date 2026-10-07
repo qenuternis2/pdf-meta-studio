@@ -1,6 +1,6 @@
 # Validation evidence — 2026-10-07
 
-Native engine source: `486fc386850eca8e600171d97a9b2dffcf91ba31`. The subsequent IPC reader fix affects managed process recovery only; the PDF worker used for these reports is unchanged.
+Native PDF-processing implementation: `486fc386850eca8e600171d97a9b2dffcf91ba31`. Subsequent changes add Windows ACL/long-path acceptance, the worker's Windows long-path manifest and managed IPC recovery; the PDF-processing implementation used for these reports is unchanged.
 
 Environment: Linux 6.18.44, .NET SDK 10.0.100, qpdf 12.4.2, Adobe XMP Toolkit 2025.03, Expat 2.7.1, pypdf 5.1.0, cryptography 46.0.3, Poppler 26.05.0.
 
@@ -8,7 +8,7 @@ Environment: Linux 6.18.44, .NET SDK 10.0.100, qpdf 12.4.2, Adobe XMP Toolkit 20
 |---|---|
 | Solution compilation | Release build, zero warnings/errors |
 | Managed/core/ViewModel/IPC tests | 73 passed, zero failures/skips, with both actual native worker and test IPC peer available |
-| Native end-to-end tests | 45 passed, 4 explicit platform/environment skips |
+| Native end-to-end tests | 45 passed, 5 explicit platform/environment skips |
 | Native qpdf corpus | 628 files, 586 opened, 470 verified saves, zero unexpected failures |
 | Independent corpus | 628 files classified, 417 independently compared successfully, zero failures |
 | Complete-page pixel comparisons | 2,758 pages across those 417 files, 72 DPI capped at 1,024 pixels on the longest dimension |

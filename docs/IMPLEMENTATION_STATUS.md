@@ -23,7 +23,7 @@ Updated 2026-10-07 against the uploaded development brief (`TASK.md`) and detail
 
 ## Acceptance evidence
 
-The Release solution builds with zero warnings/errors. All 73 managed/core/ViewModel/IPC tests pass; native tests pass 45 checks with 4 explicit platform/environment skips. The qpdf corpus contains 628 files and produces 470 verified saves. Independent pypdf/Poppler comparisons pass for 417 files and 2,758 pages, with zero failures. Detailed per-file results and exclusions are committed in [validation evidence](validation/README.md). A verification refusal is a supported outcome when preservation cannot be established; it is never counted as a successful save or visual comparison.
+The Release solution builds with zero warnings/errors. All 73 managed/core/ViewModel/IPC tests pass; native tests pass 45 checks with 5 explicit platform/environment skips. The qpdf corpus contains 628 files and produces 470 verified saves. Independent pypdf/Poppler comparisons pass for 417 files and 2,758 pages, with zero failures. Detailed per-file results and exclusions are committed in [validation evidence](validation/README.md). A verification refusal is a supported outcome when preservation cannot be established; it is never counted as a successful save or visual comparison.
 
 The independent corpus runner uses pypdf field values/attachments/page boxes and Poppler pixels for every page of each eligible sample. Its page/time limits and unsupported or damaged source exclusions are explicit. This is sampled-resolution rendering evidence, not a proof about every possible PDF or rendering engine.
 

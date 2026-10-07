@@ -10,6 +10,8 @@ param(
     [string]$NewAuthor = 'Автор из GUI ✓'
 )
 $ErrorActionPreference = 'Stop'
+# Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
 $AE = [System.Windows.Automation.AutomationElement]
 $TS = [System.Windows.Automation.TreeScope]

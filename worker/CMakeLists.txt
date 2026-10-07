@@ -61,6 +61,9 @@ endif()
 
 add_executable(pdfmeta-worker src/main.cpp)
 target_link_libraries(pdfmeta-worker PRIVATE pdfmeta_core)
+if(MSVC)
+  target_sources(pdfmeta-worker PRIVATE src/worker.manifest)
+endif()
 if(MINGW)
   # Проверочная кросс-сборка из Linux: всё статически, без DLL MinGW рядом с EXE.
   target_link_options(pdfmeta-worker PRIVATE -static -static-libgcc -static-libstdc++)
