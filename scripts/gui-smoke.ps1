@@ -345,6 +345,8 @@ try {
         $calendarInput = WaitFor { ByName $win 'Календарь: Дата создания' } 10
         if (-not $calendarInput) { throw 'Creation date calendar is missing' }
         $originalDate = Value (ByName $win 'Исходная дата: Дата создания')
+        [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
+        $calendarInput.SetFocus()
         $calendarPattern = $calendarInput.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
         $calendarPattern.Expand()
         $popup = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::ControlTypeProperty $CT::Calendar))) } 10
@@ -353,6 +355,12 @@ try {
         $screen = [Windows.Forms.SystemInformation]::VirtualScreen
         if ($popup.Current.IsOffscreen -or $bounds.Left -lt $screen.Left -or $bounds.Top -lt $screen.Top -or $bounds.Right -gt $screen.Right -or $bounds.Bottom -gt $screen.Bottom) { throw 'Calendar popup is clipped by the desktop' }
         Shot 'calendar-popup'
+        # DatePicker handles Escape through calendar day/month buttons, not header navigation buttons.
+        $calendarDays = @($popup.FindAll($TS::Descendants, (Cond $AE::IsSelectionItemPatternAvailableProperty $true)) | Where-Object { $_.Current.IsKeyboardFocusable -and -not $_.Current.IsOffscreen -and $_.Current.IsEnabled })
+        $calendarFocus = $calendarDays | Where-Object { $_.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Current.IsSelected } | Select-Object -First 1
+        if (-not $calendarFocus) { $calendarFocus = $calendarDays | Select-Object -First 1 }
+        if (-not $calendarFocus) { throw 'Calendar has no reachable day/month keyboard focus target' }
+        $calendarFocus.SetFocus()
         Keys '{ESC}'
         if (-not (WaitFor { $calendarPattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed } 5)) { throw 'Escape did not close the calendar popup' }
         if ((Value (ByName $win 'Исходная дата: Дата создания')) -ne $originalDate -or (CountByName $win ' · изменено') -ne 0) { throw 'Calendar inspection changed the document date' }
