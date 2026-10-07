@@ -79,6 +79,18 @@ jobs:
       - name: Install, exercise and uninstall the per-user MSI
         shell: pwsh
         run: ./scripts/test-installer.ps1
+      - name: Keyboard, theme, resize and large-data acceptance
+        timeout-minutes: 12
+        shell: pwsh
+        run: |
+          python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
+          if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
+          ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-acceptance
+          path: windows-acceptance
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -294,7 +294,7 @@
                                                   AutomationProperties.Name="Тип ввода значения" IsEnabled="{Binding Selected.IsEditable}"/>
                                         <TextBox x:Name="TagValue" Text="{Binding EditValue, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
                                                  Visibility="{Binding IsTextInput, Converter={StaticResource BoolToVis}}"
-                                                 TextWrapping="Wrap" MinHeight="60" IsEnabled="{Binding Selected.IsEditable}"
+                                                 TextWrapping="Wrap" MinHeight="60" MaxHeight="240" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding Selected.IsEditable}"
                                                  AutomationProperties.Name="Значение выбранного тега"/>
                                         <ComboBox ItemsSource="{Binding BooleanValues}" SelectedItem="{Binding EditValue}"
                                                   Visibility="{Binding IsBooleanInput, Converter={StaticResource BoolToVis}}"
