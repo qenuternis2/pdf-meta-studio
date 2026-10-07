@@ -49,6 +49,7 @@ public static class AcceptanceFocus {
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int size);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, string text);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, StringBuilder text);
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] static extern IntPtr GetParent(IntPtr h);
@@ -73,7 +74,10 @@ public static class AcceptanceFocus {
         if (filename == IntPtr.Zero) filename = FindControl(dialog, 1152, "Edit");
         if (filename == IntPtr.Zero) filename = FindControl(dialog, 1001, "Edit");
         if (filename == IntPtr.Zero) throw new InvalidOperationException("Native Shell filename edit was not found");
-        SendMessage(filename, 0x000C, IntPtr.Zero, path); // WM_SETTEXT
+        // WM_SETTEXT alone does not update the modern Shell's cached filename model.
+        // Targeted edit messages produce the same change notifications as character input.
+        SendMessage(filename, 0x00B1, IntPtr.Zero, new IntPtr(-1)); // EM_SETSEL: select all
+        foreach (char character in path) SendMessage(filename, 0x0102, new IntPtr(character), new IntPtr(1)); // WM_CHAR
         var actual = new StringBuilder(path.Length + 2);
         SendMessage(filename, 0x000D, new IntPtr(actual.Capacity), actual); // WM_GETTEXT
         if (actual.ToString() != path) throw new InvalidOperationException("Native Shell filename did not retain the requested path");
@@ -429,10 +433,11 @@ try {
     if ($KeyboardChecks) { $saveCopy.SetFocus(); Keys ' ' } else { Press $saveCopy }
     $sdlg = WaitFor { Dialog $proc.Id } 20
     if (-not $sdlg) { throw 'диалог сохранения не появился' }
-    Log ("OK  диалог сохранения: «{0}»" -f $sdlg.Current.Name)
+    $saveDialogName = $sdlg.Current.Name
+    Log ("OK  диалог сохранения: «{0}»" -f $saveDialogName)
     TypeIntoDialog $sdlg $target
     # После записи приложение показывает окно «Готово» (или «Файл не сохранён») — тоже класс #32770.
-    $box = WaitFor { $d = Dialog $proc.Id; if ($d -and $d.Current.Name -ne $sdlg.Current.Name) { $d } } 120
+    $box = WaitFor { $d = Dialog $proc.Id; if ($d -and $d.Current.Name -ne $saveDialogName) { $d } } 120
     if (-not $box) { throw 'после сохранения не появилось сообщение о результате' }
     $boxText = @($box.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Text)) | ForEach-Object { $_.Current.Name }) -join ' '
     Shot '4-saved'
