@@ -348,7 +348,7 @@ try {
         [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
         $calendarInput.SetFocus()
         $calendarPattern = $calendarInput.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
-        $calendarPattern.Expand()
+        Keys '%{DOWN}'
         $popup = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::ControlTypeProperty $CT::Calendar))) } 10
         if (-not $popup) { throw 'Calendar popup did not open' }
         $bounds = $popup.Current.BoundingRectangle
@@ -361,6 +361,8 @@ try {
         if (-not $calendarFocus) { $calendarFocus = $calendarDays | Select-Object -First 1 }
         if (-not $calendarFocus) { throw 'Calendar has no reachable day/month keyboard focus target' }
         $calendarFocus.SetFocus()
+        $calendarActualFocus = $AE::FocusedElement
+        Log ("Calendar focus before Escape: {0}; class={1}; process={2}; applicationForeground={3}" -f $calendarActualFocus.Current.Name, $calendarActualFocus.Current.ClassName, $calendarActualFocus.Current.ProcessId, [AcceptanceFocus]::HasForeground($proc.Id))
         Keys '{ESC}'
         if (-not (WaitFor { $calendarPattern.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Collapsed } 5)) { throw 'Escape did not close the calendar popup' }
         if ((Value (ByName $win 'Исходная дата: Дата создания')) -ne $originalDate -or (CountByName $win ' · изменено') -ne 0) { throw 'Calendar inspection changed the document date' }
