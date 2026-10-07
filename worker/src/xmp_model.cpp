@@ -190,12 +190,16 @@ json XmpDoc::model() const {
     std::string schemaNS, propPath, propValue;
     XMP_OptionBits opts = 0;
     while (it.Next(&schemaNS, &propPath, &propValue, &opts)) {
+        if (nodes.size() >= 100000)
+            throw WorkerError("xmp_too_many_nodes", "XMP содержит более 100 000 узлов; доступна замена или экспорт пакета");
         if (std::find(uris.begin(), uris.end(), schemaNS) == uris.end()) uris.push_back(schemaNS);
         if (opts & kXMP_SchemaNode) continue;
         json n;
         n["ns"] = schemaNS;
         n["path"] = propPath;
         n["steps"] = parseSdkPath(propPath);
+        if (n["steps"].size() > 64)
+            throw WorkerError("xmp_too_deep", "Глубина XMP превышает 64 уровня");
         n["form"] = formName(opts);
         if (XMP_PropIsSimple(opts)) n["value"] = sanitizeUtf8(propValue);
         if (opts & kXMP_PropValueIsURI) n["uri"] = true;
@@ -396,8 +400,60 @@ static void applyOne(Meta& meta, const json& op) {
         original.ParseFromBuffer(xml.data(), static_cast<XMP_StringLen>(xml.size()), kXMP_RequireXMPMeta);
         if (!original.DoesPropertyExist(ns, path))
             throw WorkerError("xmp_op_failed", "Исходное свойство не найдено: " + t.path);
+        const auto& steps = op.at("steps");
+        if (steps.back().value("t", "") == "item") {
+            json parents = steps; parents.erase(parents.size() - 1);
+            Target parent = composePath(parents);
+            int position = steps.back().at("i").get<int>();
+            Meta current = meta.Clone();
+            int count = meta.CountArrayItems(parent.schemaNS.c_str(), parent.path.c_str());
+            if (position > count + 1) throw WorkerError("xmp_op_failed", "Сначала восстановите предыдущие элементы массива");
+            for (int index = count; index >= 1; --index) meta.DeleteArrayItem(parent.schemaNS.c_str(), parent.path.c_str(), index);
+            for (int index = 1; index <= std::max(count, position); ++index) {
+                std::string item;
+                SXMPUtils::ComposeArrayItemPath(parent.schemaNS.c_str(), parent.path.c_str(), index, &item);
+                SXMPUtils::DuplicateSubtree(index == position ? original : current, &meta,
+                    parent.schemaNS.c_str(), item.c_str(), parent.schemaNS.c_str(), item.c_str());
+            }
+        } else {
+            meta.DeleteProperty(ns, path);
+            SXMPUtils::DuplicateSubtree(original, &meta, ns, path, ns, path);
+        }
+    } else if (kind == "rename") {
+        Target destination = composePath(op.at("toSteps"));
+        if (op.at("steps").back().value("t", "") == "item" || op.at("toSteps").back().value("t", "") == "item")
+            throw WorkerError("bad_request", "Элементы массива перемещаются, а не переименовываются");
+        if (!meta.DoesPropertyExist(ns, path) || meta.DoesPropertyExist(destination.schemaNS.c_str(), destination.path.c_str()))
+            throw WorkerError("xmp_op_failed", "Исходный узел отсутствует или новое имя уже занято");
+        auto sourceSteps = op.at("steps"), destinationSteps = op.at("toSteps");
+        if (sourceSteps.size() != destinationSteps.size() || sourceSteps.back().at("t") != destinationSteps.back().at("t"))
+            throw WorkerError("bad_request", "Переименование сохраняет родителя и тип шага");
+        auto last = sourceSteps.back();
+        if (last.value("t", "") == "qual" && last.value("ns", "") == "http://www.w3.org/XML/1998/namespace")
+            throw WorkerError("bad_request", "Системный квалификатор xml:lang нельзя переименовать");
+        sourceSteps.erase(sourceSteps.size() - 1); destinationSteps.erase(destinationSteps.size() - 1);
+        if (sourceSteps != destinationSteps) throw WorkerError("bad_request", "Переименование сохраняет родителя");
+        Meta original = meta.Clone();
+        SXMPUtils::DuplicateSubtree(original, &meta, ns, path, destination.schemaNS.c_str(), destination.path.c_str());
         meta.DeleteProperty(ns, path);
-        SXMPUtils::DuplicateSubtree(original, &meta, ns, path, ns, path);
+    } else if (kind == "moveItem") {
+        XMP_OptionBits options = 0;
+        if (!meta.GetProperty(ns, path, nullptr, &options) || !(options & kXMP_PropValueIsArray))
+            throw WorkerError("xmp_op_failed", "Выберите массив");
+        if (options & kXMP_PropArrayIsAltText) throw WorkerError("bad_request", "Порядок языков управляется языковыми метками");
+        int count = meta.CountArrayItems(ns, path), from = op.at("from").get<int>(), to = op.at("to").get<int>();
+        if (from < 1 || to < 1 || from > count || to > count) throw WorkerError("bad_request", "Позиция вне массива");
+        Meta original = meta.Clone();
+        std::vector<int> order;
+        for (int index = 1; index <= count; ++index) if (index != from) order.push_back(index);
+        order.insert(order.begin() + to - 1, from);
+        for (int index = count; index >= 1; --index) meta.DeleteArrayItem(ns, path, index);
+        for (int index = 1; index <= count; ++index) {
+            std::string sourceItem, targetItem;
+            SXMPUtils::ComposeArrayItemPath(ns, path, order[index - 1], &sourceItem);
+            SXMPUtils::ComposeArrayItemPath(ns, path, index, &targetItem);
+            SXMPUtils::DuplicateSubtree(original, &meta, ns, sourceItem.c_str(), ns, targetItem.c_str());
+        }
     } else if (kind == "delete") {
         if (!meta.DoesPropertyExist(ns, path))
             throw WorkerError("xmp_op_failed", "Свойство не найдено: " + t.path);
@@ -406,13 +462,18 @@ static void applyOne(Meta& meta, const json& op) {
         XMP_OptionBits o = 0;
         if (!meta.GetProperty(ns, path, nullptr, &o) || !(o & kXMP_PropValueIsArray))
             throw WorkerError("xmp_op_failed", "Список не найден: " + t.path);
-        meta.AppendArrayItem(ns, path, o & kXMP_PropArrayFormMask, op.value("value", "").c_str(),
-                             op.value("uri", false) ? kXMP_PropValueIsURI : 0);
+        auto bits = formBits(op.value("form", "simple"));
+        if (op.value("uri", false)) bits |= kXMP_PropValueIsURI;
+        meta.AppendArrayItem(ns, path, o & kXMP_PropArrayFormMask,
+                             XMP_PropIsSimple(bits) ? op.value("value", "").c_str() : nullptr, bits);
     } else if (kind == "insertItem") {
         XMP_OptionBits o = 0;
         if (!meta.GetProperty(ns, path, nullptr, &o) || !(o & kXMP_PropValueIsArray))
             throw WorkerError("xmp_op_failed", "Список не найден: " + t.path);
-        meta.SetArrayItem(ns, path, op.at("index").get<int>(), op.value("value", "").c_str(), kXMP_InsertBeforeItem);
+        auto bits = formBits(op.value("form", "simple"));
+        if (op.value("uri", false)) bits |= kXMP_PropValueIsURI;
+        meta.SetArrayItem(ns, path, op.at("index").get<int>(),
+                          XMP_PropIsSimple(bits) ? op.value("value", "").c_str() : nullptr, bits | kXMP_InsertBeforeItem);
     } else if (kind == "setArray") {
         opSetArray(meta, t, op.at("form").get<std::string>(), op.at("items"));
     } else if (kind == "setLangAlt") {
@@ -493,6 +554,33 @@ static void validateKnown(Meta& meta) {
             throw WorkerError("invalid_value", std::string("Ожидается True или False в ") + k.name);
         } else if (k.kind == 't' && v != "True" && v != "False" && v != "Unknown") {
             throw WorkerError("invalid_value", "pdf:Trapped допускает только True, False или Unknown");
+        }
+    }
+    struct Shape { const char* ns; const char* name; const char* form; };
+    static const Shape shapes[] = {
+        {kXMP_NS_DC, "title", "altText"}, {kXMP_NS_DC, "description", "altText"}, {kXMP_NS_DC, "rights", "altText"},
+        {kXMP_NS_DC, "creator", "seq"}, {kXMP_NS_DC, "subject", "bag"}, {kXMP_NS_DC, "language", "bag"},
+        {kXMP_NS_XMP, "CreatorTool", "simple"}, {kXMP_NS_PDF, "Keywords", "simple"}, {kXMP_NS_PDF, "Producer", "simple"},
+        {kXMP_NS_XMP_MM, "DocumentID", "simple"}, {kXMP_NS_XMP_MM, "InstanceID", "simple"},
+    };
+    for (const auto& shape : shapes) {
+        XMP_OptionBits options = 0;
+        if (!meta.GetProperty(shape.ns, shape.name, nullptr, &options)) continue;
+        if (std::string(formName(options)) != shape.form &&
+            !(std::string(shape.form) == "altText" && meta.CountArrayItems(shape.ns, shape.name) == 0 &&
+              (options & kXMP_PropArrayIsAlternate)))
+            throw WorkerError("invalid_value", std::string("Неверная структура известного поля ") + shape.name + ": требуется " + shape.form);
+        if (std::string(shape.form) == "seq" || std::string(shape.form) == "bag" || std::string(shape.form) == "altText") {
+            int count = meta.CountArrayItems(shape.ns, shape.name);
+            for (int index = 1; index <= count; ++index) {
+                std::string item, language;
+                SXMPUtils::ComposeArrayItemPath(shape.ns, shape.name, index, &item);
+                XMP_OptionBits itemOptions = 0;
+                meta.GetProperty(shape.ns, item.c_str(), nullptr, &itemOptions);
+                if (!XMP_PropIsSimple(itemOptions)) throw WorkerError("invalid_value", std::string("Элементы ") + shape.name + " должны быть текстом");
+                if (std::string(shape.form) == "altText" && !meta.GetQualifier(shape.ns, item.c_str(), kXMP_NS_XML, "lang", &language, nullptr))
+                    throw WorkerError("invalid_value", "У языкового варианта отсутствует xml:lang");
+            }
         }
     }
 }

@@ -24,4 +24,7 @@ public partial class EditorView : UserControl
     {
         if (Vm is { } vm) vm.DocumentScope = "detach";
     }
+    private void OnSaveMenu(object sender, System.Windows.RoutedEventArgs e) {
+        if (sender is System.Windows.Controls.Button { ContextMenu: { } menu }) { menu.PlacementTarget = (System.Windows.UIElement)sender; menu.IsOpen = true; }
+    }
 }

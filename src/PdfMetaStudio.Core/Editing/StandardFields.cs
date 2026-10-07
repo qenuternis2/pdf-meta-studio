@@ -105,7 +105,9 @@ public static class FieldReader
         var e = doc.InfoValue(f.InfoKey);
         if (e is null) return FieldValue.Absent;
         string text = e.Kind == "name" ? e.Value.TrimStart('/') : e.Value;
-        if (f.Kind == FieldKind.Date && PdfDateCodec.Parse(text) is { Ok: true } d) text = XmpDateCodec.Format(d.Date!);
+        if (f.Kind == FieldKind.Date && PdfDateCodec.Parse(text) is { Ok: true } d)
+            text = d.Date!.Precision == DatePrecision.Hour || (d.Date.Hour is null && d.Date.Zone != ZoneKind.None)
+                ? PdfDateCodec.Format(d.Date).Text : XmpDateCodec.Format(d.Date);
         return FieldValue.OfText(text);
     }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(pdfmeta_worker VERSION 0.1.0 LANGUAGES C CXX)
+project(pdfmeta_worker VERSION 0.3.0 LANGUAGES C CXX)
 
 # Исходники зависимостей кладёт scripts/fetch-deps.(sh|ps1) в worker/external
 # (версии закреплены в scripts/deps.lock). Можно указать другой каталог.
@@ -48,12 +48,15 @@ add_library(pdfmeta_core STATIC
   src/pdf_edit.cpp
   src/fileutil.cpp
   src/object_fields.cpp
+  src/logical_graph.cpp
+  src/private_data.cpp
 )
 target_include_directories(pdfmeta_core PUBLIC src third_party)
 target_link_libraries(pdfmeta_core PUBLIC libqpdf xmpcore_static)
 target_compile_definitions(pdfmeta_core PUBLIC PDFMETA_VERSION="${PROJECT_VERSION}")
 if(WIN32)
-  target_compile_definitions(pdfmeta_core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+    target_compile_definitions(pdfmeta_core PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+    target_link_libraries(pdfmeta_core PUBLIC advapi32)
 endif()
 
 add_executable(pdfmeta-worker src/main.cpp)

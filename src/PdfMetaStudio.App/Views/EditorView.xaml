@@ -1,6 +1,7 @@
 <UserControl x:Class="PdfMetaStudio.App.Views.EditorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:PdfMetaStudio.App.Views"
              xmlns:vm="clr-namespace:PdfMetaStudio.App.ViewModels"
              AutomationProperties.Name="Редактор метаданных">
     <UserControl.InputBindings>
@@ -39,6 +40,7 @@
                          AutomationProperties.Name="{Binding AccessibleName}" AutomationProperties.HelpText="{Binding Hint}"/>
                 <TextBlock Text="Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить." Style="{StaticResource Secondary}"
                            FontSize="12" Visibility="{Binding IsDeleted, Converter={StaticResource BoolToVis}}"/>
+                <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Hint}" Style="{StaticResource Secondary}" FontSize="12" TextWrapping="Wrap"
                            Visibility="{Binding Hint, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Problem}" Style="{StaticResource Warn}" Visibility="{Binding Problem, Converter={StaticResource NullToVis}}"/>
@@ -78,6 +80,15 @@
                                    VerticalAlignment="Center" Visibility="{Binding IsAbsent, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
                 </DockPanel>
+                <StackPanel Visibility="{Binding IsLocalized, Converter={StaticResource BoolToVis}}">
+                    <ComboBox ItemsSource="{Binding LanguageOptions}" Text="{Binding SelectedLanguage, UpdateSourceTrigger=LostFocus}" IsEditable="True" AutomationProperties.Name="Язык поля"/>
+                    <WrapPanel><Button Content="Применить языковой вариант XMP" Command="{Binding ApplyLanguageCommand}"/><Button Content="Удалить только этот язык" Command="{Binding DeleteLanguageCommand}"/></WrapPanel>
+                </StackPanel>
+                <StackPanel Visibility="{Binding IsList, Converter={StaticResource BoolToVis}}">
+                    <ListBox ItemsSource="{Binding Items}" SelectedIndex="{Binding SelectedItemIndex}" MaxHeight="180" AutomationProperties.Name="Элементы списка"/>
+                    <TextBox Text="{Binding ItemText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Автор или элемент списка"/>
+                    <WrapPanel><Button Content="Добавить элемент" Command="{Binding AddItemCommand}"/><Button Content="Изменить элемент" Command="{Binding UpdateItemCommand}"/><Button Content="Удалить элемент" Command="{Binding DeleteItemCommand}"/><Button Content="Выше" Command="{Binding MoveItemUpCommand}"/><Button Content="Ниже" Command="{Binding MoveItemDownCommand}"/></WrapPanel>
+                </StackPanel>
                 <Grid Margin="0,6,0,0">
                     <TextBox x:Name="Input" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding IsDeleted, Converter={StaticResource Not}}"
@@ -91,7 +102,9 @@
                 </Grid>
                 <TextBlock Text="Значение удалено. Нажмите кнопку корзины ещё раз, чтобы восстановить." Style="{StaticResource Secondary}"
                            FontSize="12" Visibility="{Binding IsDeleted, Converter={StaticResource BoolToVis}}"/>
+                <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
+                <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Hint}" Style="{StaticResource Secondary}" FontSize="12"
                            Visibility="{Binding Hint, Converter={StaticResource NullToVis}}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="{Binding HasSyncChoice, Converter={StaticResource BoolToVis}}">
@@ -161,7 +174,10 @@
         <StackPanel Margin="22,16,22,12">
             <TextBlock Text="{Binding FileName}" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                        AutomationProperties.HeadingLevel="Level1"/>
-            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/>
+            <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
+            <TextBlock Text="{Binding ReadOnlyMessage}" Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}" Style="{StaticResource Warn}"/>
+            <ComboBox ItemsSource="{Binding DocumentScopeOptions}" SelectedItem="{Binding SelectedDocumentScope}" DisplayMemberPath="Title" Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Область правки XMP документа"/>
+            <Expander Header="Размеры страниц (только чтение)"><TextBox Text="{Binding PageDimensions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="140" VerticalScrollBarVisibility="Auto"/></Expander>
             <ItemsControl ItemsSource="{Binding DocumentNotes}" Visibility="{Binding HasDocumentNotes, Converter={StaticResource BoolToVis}}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -201,6 +217,10 @@
 
             <Border Grid.Column="1" BorderThickness="1,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                     Background="{DynamicResource LayerFillColorDefaultBrush}">
+                <Border.Resources>
+                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Setter Property="IsReadOnly" Value="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=views:EditorView}}"/></Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Setter Property="IsEnabled" Value="{Binding DataContext.IsReadOnly, RelativeSource={RelativeSource AncestorType=views:EditorView}, Converter={StaticResource Not}}"/></Style>
+                </Border.Resources>
                 <Grid>
                     <!-- Основные -->
                     <ScrollViewer Visibility="{Binding DataContext.SelectedSection, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource SectionVis}, ConverterParameter=main}"
@@ -262,6 +282,7 @@
                                     <StackPanel Visibility="{Binding Selected, Converter={StaticResource NullToVis}}">
                                         <TextBlock Text="{Binding Selected.Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
                                         <TextBlock Text="{Binding Selected.Subtitle}" Style="{StaticResource Secondary}" FontSize="12"/>
+                                        <TextBlock Text="{Binding SelectedHint}" TextWrapping="Wrap" Style="{StaticResource Secondary}"/>
                                         <TextBlock Text="Точный путь" Style="{StaticResource Secondary}" FontSize="12" Margin="0,8,0,0"/>
                                         <TextBox Text="{Binding Selected.ExactPath, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
                                                  FontFamily="Cascadia Mono, Consolas" FontSize="11" AutomationProperties.Name="Точный путь тега"/>
@@ -278,6 +299,19 @@
                                         <ComboBox ItemsSource="{Binding BooleanValues}" SelectedItem="{Binding EditValue}"
                                                   Visibility="{Binding IsBooleanInput, Converter={StaticResource BoolToVis}}"
                                                   IsEnabled="{Binding Selected.IsEditable}" AutomationProperties.Name="Логическое значение"/>
+                                        <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.IsDateInput, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource BoolToVis}}"/>
+                                        <Expander Header="Элементы массива" Visibility="{Binding CanManageArray, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel>
+                                                <ComboBox ItemsSource="{Binding ItemTypes}" SelectedItem="{Binding ItemType}" DisplayMemberPath="Title" AutomationProperties.Name="Тип нового элемента"/>
+                                                <TextBox Text="{Binding ItemValue, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Значение нового элемента"/>
+                                                <WrapPanel><Button Content="Добавить в конец" Command="{Binding AppendItemCommand}"/><Button Content="Вставить перед выбранным" Command="{Binding InsertItemCommand}"/></WrapPanel>
+                                                <WrapPanel Visibility="{Binding CanMoveItem, Converter={StaticResource BoolToVis}}"><Button Content="Выше" Command="{Binding MoveItemUpCommand}"/><Button Content="Ниже" Command="{Binding MoveItemDownCommand}"/></WrapPanel>
+                                            </StackPanel>
+                                        </Expander>
+                                        <Expander Header="Переименовать узел" Visibility="{Binding CanRename, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel><TextBox Text="{Binding RenameName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Новое имя узла"/><TextBox Text="{Binding RenameUri, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Пространство имён нового имени"/><Button Content="Переименовать" Command="{Binding RenameCommand}"/></StackPanel>
+                                        </Expander>
+                                        <Expander Header="Диагностика PDF: тип и исходные байты"><TextBox Text="{Binding SelectedDiagnostic, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="300" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Диагностика выбранного PDF-значения"/></Expander>
                                         <WrapPanel Margin="0,8,0,0">
                                             <Button Content="_Применить" Command="{Binding ApplyCommand}" Margin="0,0,8,6"/>
                                             <Button Content="Удалить" Command="{Binding DeleteCommand}" Margin="0,0,8,6"/>
@@ -325,6 +359,8 @@
                                 <ComboBox ItemsSource="{Binding ScopeOptions}" SelectedItem="{Binding SelectedScope}" DisplayMemberPath="Title"
                                           Visibility="{Binding HasScopeChoice, Converter={StaticResource BoolToVis}}"
                                           AutomationProperties.Name="Область правки выбранного потока"/>
+                                <Button IsEnabled="True" Content="Экспортировать исходный пакет без изменения байтов…" Command="{Binding ExportOriginalPacketCommand}" HorizontalAlignment="Left"/>
+                                <Expander Header="Исходные байты не-UTF-8 пакета (Base64)" Visibility="{Binding RawPacketBase64, Converter={StaticResource NullToVis}}"><TextBox Text="{Binding RawPacketBase64, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto"/></Expander>
                                 <TextBlock Text="{Binding DocumentXmpProblem}" Style="{StaticResource Warn}"
                                            Visibility="{Binding DocumentXmpProblem, Converter={StaticResource NullToVis}}"/>
                                 <TextBox Text="{Binding RawXml, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
@@ -384,14 +420,17 @@
                             <TextBlock Text="Имя, описание и даты вложенных файлов. Содержимое файлов не изменяется." Style="{StaticResource Secondary}"
                                        FontSize="12" Margin="0,0,0,8" Visibility="{Binding HasAttachments, Converter={StaticResource BoolToVis}}"/>
                             <ItemsControl ItemsSource="{Binding Attachments}" ItemTemplate="{StaticResource ObjectItemTemplate}" Focusable="False"/>
-                            <TextBlock Text="Частные контейнеры /PieceInfo (только чтение)" FontWeight="SemiBold" Margin="0,12,0,6"
+                            <TextBlock Text="Частные контейнеры /PieceInfo" FontWeight="SemiBold" Margin="0,12,0,6"
                                        Visibility="{Binding HasPieceInfo, Converter={StaticResource BoolToVis}}"/>
                             <ItemsControl ItemsSource="{Binding PieceInfo}" Focusable="False">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Margin="0,0,0,8">
                                             <TextBlock Text="{Binding Title}"/>
-                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12"/>
+                                            <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12" TextWrapping="Wrap"/>
+                                            <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource ObjectFieldTemplate}"/>
+                                            <Expander Header="Типы и исходные байты"><TextBox Text="{Binding Diagnostic, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="240" VerticalScrollBarVisibility="Auto"/></Expander>
+                                            <Button IsEnabled="True" Content="Экспортировать частные данные…" Command="{Binding ExportCommand}" HorizontalAlignment="Left"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -431,7 +470,8 @@
                                         <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
                                             <Run Text="{Binding Path, Mode=OneWay}"/>
                                         </TextBlock>
-                                        <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
+                                        <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
+                <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
                                         <TextBlock Text="{Binding Note}" Style="{StaticResource Warn}" FontSize="12"
                                                    Visibility="{Binding Note, Converter={StaticResource NullToVis}}"/>
                                         <Grid Margin="0,6,0,0">
@@ -460,6 +500,11 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <Expander Header="Внешний валидатор профиля (необязательно)">
+                        <StackPanel><TextBlock Text="После сохранения локальный veraPDF проверит записанный файл. Проверка PDF/A или PDF/UA не подтверждает PDF/X; статус каждого профиля оценивается отдельно." TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding ValidatorPath}" TextWrapping="Wrap"/><WrapPanel><Button Content="Выбрать veraPDF CLI…" Command="{Binding SelectValidatorCommand}"/><Button Content="Отключить валидатор" Command="{Binding ClearValidatorCommand}"/></WrapPanel>
+                        </StackPanel>
+                    </Expander>
                     <CheckBox Content="Обновить дату изменения (/ModDate, xmp:ModifyDate, xmp:MetadataDate)" IsChecked="{Binding UpdateModifyDate}" Margin="0,14,0,0"/>
                     <CheckBox Content="Я понимаю, что подпись в копии станет недействительной" IsChecked="{Binding SignedAcknowledged}" Margin="0,8,0,0"
                               Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/>
@@ -497,7 +542,9 @@
                     <TextBlock DockPanel.Dock="Left" Text="Оригинал останется без изменений" VerticalAlignment="Center" Style="{StaticResource Secondary}"/>
                     <Button DockPanel.Dock="Right" Content="Сохранить копию…" Command="{Binding SaveCopyCommand}"
                             Style="{DynamicResource AccentButtonStyle}" Margin="8,0,0,0"/>
-                    <Button DockPanel.Dock="Right" Content="Заменить оригинал…" Command="{Binding ReplaceCommand}" Margin="8,0,0,0"/>
+                    <Button DockPanel.Dock="Right" Content="Дополнительно ▾" Margin="8,0,0,0" Click="OnSaveMenu">
+                        <Button.ContextMenu><ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"><MenuItem Header="Заменить оригинал…" Command="{Binding ReplaceCommand}"/></ContextMenu></Button.ContextMenu>
+                    </Button>
                     <Button DockPanel.Dock="Right" Content="К редактированию" Command="{Binding BackToEditCommand}" Margin="8,0,0,0" IsCancel="True"/>
                 </DockPanel>
             </StackPanel>

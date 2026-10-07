@@ -104,9 +104,9 @@ public static partial class XmpDateCodec
         if (d.Day is not { } day) return sb.ToString();
         sb.Append('-').Append(day.ToString("D2", CultureInfo.InvariantCulture));
         if (d.Hour is not { } h) return sb.ToString();
-        // XMP требует минуты при наличии часа.
+        if (d.Minute is null) throw new ArgumentException("XMP требует минуты при наличии часа; недостающие части не подставляются");
         sb.Append('T').Append(h.ToString("D2", CultureInfo.InvariantCulture))
-          .Append(':').Append((d.Minute ?? 0).ToString("D2", CultureInfo.InvariantCulture));
+          .Append(':').Append(d.Minute.Value.ToString("D2", CultureInfo.InvariantCulture));
         if (d.Second is { } s)
         {
             sb.Append(':').Append(s.ToString("D2", CultureInfo.InvariantCulture));
@@ -165,7 +165,7 @@ public static partial class PdfDateCodec
         Two(d.Month);
         if (d.Month != null) Two(d.Day);
         if (d.Day != null) Two(d.Hour);
-        if (d.Hour != null) Two(d.Minute ?? 0);
+        if (d.Hour != null) Two(d.Minute);
         if (d.Minute != null) Two(d.Second);
         if (d.Fraction != null) losses.Add("дробные секунды (." + d.Fraction + ") в PDF-дате не хранятся");
         // В PDF пояс записывается только при наличии времени.

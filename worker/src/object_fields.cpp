@@ -2,6 +2,7 @@
 
 #include "pdf_doc.hpp"
 #include "sha256.hpp"
+#include "private_data.hpp"
 
 #include <qpdf/QPDFEFStreamObjectHelper.hh>
 #include <qpdf/QPDFEmbeddedFileDocumentHelper.hh>
@@ -22,6 +23,9 @@ const ObjectField kFields[] = {
     {"attachment", "description", "/Desc", "Описание", false, true},
     {"attachment", "created", "/Params /CreationDate", "Дата создания", true, true},
     {"attachment", "modified", "/Params /ModDate", "Дата изменения", true, true},
+    {"private", "label", "/Label", "Название", false, true},
+    {"private", "description", "/Description", "Описание", false, true},
+    {"private", "modified", "/LastModified", "Дата изменения", true, true},
 };
 
 bool digits(const std::string& v, size_t pos, size_t n, int& out) {
@@ -113,12 +117,21 @@ const ObjectField* findObjectField(const std::string& kind, const std::string& f
 }
 
 QPDFObjectHandle resolveAnnotation(QPDF& q, const std::string& ref, std::string* label) {
-    QPDFObjGen og = parseRef(ref);
+    QPDFObjGen og;
+    int directPage = -1, directIndex = -1;
+    if (ref.starts_with("page:")) {
+        auto separator = ref.find(":annot:", 5);
+        if (separator == std::string::npos) throw WorkerError("bad_request", "Некорректный адрес аннотации");
+        directPage = std::stoi(ref.substr(5, separator - 5)) - 1;
+        directIndex = std::stoi(ref.substr(separator + 7)) - 1;
+    } else og = parseRef(ref);
     auto pages = q.getAllPages();
     for (size_t i = 0; i < pages.size(); ++i) {
+        int annotationIndex = 0;
         for (auto& a : QPDFPageObjectHelper(pages[i]).getAnnotations()) {
             QPDFObjectHandle o = a.getObjectHandle();
-            if (o.isIndirect() && o.getObjGen() == og) {
+            if ((directPage >= 0 && static_cast<int>(i) == directPage && annotationIndex == directIndex && o.isDictionary()) ||
+                (directPage < 0 && o.isIndirect() && o.getObjGen() == og)) {
                 if (label) {
                     std::string st = sanitizeUtf8(a.getSubtype());
                     if (!st.empty() && st[0] == '/') st.erase(0, 1);
@@ -126,12 +139,14 @@ QPDFObjectHandle resolveAnnotation(QPDF& q, const std::string& ref, std::string*
                 }
                 return o;
             }
+            ++annotationIndex;
         }
     }
     throw WorkerError("bad_request", "Аннотация не найдена на страницах документа: " + ref);
 }
 
 std::string objectLabel(QPDF& q, const std::string& kind, const std::string& address) {
+    if (kind == "private") { privateEntry(q, address); return "Частные данные PDF Meta Studio"; }
     if (kind == "annotation") {
         std::string label;
         resolveAnnotation(q, address, &label);
@@ -143,6 +158,7 @@ std::string objectLabel(QPDF& q, const std::string& kind, const std::string& add
 }
 
 json readObjectField(QPDF& q, const std::string& kind, const std::string& address, const ObjectField& f) {
+    if (kind == "private") return privateFields(privateEntry(q, address)).at(f.field);
     if (kind == "annotation") return stringOrNull(resolveAnnotation(q, address).getKey(f.key));
     auto spec = resolveAttachment(q, address);
     std::string field = f.field;
@@ -179,6 +195,15 @@ void writeObjectField(QPDF& q, const std::string& kind, const std::string& addre
             // Даты — строки PDF из ASCII; текст — строка Unicode.
             o.replaceKey(f.key, f.isDate ? QPDFObjectHandle::newString(v) : QPDFObjectHandle::newUnicodeString(v));
         }
+        return;
+    }
+
+    if (kind == "private") {
+        auto entry = privateEntry(q, address);
+        if (!supportedPrivateEntry(entry)) throw WorkerError("unsupported_private_schema", "Для этого частного блока нет подходящего адаптера; доступен экспорт");
+        auto dictionary = std::string(f.field) == "modified" ? entry : entry.getKey("/Private");
+        if (value.is_null()) dictionary.removeKey(f.key);
+        else dictionary.replaceKey(f.key, f.isDate ? QPDFObjectHandle::newString(value.get<std::string>()) : QPDFObjectHandle::newUnicodeString(value.get<std::string>()));
         return;
     }
 

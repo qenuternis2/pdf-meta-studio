@@ -890,6 +890,105 @@ def test_conflicting_object_generations_cannot_change_pages(c):
     assert sha(src) == original_hash
 
 
+
+def test_array_movement_rename_and_qualifiers(c):
+    source = c.pdf("typed.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    operations = [
+        {"op": "moveItem", "steps": [prop(DC, "subject")], "from": 4, "to": 1},
+        {"op": "set", "steps": [prop(DC, "subject"), item(1)], "value": "Changed"},
+        {"op": "appendItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "value": "new@example.org"},
+        {"op": "insertItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "index": 2, "value": "insert@example.org"},
+        {"op": "rename", "steps": [prop(ATLAS, "Info")], "toSteps": [prop(ATLAS, "Renamed")]},
+    ]
+    target = os.path.join(c.tmp, "typed-out.pdf")
+    saved = c.save(source, opened, {"xmp": [{"stream": stream["ref"], "ops": operations}]}, target)
+    assert_checks_ok(saved)
+    model = doc_stream(c.open(target))["model"]
+    values = nodes(model)
+    assert values["dc:subject[1]"]["value"] == "Changed"
+    assert values["dc:subject[1]/?ex:source"]["value"] == "manual"
+    assert "atlas:Info" not in values
+    assert values["atlas:Renamed/atlas:Contacts[2]"]["value"] == "insert@example.org"
+    assert values["atlas:Renamed/atlas:Contacts[4]"]["value"] == "new@example.org"
+
+
+def test_compound_array_items_and_positional_restore(c):
+    source = c.pdf("compound.pdf")
+    opened = c.open(source)
+    stream = doc_stream(opened)
+    operations = [
+        {"op": "delete", "steps": [prop(DC, "creator"), item(3)]},
+        {"op": "restore", "steps": [prop(DC, "creator"), item(3)], "xml": stream["packet"]},
+        {"op": "appendItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "form": "struct"},
+        {"op": "create", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts"), item(3), field(ATLAS, "Name")], "value": "Nested"},
+        {"op": "moveItem", "steps": [prop(ATLAS, "Info"), field(ATLAS, "Contacts")], "from": 3, "to": 1},
+    ]
+    target = os.path.join(c.tmp, "compound-out.pdf")
+    assert_checks_ok(c.save(source, opened, {"xmp": [{"stream": stream["ref"], "ops": operations}]}, target))
+    values = nodes(doc_stream(c.open(target)))
+    assert values["dc:creator[3]"]["value"] == "🤖 Bot"
+    assert values["atlas:Info/atlas:Contacts[1]/atlas:Name"]["value"] == "Nested"
+
+
+def test_direct_annotations_and_known_private_adapter(c):
+    builder = pdfgen.Builder()
+    root, pages, page = builder.reserve(), builder.reserve(), builder.reserve()
+    builder.set(root, b"<< /Type /Catalog /Pages %d 0 R /PieceInfo << /PdfMetaStudio << /Private << /Schema /PdfMetaStudioV1 /Label (Before) >> /LastModified (D:2026) >> >> >>" % pages)
+    builder.set(pages, b"<< /Type /Pages /Kids [%d 0 R] /Count 1 >>" % page)
+    builder.set(page, b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 100 100] /Resources << >> /Annots [<< /Type /Annot /Subtype /Text /Rect [0 0 10 10] /T (Author) /Contents (Keep this) >>] >>" % pages)
+    source = write(os.path.join(c.tmp, "direct-private.pdf"), builder.build(root))
+    opened = c.open(source)
+    app = opened["pieceInfo"][0]["apps"][0]
+    assert app["adapter"] == "PdfMetaStudioV1", app
+    assert opened["annotations"][0]["editable"]
+    address = opened["annotations"][0]["ref"]
+    assert address == "page:1:annot:1"
+    export = os.path.join(c.tmp, "private.json")
+    c.w.call("exportPrivate", path=source, address=app["address"], target=export)
+    exported = json.load(open(export, encoding="utf-8"))
+    assert exported["root"]["type"] == "dictionary"
+    assert_checks_ok(c.save(source, opened, {"objects": [
+        {"kind": "annotation", "address": address, "field": "author", "value": "Changed", "op": "set"},
+        {"kind": "private", "address": app["address"], "field": "label", "value": "After", "op": "set"}
+    ]}, mode="replace"))
+    again = c.open(source)
+    assert again["annotations"][0]["fields"]["author"] == "Changed"
+    assert again["pieceInfo"][0]["apps"][0]["fields"]["label"] == "After"
+
+
+def test_private_opaque_export_keeps_raw_stream_bytes(c):
+    source = c.pdf("private.pdf", big_stream_bytes=4096)
+    opened = c.open(source)
+    app = opened["pieceInfo"][0]["apps"][0]
+    assert app["adapter"] is None
+    export = os.path.join(c.tmp, "opaque.json")
+    c.w.call("exportPrivate", path=source, address=app["address"], target=export)
+    data = json.load(open(export, encoding="utf-8"))
+    assert any("rawStreamBase64" in value for value in data["objects"].values())
+    expect_error("target_is_source", lambda: c.w.call("exportPrivate", path=source, address=app["address"], target=source))
+
+
+def test_pdf_identity_detects_replacement_with_identical_bytes(c):
+    source = c.pdf("identity.pdf")
+    opened = c.open(source)
+    assert opened["file"]["fingerprint"]["identity"]
+    old_stat = os.stat(source)
+    replacement = os.path.join(c.tmp, "replacement.pdf")
+    shutil.copyfile(source, replacement)
+    os.utime(replacement, ns=(old_stat.st_atime_ns, old_stat.st_mtime_ns))
+    os.replace(replacement, source)
+    expect_error("external_change", lambda: c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "x"}]}, mode="replace"))
+
+
+def test_invalid_protocol_envelopes_do_not_crash_worker(c):
+    for request in ['[]', '{"cmd":1}', '{"cmd":"open","id":"wrong"}']:
+        c.w.p.stdin.write((request + "\n").encode()); c.w.p.stdin.flush()
+        response = json.loads(c.w.p.stdout.readline())
+        assert response["code"] == "bad_request", response
+    assert c.w.call("hello")["protocol"] == 1
+
 TESTS = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
 
 

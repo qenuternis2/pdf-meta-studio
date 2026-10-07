@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Security.Cryptography;
 using PdfMetaStudio.Core.Editing;
 using PdfMetaStudio.Core.Model;
 using PdfMetaStudio.Core.Protocol;
@@ -17,6 +18,7 @@ public sealed class DocumentService : IAsyncDisposable
     private WorkerClient? _worker;
     private readonly SemaphoreSlim _workerStart = new(1, 1);
     private readonly string? _workerPath;
+    private readonly HashSet<string> _snapshotDirectories = new();
 
     public DocumentService(string? workerPath = null) => _workerPath = workerPath;
 
@@ -40,6 +42,13 @@ public sealed class DocumentService : IAsyncDisposable
         finally { _workerStart.Release(); }
     }
 
+    public async Task RestartWorkerAsync(CancellationToken ct = default)
+    {
+        await _workerStart.WaitAsync(ct).ConfigureAwait(false);
+        try { if (_worker != null) await _worker.DisposeAsync().ConfigureAwait(false); _worker = null; }
+        finally { _workerStart.Release(); }
+    }
+
     public async Task<string> VersionInfoAsync(CancellationToken ct = default)
     {
         var w = await WorkerAsync(ct).ConfigureAwait(false);
@@ -54,7 +63,29 @@ public sealed class DocumentService : IAsyncDisposable
         var args = new JsonObject { ["path"] = path };
         if (!string.IsNullOrEmpty(password)) args["password"] = password;
         var r = await w.CallAsync("open", args, progress, ct).ConfigureAwait(false);
-        return DocumentSnapshot.FromJson(r, password);
+        var document = DocumentSnapshot.FromJson(r, password);
+        string directory = Directory.CreateTempSubdirectory("pdf-meta-studio-").FullName;
+        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        string snapshot = Path.Combine(directory, "source.pdf");
+        try
+        {
+            await using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true))
+            await using (var output = new FileStream(snapshot, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, true))
+                await input.CopyToAsync(output, ct).ConfigureAwait(false);
+            await using var cached = File.OpenRead(snapshot);
+            string hash = Convert.ToHexString(await SHA256.HashDataAsync(cached, ct).ConfigureAwait(false)).ToLowerInvariant();
+            if (hash != (string?)document.Fingerprint["sha256"])
+                throw new WorkerException("external_change", "Файл изменился при открытии; загрузите его заново");
+            lock (_snapshotDirectories) _snapshotDirectories.Add(directory);
+            return document with { SnapshotPath = snapshot };
+        }
+        catch (Exception error)
+        {
+            try { Directory.Delete(directory, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            if (error is IOException or UnauthorizedAccessException)
+                throw new WorkerException("snapshot_failed", "Не удалось сохранить снимок открытого файла: " + error.Message);
+            throw;
+        }
     }
 
     public async Task<(ReviewResult Review, BuiltRequest Request)> PreviewAsync(EditSession session,
@@ -94,15 +125,40 @@ public sealed class DocumentService : IAsyncDisposable
         return new SaveOutcome((string)r["target"]!, (string?)r["backup"], checks, notes);
     }
 
+    public async Task ExportMetadataAsync(EditSession session, string reference, string target, CancellationToken ct = default)
+    {
+        var worker = await WorkerAsync(ct).ConfigureAwait(false);
+        var args = Base(session); args["stream"] = reference; args["target"] = target;
+        await worker.CallAsync("exportMetadata", args, null, ct).ConfigureAwait(false);
+    }
+
+    public async Task ExportPrivateAsync(EditSession session, string address, string target, CancellationToken ct = default)
+    {
+        var worker = await WorkerAsync(ct).ConfigureAwait(false);
+        var args = Base(session);
+        args["address"] = address; args["target"] = target;
+        await worker.CallAsync("exportPrivate", args, null, ct).ConfigureAwait(false);
+    }
+
     private static JsonObject Base(EditSession session)
     {
         var o = new JsonObject { ["path"] = session.Document.FilePath };
+        if (session.Document.SnapshotPath != null) o["snapshotPath"] = session.Document.SnapshotPath;
         if (!string.IsNullOrEmpty(session.Document.Password)) o["password"] = session.Document.Password;
         return o;
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_worker != null) await _worker.DisposeAsync().ConfigureAwait(false);
+        try { if (_worker != null) await _worker.DisposeAsync().ConfigureAwait(false); }
+        finally
+        {
+            lock (_snapshotDirectories)
+            {
+                foreach (string directory in _snapshotDirectories)
+                    try { Directory.Delete(directory, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                _snapshotDirectories.Clear();
+            }
+        }
     }
 }

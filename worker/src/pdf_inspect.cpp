@@ -3,6 +3,8 @@
 
 #include "sha256.hpp"
 #include "xmp_model.hpp"
+#include "logical_graph.hpp"
+#include "private_data.hpp"
 
 #include <qpdf/Buffer.hh>
 #include <qpdf/Pipeline.hh>
@@ -179,6 +181,7 @@ Discovery discover(QPDF& q, Context* ctx) {
         QPDFObjGen owner;
         std::string keyPath;
         json path = json::array();
+        size_t depth = 0;
     };
     std::vector<Item> stack;
     std::unordered_set<std::string> visited;
@@ -218,6 +221,11 @@ Discovery discover(QPDF& q, Context* ctx) {
             Item it = stack.back();
             stack.pop_back();
             if (++steps % 2000 == 0 && ctx) ctx->checkCancel();
+            if (steps > 1000000 || it.depth > 128) {
+                d.issues.push_back({"limits", "Превышен лимит обхода: 1 000 000 элементов или 128 уровней"});
+                if (steps > 1000000) { stack.clear(); break; }
+                continue;
+            }
             try {
                 QPDFObjectHandle obj = it.obj;
                 QPDFObjGen owner = it.owner;
@@ -232,10 +240,12 @@ Discovery discover(QPDF& q, Context* ctx) {
                 }
                 if (obj.isArray()) {
                     int n = obj.getArrayNItems();
+                    if (n > 100000 || stack.size() + n > 100000)
+                        throw WorkerError("scan_limit", "Очередь обхода превышает 100 000 элементов");
                     for (int i = n - 1; i >= 0; --i) {
                         json child = path;
                         child.push_back(i);
-                        stack.push_back({obj.getArrayItem(i), owner, keyPath + "[" + std::to_string(i) + "]", child});
+                        stack.push_back({obj.getArrayItem(i), owner, keyPath + "[" + std::to_string(i) + "]", child, it.depth + 1});
                     }
                     continue;
                 }
@@ -264,6 +274,10 @@ Discovery discover(QPDF& q, Context* ctx) {
                             QPDFObjectHandle a = pi.getKey(app);
                             json aj{{"name", sanitizeUtf8(app)}};
                             if (a.isDictionary()) {
+                                aj["address"] = privateAddress(refOf(owner), path, app);
+                                aj["adapter"] = supportedPrivateEntry(a) ? json("PdfMetaStudioV1") : json(nullptr);
+                                if (supportedPrivateEntry(a)) aj["fields"] = privateFields(a);
+                                aj["diagnostic"] = pdfValueTree(a.getKey("/Private"));
                                 if (a.getKey("/LastModified").isString())
                                     aj["lastModified"] = sanitizeUtf8(a.getKey("/LastModified").getUTF8Value());
                                 QPDFObjectHandle priv = a.getKey("/Private");
@@ -276,11 +290,12 @@ Discovery discover(QPDF& q, Context* ctx) {
                 }
                 std::string base = keyPath.empty() ? "" : keyPath;
                 for (const auto& key : dict.getKeys()) {
+                    if (stack.size() >= 100000) throw WorkerError("scan_limit", "Очередь обхода превышает 100 000 элементов");
                     QPDFObjectHandle v = dict.getKey(key);
                     if (v.isIndirect() || v.isArray() || v.isDictionary() || v.isStream()) {
                         json child = path;
                         child.push_back(key);
-                        stack.push_back({v, owner, base + key, child});
+                        stack.push_back({v, owner, base + key, child, it.depth + 1});
                     }
                 }
             } catch (const Cancelled&) {
@@ -299,6 +314,7 @@ Discovery discover(QPDF& q, Context* ctx) {
         auto all = q.getAllObjects();
         d.totalObjects = all.size();
         for (auto& obj : all) {
+            if (steps > 1000000) break;
             if (++steps % 2000 == 0 && ctx) ctx->checkCancel();
             try {
                 // Traverse unreferenced dictionaries and their direct children too.
@@ -363,6 +379,7 @@ json infoToJson(QPDF& q) {
         QPDFObjectHandle v = info.getKey(key);
         if (v.isNull()) continue;  // null в словаре = отсутствие ключа
         json e = stringValueJson(v);
+        e["diagnostic"] = pdfValueTree(v);
         e["key"] = sanitizeUtf8(key);
         j["entries"].push_back(e);
     }
@@ -489,17 +506,20 @@ static json annotationsJson(QPDF& q) {
     json arr = json::array();
     auto pages = q.getAllPages();
     for (size_t i = 0; i < pages.size(); ++i) {
+        int index = 0;
         for (auto& a : QPDFPageObjectHelper(pages[i]).getAnnotations()) {
+            ++index;
             QPDFObjectHandle o = a.getObjectHandle();
             json j{{"page", i + 1}, {"subtype", sanitizeUtf8(a.getSubtype())}};
             if (o.isIndirect()) j["ref"] = refOf(o.getObjGen());
+            else j["ref"] = "page:" + std::to_string(i + 1) + ":annot:" + std::to_string(index);
             for (const char* k : {"/T", "/Subj", "/M", "/CreationDate", "/NM"}) {
                 QPDFObjectHandle v = o.getKey(k);
                 if (v.isString()) j[std::string(k).substr(1)] = sanitizeUtf8(v.getUTF8Value());
             }
             j["hasContents"] = o.hasKey("/Contents");
-            // Правка полей возможна только для аннотаций — косвенных объектов (их можно адресовать).
-            j["editable"] = o.isIndirect();
+            // Direct annotations use their stable page and annotation position within the opened snapshot.
+            j["editable"] = o.isDictionary();
             // Значения редактируемых полей: null — ключа нет в документе.
             json fields = json::object();
             for (const char* f : {"author", "subject", "modified", "created"}) {
@@ -568,6 +588,7 @@ json inspect(LoadedPdf& pdf, Context& ctx) {
     try {
         out["pdf"]["pageCount"] = q.getAllPages().size();
         out["pages"] = pagesJson(q);
+        if (q.getAllPages().size() > 5000) issues.push_back({"pages", "Only the first 5000 page dimensions are included"});
     } catch (const std::exception& e) {
         issues.push_back({"pages", sanitizeUtf8(e.what())});
     }

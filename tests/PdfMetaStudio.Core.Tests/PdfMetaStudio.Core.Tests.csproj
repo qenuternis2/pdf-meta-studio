@@ -10,6 +10,8 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../src/PdfMetaStudio.App/ViewModels/DateEditorViewModel.cs" Link="ViewModels/DateEditorViewModel.cs" />
+    <Compile Include="../../src/PdfMetaStudio.App/ViewModels/FieldViewModel.cs" Link="ViewModels/FieldViewModel.cs" />
     <Compile Include="../../src/PdfMetaStudio.App/ViewModels/TagTreeViewModel.cs" Link="ViewModels/TagTreeViewModel.cs" />
     <Compile Include="../../src/PdfMetaStudio.App/ViewModels/ObjectsViewModel.cs" Link="ViewModels/ObjectsViewModel.cs" />
   </ItemGroup>

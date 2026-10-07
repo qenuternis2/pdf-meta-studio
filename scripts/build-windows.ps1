@@ -35,3 +35,6 @@ dotnet publish (Join-Path $root 'src\PdfMetaStudio.App') -c $Configuration -r wi
     "-p:WorkerBinDir=$(Split-Path $worker)" -o $out
 if ($LASTEXITCODE) { throw 'dotnet publish failed' }
 Write-Host "Готово: $out\PdfMetaStudio.exe"
+
+& "$PSScriptRoot\collect-licenses.ps1" -PublishDir $out
+& "$PSScriptRoot\build-installer.ps1" -PublishDir $out

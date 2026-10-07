@@ -2,7 +2,7 @@
 
 A local PDF metadata editor for Windows 11 x64. The interface uses C# WPF, MVVM and .NET 10. A C++ worker uses qpdf and Adobe XMP Core to read and write PDF `/Info`, document XMP and object XMP over a [JSON Lines protocol](docs/PROTOCOL.md).
 
-The application supports a working edit → review → save-copy workflow. It does not yet implement the complete uploaded development specification. See [implementation status and remaining work](docs/IMPLEMENTATION_STATUS.md) for the current scope and validation limits. The application interface remains Russian; repository documentation and new development work use English.
+The application provides typed metadata editing, review, verified save-copy/replacement and recovery workflows. See [specification implementation and acceptance](docs/IMPLEMENTATION_STATUS.md) for the current scope and validation evidence. The application interface remains Russian; repository documentation and new development work use English.
 
 ## Repository structure
 
@@ -25,9 +25,9 @@ pip install pypdf==5.1.0
 ./scripts/build-windows.ps1
 ```
 
-The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine.
+The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine. The build also collects complete third-party licenses and produces a per-user MSI in `dist/installer`.
 
-[Windows CI](.github/workflows/windows.yml) runs this build and a GUI UI Automation smoke test, uploads the application and screenshots, and publishes release ZIPs and checksums for version tags.
+[Windows CI](.github/workflows/windows.yml) runs this build and a GUI UI Automation smoke test, uploads the application and screenshots, exercises MSI installation/uninstallation, and publishes release ZIPs/MSIs and checksums for version tags.
 
 ## Validate on Linux
 
@@ -61,6 +61,12 @@ Building the WPF project on Linux verifies compilation, not GUI execution. Worke
 
 A save refusal is a supported result when preservation cannot be established. For example, the damaged qpdf `issue-149.pdf` contains conflicting object generations: retaining unreferenced objects causes the upstream writer to select different page content. The post-write check rejects that result and leaves the source unchanged.
 
-## Remaining work
+## Independent corpus and Windows acceptance
 
-Full array reordering/renaming and date controls, private-data adapters/export, resource/timeout guarantees, stronger structural verification, file identity/reload flows, licensing and installer packaging, and full Windows 11 accessibility/DPI/clean-machine acceptance remain open. The existing automated GUI smoke scenario is useful evidence but does not establish complete acceptance.
+```bash
+python3 worker/tests/independent_corpus.py "$PDFMETA_WORKER" worker/external/qpdf/qpdf/qtest/qpdf --report independent-corpus.json
+```
+
+This additionally requires pypdf and Poppler, compares every page of each eligible sample, and explicitly reports parser/renderer exclusions, page/time limits and writer refusals. Rendered resolution is recorded in the report.
+
+[Windows 11 acceptance](docs/WINDOWS_ACCEPTANCE.md) records the remaining physical-machine/Narrator/DPI checks. Windows Server CI results do not establish those manual results. Optional veraPDF CLI validation is local and separate from save success; the selected executable or executable JAR must accept `--format xml <file>` and produce a veraPDF XML report. Java is required for a JAR. PDF/X stays unverified unless independently checked by a matching validator.

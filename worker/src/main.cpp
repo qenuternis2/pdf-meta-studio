@@ -3,6 +3,7 @@
 #include "pdf_edit.hpp"
 #include "protocol.hpp"
 #include "xmp_model.hpp"
+#include "private_data.hpp"
 
 #include <qpdf/QPDF.hh>
 
@@ -48,7 +49,8 @@ void applyResourceLimits() {
 struct Queue {
     std::mutex m;
     std::condition_variable cv;
-    std::deque<json> items;
+    std::deque<std::pair<json, size_t>> items;
+    size_t bytes = 0;
     bool closed = false;
 };
 
@@ -64,6 +66,8 @@ json handle(const json& req, Context& ctx) {
         return json{{"model", doc->model()}, {"packet", doc->serialize()}};
     }
     if (cmd == "preview") return previewEdits(req, ctx);
+    if (cmd == "exportMetadata") return exportMetadata(req, ctx);
+    if (cmd == "exportPrivate") return exportPrivate(req, ctx);
     if (cmd == "save") return saveEdits(req, ctx);
     throw WorkerError("bad_request", "Неизвестная команда: " + cmd);
 }
@@ -88,23 +92,60 @@ int main(int argc, char** argv) {
     // Поток чтения stdin: команда cancel обрабатывается сразу, остальные — по очереди.
     std::thread reader([&] {
         std::string line;
-        while (std::getline(std::cin, line)) {
+        constexpr size_t maxLine = 128ull << 20;
+        auto readLine = [&] {
+            line.clear();
+            bool overflow = false;
+            auto* input = std::cin.rdbuf();
+            for (;;) {
+                auto c = input->sbumpc();
+                if (c == std::char_traits<char>::eof()) return !line.empty() || overflow;
+                if (c == '\n') break;
+                if (line.size() < maxLine) line.push_back(static_cast<char>(c));
+                else overflow = true;
+            }
+            if (overflow) {
+                channel.send(json{{"id", nullptr}, {"type", "error"}, {"code", "request_too_large"}, {"message", "Запрос превышает 128 МиБ"}});
+                line.clear();
+            }
+            return true;
+        };
+        while (readLine()) {
             if (!line.empty() && line.back() == '\r') line.pop_back();
             if (line.empty()) continue;
             json req;
             try {
-                req = json::parse(line);
+                req = json::parse(line, [](int depth, json::parse_event_t, json&) { if (depth > 128) throw std::invalid_argument("request nesting limit"); return true; });
+                if (!req.is_object() || !req.contains("cmd") || !req["cmd"].is_string() ||
+                    (req.contains("id") && !req["id"].is_number_integer()) ||
+                    (req["cmd"] == "cancel" && req.contains("target") && !req["target"].is_number_integer()))
+                    throw std::invalid_argument("invalid envelope");
             } catch (const std::exception&) {
                 channel.send(json{{"id", nullptr}, {"type", "error"}, {"code", "bad_request"},
                                   {"message", "Строка запроса не является JSON"}});
                 continue;
             }
             if (req.value("cmd", "") == "cancel") {
-                if (req.value("target", std::int64_t(-1)) == currentId.load()) cancel = true;
+                auto target = req.value("target", std::int64_t(-1));
+                std::lock_guard<std::mutex> lock(queue.m);
+                if (target == currentId.load()) cancel = true;
+                else for (auto it = queue.items.begin(); it != queue.items.end(); ++it) {
+                    if (it->first.value("id", std::int64_t(0)) != target) continue;
+                    queue.bytes -= it->second;
+                    queue.items.erase(it);
+                    channel.send(json{{"id", target}, {"type", "error"}, {"code", "cancelled"}, {"message", "Операция отменена до начала обработки"}});
+                    break;
+                }
                 continue;
             }
             std::lock_guard<std::mutex> lock(queue.m);
-            queue.items.push_back(std::move(req));
+            if (queue.items.size() >= 8 || line.size() > maxLine - queue.bytes) {
+                channel.send(json{{"id", req.value("id", std::int64_t(0))}, {"type", "error"}, {"code", "queue_full"},
+                                  {"message", "Очередь обработки заполнена; повторите запрос после завершения текущей операции"}});
+                continue;
+            }
+            queue.bytes += line.size();
+            queue.items.emplace_back(std::move(req), line.size());
             queue.cv.notify_one();
         }
         std::lock_guard<std::mutex> lock(queue.m);
@@ -119,16 +160,17 @@ int main(int argc, char** argv) {
             std::unique_lock<std::mutex> lock(queue.m);
             queue.cv.wait(lock, [&] { return queue.closed || !queue.items.empty(); });
             if (queue.items.empty()) break;
-            req = std::move(queue.items.front());
+            req = std::move(queue.items.front().first);
+            queue.bytes -= queue.items.front().second;
             queue.items.pop_front();
+            cancel = false;
+            currentId = req.value("id", std::int64_t(0));
         }
         std::int64_t id = req.value("id", std::int64_t(0));
         if (req.value("cmd", "") == "shutdown") {
             channel.send(json{{"id", id}, {"type", "result"}, {"data", json::object()}});
             break;
         }
-        cancel = false;
-        currentId = id;
         Context ctx(id, channel, cancel);
         try {
             json data = handle(req, ctx);

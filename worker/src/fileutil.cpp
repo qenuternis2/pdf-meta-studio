@@ -12,9 +12,11 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <aclapi.h>
 #else
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/stat.h>
 #endif
 
 namespace pm {
@@ -29,7 +31,7 @@ std::string pathToUtf8(const fs::path& p) {
 }
 
 json Fingerprint::toJson() const {
-    return json{{"size", size}, {"mtime", mtime}, {"sha256", sha256}};
+    return json{{"size", size}, {"mtime", mtime}, {"sha256", sha256}, {"identity", identity}};
 }
 
 Fingerprint Fingerprint::fromJson(const json& j) {
@@ -37,11 +39,26 @@ Fingerprint Fingerprint::fromJson(const json& j) {
     f.size = j.at("size").get<std::uint64_t>();
     f.mtime = j.at("mtime").get<std::string>();
     f.sha256 = j.at("sha256").get<std::string>();
+    f.identity = j.value("identity", "");
     return f;
 }
 
 Fingerprint computeFingerprint(const fs::path& p, Context* ctx) {
     Fingerprint f;
+#ifdef _WIN32
+    HANDLE file = CreateFileW(p.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) throw WorkerError("file_locked", "Не удалось определить идентичность файла");
+    BY_HANDLE_FILE_INFORMATION info{};
+    bool identified = GetFileInformationByHandle(file, &info);
+    CloseHandle(file);
+    if (!identified) throw WorkerError("io_error", "Файловая система не возвращает идентичность файла");
+    f.identity = std::to_string(info.dwVolumeSerialNumber) + ":" + std::to_string(info.nFileIndexHigh) + ":" + std::to_string(info.nFileIndexLow);
+#else
+    struct stat info{};
+    if (::stat(p.c_str(), &info) != 0) throw WorkerError("file_not_found", "Не удалось определить идентичность файла");
+    f.identity = std::to_string(info.st_dev) + ":" + std::to_string(info.st_ino);
+#endif
     std::error_code ec;
     f.size = fs::file_size(p, ec);
     if (ec) throw WorkerError("file_not_found", "Файл недоступен: " + pathToUtf8(p));
@@ -63,8 +80,27 @@ Fingerprint computeFingerprint(const fs::path& p, Context* ctx) {
         }
     }
     f.sha256 = sha.hexDigest();
+    if (in.bad() || done != f.size) throw WorkerError("io_error", "Не удалось полностью прочитать исходный файл");
     return f;
 }
+
+#ifdef _WIN32
+static void copyAcl(const fs::path& source, const fs::path& destination) {
+    PSECURITY_DESCRIPTOR descriptor = nullptr;
+    PACL dacl = nullptr;
+    DWORD error = GetNamedSecurityInfoW(source.c_str(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+                                         nullptr, nullptr, &dacl, nullptr, &descriptor);
+    if (error != ERROR_SUCCESS) throw WorkerError("access_denied", "Не удалось прочитать ограничения доступа исходного файла");
+    SECURITY_DESCRIPTOR_CONTROL control = 0;
+    DWORD revision = 0;
+    GetSecurityDescriptorControl(descriptor, &control, &revision);
+    error = SetNamedSecurityInfoW(const_cast<wchar_t*>(destination.c_str()), SE_FILE_OBJECT,
+        DACL_SECURITY_INFORMATION | ((control & SE_DACL_PROTECTED) ? PROTECTED_DACL_SECURITY_INFORMATION : UNPROTECTED_DACL_SECURITY_INFORMATION),
+        nullptr, nullptr, dacl, nullptr);
+    LocalFree(descriptor);
+    if (error != ERROR_SUCCESS) throw WorkerError("access_denied", "Не удалось перенести ограничения доступа на новый файл");
+}
+#endif
 
 static std::string randomToken() {
     std::random_device rd;
@@ -110,7 +146,8 @@ fs::path tempPathIn(const fs::path& dir) {
 
 void carryOverProtection(const fs::path& source, const fs::path& target, const fs::path& temp) {
 #ifdef _WIN32
-    (void)target;
+    std::error_code ec;
+    copyAcl(fs::exists(target, ec) ? target : source, temp);
     // Копия или замена файла из Интернета должна остаться помеченной, иначе программы просмотра
     // перестанут открывать её в защищённом режиме.
     std::ifstream in(fs::path(source.native() + L":Zone.Identifier"), std::ios::binary);
@@ -158,6 +195,9 @@ void copyFileExact(const fs::path& from, const fs::path& to) {
     // copy_file копирует и права доступа к файлу; существующий файл не перезаписывается.
     if (!fs::copy_file(from, to, fs::copy_options::none, ec) || ec)
         throw WorkerError("io_error", "Не удалось создать резервную копию: " + ec.message());
+#ifdef _WIN32
+    copyAcl(from, to);
+#endif
 }
 
 bool sameFile(const fs::path& a, const fs::path& b) {

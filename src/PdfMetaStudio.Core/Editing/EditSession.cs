@@ -66,6 +66,7 @@ public sealed class EditSession
     public event EventHandler? PreviewChanged;
 
     public DocumentSnapshot Document { get; }
+    public bool IsReadOnly { get; set; }
     public IReadOnlyDictionary<string, FieldOrigin> Origins { get; }
     /// <summary>Обновлять дату изменения при сохранении (по умолчанию выключено).</summary>
     public bool UpdateModifyDate { get; set; }
@@ -162,6 +163,15 @@ public sealed class EditSession
         Apply(unchanged ? _edits.Remove("info:" + key) : _edits.SetItem("info:" + key, new InfoKeyEdit(key, value, kind)));
     }
 
+    public void RenameInfoKey(string source, string destination)
+    {
+        var original = WorkingDocument.InfoValue(source) ?? throw new ArgumentException("Source Info key is absent");
+        if (original.Kind is not ("string" or "name") || WorkingDocument.InfoValue(destination) != null)
+            throw new ArgumentException("Rename requires a string/name value and an unused destination");
+        Apply(_edits.SetItem("info:" + source, new InfoKeyEdit(source, null, original.Kind))
+            .SetItem("info:" + destination, new InfoKeyEdit(destination, original.Value, original.Kind)));
+    }
+
     /// <summary>Текущее значение поля аннотации или вложения с учётом правок; null — ключа нет.</summary>
     public string? CurrentObjectValue(string kind, string address, string field) =>
         _edits.GetValueOrDefault(ObjectFields.EditKey(kind, address, field)) is ObjectFieldEdit e
@@ -174,6 +184,15 @@ public sealed class EditSession
         string key = ObjectFields.EditKey(kind, address, field);
         bool unchanged = value == ObjectFields.Original(Document, kind, address, field);
         Apply(unchanged ? _edits.Remove(key) : _edits.SetItem(key, new ObjectFieldEdit(kind, address, field, value, label)));
+    }
+
+    /// <summary>One undo step for a typed workflow and its explicitly selected Info synchronization.</summary>
+    public void AddWorkflow(IEnumerable<XmpOpEdit> operations, InfoKeyEdit? info = null)
+    {
+        var next = _edits;
+        foreach (var edit in operations) next = next.SetItem(edit.Key, edit with { Sequence = ++_sequence });
+        if (info != null) next = next.SetItem(info.Key, info);
+        Apply(next);
     }
 
     public void AddXmpOp(XmpOpEdit edit) => Apply(_edits.SetItem(edit.Key, edit with { Sequence = ++_sequence }));
@@ -215,6 +234,7 @@ public sealed class EditSession
 
     private void Apply(ImmutableDictionary<string, Edit> next)
     {
+        if (IsReadOnly) return;
         if (ReferenceEquals(next, _edits) || next.SequenceEqual(_edits)) return;
         _undo.Push(_edits);
         _redo.Clear();
@@ -390,8 +410,13 @@ public sealed class EditSession
         if (v.Present && f.Kind == FieldKind.Date)
         {
             var p = XmpDateCodec.Parse(v.Text);
+            if (!p.Ok) p = PdfDateCodec.Parse(v.Text);
             if (!p.Ok) { issues.Add(new(IssueSeverity.Blocking, f.Id, f.Label + ": " + p.Error)); return; }
             date = p.Date;
+            if (toXmp && (date!.Precision == DatePrecision.Hour || (date.Hour is null && date.Zone != ZoneKind.None))) {
+                issues.Add(new(IssueSeverity.Blocking, f.Id, "Эта точность PDF-даты не представима в XMP. Выберите только /Info или явно заполните недостающие части."));
+                return;
+            }
         }
         if (v.Present && f.Kind == FieldKind.Trapped && v.Text is not ("True" or "False" or "Unknown"))
         {
