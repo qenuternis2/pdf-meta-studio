@@ -82,7 +82,8 @@
                     </StackPanel>
                 </DockPanel>
                 <StackPanel Visibility="{Binding IsLocalized, Converter={StaticResource BoolToVis}}">
-                    <ComboBox ItemsSource="{Binding LanguageOptions}" Text="{Binding SelectedLanguage, UpdateSourceTrigger=LostFocus}" IsEditable="True" KeyboardNavigation.TabNavigation="Once" AutomationProperties.Name="{Binding Label, StringFormat='Язык поля: {0}'}"/>
+                    <!-- The editable text box is the tab stop; Fluent also tabs to its parent, which redirects focus back. -->
+                    <ComboBox ItemsSource="{Binding LanguageOptions}" Text="{Binding SelectedLanguage, UpdateSourceTrigger=LostFocus}" IsEditable="True" IsTabStop="False" AutomationProperties.Name="{Binding Label, StringFormat='Язык поля: {0}'}"/>
                     <WrapPanel><Button Content="Применить языковой вариант XMP" Command="{Binding ApplyLanguageCommand}"/><Button Content="Удалить только этот язык" Command="{Binding DeleteLanguageCommand}"/></WrapPanel>
                 </StackPanel>
                 <StackPanel Visibility="{Binding IsList, Converter={StaticResource BoolToVis}}">
