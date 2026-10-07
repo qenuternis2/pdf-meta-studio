@@ -18,7 +18,7 @@ The application provides typed metadata editing, review, verified save-copy/repl
 
 ## Build on Windows
 
-Install Visual Studio 2022 or Build Tools with MSVC, CMake ≥ 3.21, Git, .NET SDK 10.0.1xx, Python 3 and vcpkg. Set `VCPKG_ROOT` and use Developer PowerShell for VS 2022:
+Install Visual Studio 2022 or Build Tools with MSVC, CMake ≥ 3.21, Git, the .NET SDK pinned in `global.json` (10.0.112), Python ≥ 3.9 and vcpkg. Set `VCPKG_ROOT` and use Developer PowerShell for VS 2022:
 
 ```powershell
 pip install pypdf==6.19.0 cryptography==50.0.2

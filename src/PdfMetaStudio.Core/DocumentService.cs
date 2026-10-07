@@ -72,10 +72,15 @@ public sealed class DocumentService : IAsyncDisposable
         {
             await using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true))
             await using (var output = new FileStream(snapshot, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, true))
+            {
                 await input.CopyToAsync(output, ct).ConfigureAwait(false);
+                // Apply protection before releasing the exclusive handle, including in a shared TEMP directory.
+                if (OperatingSystem.IsWindows()) {
+                    var acl = FileSystemAclExtensions.GetAccessControl(new FileInfo(path), AccessControlSections.Access);
+                    FileSystemAclExtensions.SetAccessControl(new FileInfo(snapshot), acl);
+                }
+            }
             if (OperatingSystem.IsWindows()) {
-                var acl = FileSystemAclExtensions.GetAccessControl(new FileInfo(path), AccessControlSections.Access);
-                FileSystemAclExtensions.SetAccessControl(new FileInfo(snapshot), acl);
                 string zone = path + ":Zone.Identifier";
                 try {
                     await using var input = File.OpenRead(zone);

@@ -1,0 +1,158 @@
+{
+  "reviewDate": "2026-10-07",
+  "baselineCommit": "482aff1f1f7377c512453ad7698ed8c2fbedce9d",
+  "environment": "Isolated Linux x64 cloud checkout; synthetic data and the pinned qpdf corpus only.",
+  "versions": {
+    "sdk": "10.0.112",
+    "publishedWindowsCoreRuntime": "10.0.12",
+    "publishedWindowsDesktopRuntime": "10.0.12",
+    "expat": "2.9.0",
+    "qpdf": "12.4.2",
+    "adobeXmpCore": "2025.03 with documented translation patch",
+    "pypdfTestTool": "6.19.0",
+    "cryptographyTestTool": "50.0.2",
+    "testWheelOpenSSL": "4.0.3"
+  },
+  "baseline": {
+    "managedPassed": 84,
+    "tempReservationReopenSymlinkSentinelOverwriteConfirmed": true,
+    "endToEndConcurrentWindowsExploitDemonstrated": false
+  },
+  "releaseBuild": {
+    "passed": true,
+    "warnings": 0,
+    "errors": 0
+  },
+  "managed": {
+    "passed": 85,
+    "failed": 0,
+    "skipped": 0,
+    "realWorkerAndIpcPeerUsed": true
+  },
+  "native": {
+    "statuses": {
+      "PASS": 48,
+      "SKIP": 5
+    },
+    "skipped": [
+      {
+        "test": "test_mark_of_the_web_kept",
+        "status": "SKIP",
+        "detail": "потоки NTFS (Zone.Identifier) есть только в Windows"
+      },
+      {
+        "test": "test_no_space",
+        "status": "SKIP",
+        "detail": "нельзя смонтировать маленький tmpfs"
+      },
+      {
+        "test": "test_windows_backup_retains_protected_acl",
+        "status": "SKIP",
+        "detail": "Windows DACL acceptance requires Windows"
+      },
+      {
+        "test": "test_windows_locked_original_can_only_be_copied",
+        "status": "SKIP",
+        "detail": "Windows sharing modes require Windows"
+      },
+      {
+        "test": "test_windows_long_path_copy",
+        "status": "SKIP",
+        "detail": "Windows long-path acceptance requires Windows"
+      }
+    ],
+    "corpus": {
+      "files": 628,
+      "opened": 586,
+      "saved": 470,
+      "refused": {
+        "password_required": 23,
+        "pdf_damaged": 113,
+        "permission_denied": 5,
+        "unsupported_profile_edit": 10
+      },
+      "verification_blocked": [
+        [
+          "V4-clearmeta.pdf",
+          [
+            "encryption"
+          ]
+        ],
+        [
+          "V4.pdf",
+          [
+            "encryption"
+          ]
+        ],
+        [
+          "bad-encryption-length.pdf",
+          [
+            "info",
+            "logical_graph",
+            "pages"
+          ]
+        ],
+        [
+          "empty-stream-compressed.pdf",
+          [
+            "logical_graph"
+          ]
+        ],
+        [
+          "form-filled-with-atril.pdf",
+          [
+            "logical_graph"
+          ]
+        ],
+        [
+          "metadata-crypt-filter.pdf",
+          [
+            "encryption"
+          ]
+        ],
+        [
+          "overlay-no-resources.pdf",
+          [
+            "logical_graph"
+          ]
+        ]
+      ],
+      "failed": []
+    }
+  },
+  "independentCorpus": {
+    "files": 628,
+    "summary": {
+      "passed": 420,
+      "refused_password_required": 23,
+      "refused_verification_failed": 7,
+      "refused_pdf_damaged": 111,
+      "excluded_source_parser_or_renderer": 45,
+      "excluded_page_limit": 7,
+      "refused_permission_denied": 5,
+      "refused_unsupported_profile_edit": 10
+    },
+    "renderer": "Poppler, all pages at 72 DPI scaled to a maximum dimension of 1024 pixels",
+    "limits": {
+      "pages": 50,
+      "renderSeconds": 10
+    },
+    "failed": 0
+  },
+  "otherChecks": {
+    "nugetTransitiveAdvisoryQuery": "No listed vulnerable packages; framework runtime servicing is checked separately.",
+    "managedWarningAnalyzers": "passed",
+    "pythonBashPowerShellSyntax": "passed",
+    "desktopPreparationMockTests": "3 passed; real registry/process preparation was not run on this Linux host.",
+    "pipCheck": "passed",
+    "officialSdkArchiveSha512": "verified"
+  },
+  "windowsEvidence": "https://github.com/qenuternis2/pdf-meta-studio/pull/12",
+  "limitations": [
+    "Linux builds do not establish WPF/installer execution.",
+    "Windows 11 ARM64 CI executes the x64 application under emulation.",
+    "Non-elevated physical Windows 11 x64 and real second-account ACL access are separate acceptance requirements.",
+    "Hostile directory/reparse/SMB and final-commit races remain outside the temporary descriptor fix.",
+    "No OS worker security sandbox or publisher signature was introduced."
+  ]
+}
