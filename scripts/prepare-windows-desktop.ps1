@@ -9,17 +9,15 @@ $policy = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\OOBE'
 New-Item -Path $policy -Force | Out-Null
 New-ItemProperty -Path $policy -Name DisablePrivacyExperience -PropertyType DWord -Value 1 -Force | Out-Null
 $stopped = @()
-foreach ($name in @('UserOOBEBroker', 'msoobe', 'CloudExperienceHostBroker')) {
+foreach ($name in @('WWAHost', 'UserOOBEBroker', 'msoobe', 'CloudExperienceHostBroker', 'SystemPropertiesPerformance', 'StartMenuExperienceHost')) {
     foreach ($process in @(Get-Process -Name $name -ErrorAction SilentlyContinue)) {
         $stopped += @{ name = $process.ProcessName; id = $process.Id }
         Stop-Process -Id $process.Id -Force
     }
 }
-foreach ($process in @(Get-CimInstance Win32_Process -Filter "Name = 'WWAHost.exe'")) {
-    if ($process.CommandLine -match 'CloudExperienceHost') {
-        $stopped += @{ name = 'WWAHost'; id = $process.ProcessId }
-        Stop-Process -Id $process.ProcessId -Force
-    }
-}
 Start-Sleep -Seconds 2
+Add-Type -AssemblyName System.Windows.Forms
+[Windows.Forms.SendKeys]::SendWait('{ESC}')
+Start-Sleep -Milliseconds 300
+[Windows.Forms.SendKeys]::SendWait('{ESC}')
 @{ sourceCommit = (git rev-parse HEAD); disabledFirstSignInPrivacyExperience = $true; stopped = $stopped; scope = 'Disposable GitHub Actions Windows 11 VM desktop preparation; no privacy choices were accepted.' } | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'desktop-preparation.json') -Encoding utf8
