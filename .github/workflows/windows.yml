@@ -165,6 +165,22 @@ jobs:
         run: |
           ./scripts/prepare-windows-desktop.ps1 -OutDir windows11-acceptance
           ./scripts/windows-host-info.ps1 -OutDir windows11-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
+      - name: Install pinned independent page renderer for native tests
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP 'pdfmeta-poppler-26.09.zip'
+          $source = 'https://github.com/oschwartz10612/poppler-windows/releases/download/v26.09.0-0/Release-26.09.0-0.zip'
+          $expectedHash = '7a6f256a0ddf7536182246a5733331bf4677cbcc34f4663774947ad34556c8d0'
+          Invoke-WebRequest -Uri $source -OutFile $archive
+          if ((Get-FileHash $archive -Algorithm SHA256).Hash -ne $expectedHash) { throw 'Poppler archive SHA-256 mismatch' }
+          $tools = Join-Path $env:RUNNER_TEMP 'pdfmeta-poppler'
+          Expand-Archive $archive $tools
+          $renderer = Get-ChildItem $tools -Recurse -Filter pdftoppm.exe | Select-Object -First 1
+          if (-not $renderer) { throw 'Independent page renderer missing' }
+          $version = @(& $renderer.FullName -v 2>&1 | ForEach-Object { "$_" })
+          if ($LASTEXITCODE) { throw 'Independent page renderer failed to start' }
+          $renderer.Directory.FullName >> $env:GITHUB_PATH
+          @{ source = $source; sha256 = $expectedHash; version = $version } | ConvertTo-Json | Set-Content windows11-acceptance/poppler.json -Encoding utf8
       - name: Native and managed tests on Windows 11
         shell: pwsh
         run: |

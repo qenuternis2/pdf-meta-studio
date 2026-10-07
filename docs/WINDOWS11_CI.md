@@ -4,11 +4,12 @@ The `windows11` job in `.github/workflows/windows.yml` uses `runs-on: windows-11
 
 The application and worker remain x64; Windows 11 ARM64 runs them through its built-in emulation. This job establishes compatibility on that host, not a native ARM64 product or clean physical x64-machine acceptance.
 
-`windows11-acceptance` contains `host.json`, desktop-preparation details, native test/corpus JSON, managed test TRX, installation/uninstallation logs and GUI screenshots/results. The host record checks CIM Windows 11 client/build and ARM64 CPU architecture, and records the application PE machine/hash, runner architecture, elevation, display size and observed DPI. Windows 11 may still report `Windows 10` in the legacy registry product name; that value is preserved for diagnostics and does not determine the host check.
+`windows11-acceptance` contains `host.json`, desktop-preparation details, native test/corpus JSON, managed test TRX, installation/uninstallation logs, pinned Poppler identity and GUI screenshots/results. The host record checks CIM Windows 11 client/build and ARM64 CPU architecture, and records the application PE machine/hash, runner architecture, elevation, display size and observed DPI. Windows 11 may still report `Windows 10` in the legacy registry product name; that value is preserved for diagnostics and does not determine the host check.
 
 The automated cases cover:
 
 - Native worker tests and the pinned qpdf corpus, including supported NTFS sharing/ACL and long-path cases; every refusal and skip remains explicit.
+- Independent pypdf inspection and byte-identical rendered pages using Poppler 26.09.0 (download SHA-256 verified).
 - Managed/core/ViewModel/IPC tests against the actual worker and native IPC test peer.
 - Per-user MSI installation, installed application edit/save/reopen and uninstall.
 - Tab/Shift+Tab, focused Ctrl+Z/Y/Shift+Z/S/W and keyboard save-menu/copy actions.
