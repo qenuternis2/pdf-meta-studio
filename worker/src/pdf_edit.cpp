@@ -548,6 +548,9 @@ json saveEdits(const json& req, Context& ctx) {
                     a.notes.push_back("Исходная ошибка XMP сохранена без изменения в отдельной копии: " +
                                       refOf(ms.og) + " · " + error.what());
                 }
+                // qpdf otherwise decodes root metadata even with qpdf_dl_none.
+                // Keep untouched compressed packets and their filter dictionaries byte-preserved.
+                ms.stream.setFilterOnWrite(false);
                 untouched.emplace_back(ms.og, std::move(packet));
             } catch (const WorkerError& e) {
                 if (e.code == "xmp_copy_only") throw;
