@@ -60,6 +60,26 @@ public class TypedWorkflowTests
         Assert.Equal("Updated", field.Items[1]);
     }
 
+    [WorkerFact] public async Task PreviewKeepsLanguageSelectionAndExistingChoicesStable() {
+        await using var service = new DocumentService();
+        var session = new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null));
+        var field = new FieldViewModel(session, session.Origins["title"], service);
+        int changes = 0;
+        field.LanguageOptions.CollectionChanged += (_, _) => changes++;
+        session.SetField("title", FieldValue.OfText("Updated title"));
+        await service.PreviewAsync(session);
+        field.Reload();
+        Assert.Equal(0, changes);
+        Assert.Equal("x-default", field.SelectedLanguage);
+        Assert.Equal("Updated title", field.Text);
+        field.SelectedLanguage = "fr-CA";
+        Assert.Contains("fr-CA", field.LanguageOptions);
+        changes = 0;
+        field.Reload();
+        Assert.Equal(0, changes);
+        Assert.Equal("fr-CA", field.SelectedLanguage);
+    }
+
     [WorkerFact] public async Task SingleLanguageDeletionPreservesOtherLanguagesAndInfo() {
         await using var service = new DocumentService();
         var session = new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null));

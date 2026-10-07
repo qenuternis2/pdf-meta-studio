@@ -23,11 +23,13 @@ Updated 2026-10-07 against the uploaded development brief (`TASK.md`) and detail
 
 ## Acceptance evidence
 
-The Release solution builds with zero warnings/errors. All 73 managed/core/ViewModel/IPC tests pass; native tests pass 45 checks with 5 explicit platform/environment skips. The qpdf corpus contains 628 files and produces 470 verified saves. Independent pypdf/Poppler comparisons pass for 417 files and 2,758 pages, with zero failures. Detailed per-file results and exclusions are committed in [validation evidence](validation/README.md). A verification refusal is a supported outcome when preservation cannot be established; it is never counted as a successful save or visual comparison.
+The Release solution builds with zero warnings/errors. All 75 managed/core/ViewModel/IPC tests pass; native tests pass 46 checks with 5 explicit platform/environment skips. The qpdf corpus contains 628 files and produces 470 verified saves. Independent pypdf/Poppler comparisons pass for 420 files and 2,848 pages, with zero failures. Detailed per-file results and exclusions are committed in [validation evidence](validation/README.md). A verification refusal is a supported outcome when preservation cannot be established; it is never counted as a successful save or visual comparison.
 
 The independent corpus runner uses pypdf field values/attachments/page boxes and Poppler pixels for every page of each eligible sample. Its page/time limits and unsupported or damaged source exclusions are explicit. This is sampled-resolution rendering evidence, not a proof about every possible PDF or rendering engine.
 
 Windows CI builds the MSI and exercises installation, the installed GUI and uninstall on Windows Server 2022. It also records GUI screenshots. This is not clean Windows 11, Narrator or physical DPI acceptance.
+
+Additional Server automation records forward/reverse keyboard focus cycles, Ctrl+Z/Y/Shift+Z/S/W, keyboard save actions, observed light/dark backgrounds, four sections at two window sizes, and a generated 10,000-tag / 1 MiB multiline-value sample. Its logs/screenshots/results are uploaded as `windows-acceptance`. The XMP model indexes immediate children so the tag tree does not rescan the full property list for each leaf; long values have a bounded, scrollable editing viewport.
 
 ## External acceptance still requiring a real Windows 11 session
 

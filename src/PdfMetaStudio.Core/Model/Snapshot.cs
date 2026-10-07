@@ -98,6 +98,7 @@ public sealed class XmpModel
     public IReadOnlyDictionary<string, string> Prefixes { get; }
     public IReadOnlyList<XmpNode> Nodes { get; }
     private readonly Dictionary<string, XmpNode> _byKey;
+    private readonly Dictionary<string, List<XmpNode>> _children = new();
 
     public XmpModel(string about, IReadOnlyDictionary<string, string> prefixes, IReadOnlyList<XmpNode> nodes)
     {
@@ -105,7 +106,13 @@ public sealed class XmpModel
         Prefixes = prefixes;
         Nodes = nodes;
         _byKey = new Dictionary<string, XmpNode>();
-        foreach (var n in nodes) _byKey[n.Key] = n;
+        foreach (var n in nodes) {
+            _byKey[n.Key] = n;
+            if (n.Steps.Count <= 1) continue;
+            string parent = XmpPath.Key(n.Steps.Take(n.Steps.Count - 1));
+            if (!_children.TryGetValue(parent, out var children)) _children[parent] = children = new();
+            children.Add(n);
+        }
     }
 
     public static XmpModel Empty { get; } = new("", new Dictionary<string, string>(), Array.Empty<XmpNode>());
@@ -127,7 +134,7 @@ public sealed class XmpModel
     public XmpNode? Find(string ns, string name) => Find(new[] { XmpStep.Prop(ns, name) });
 
     public IEnumerable<XmpNode> Children(XmpNode parent) =>
-        Nodes.Where(n => n.Steps.Count == parent.Steps.Count + 1 && XmpPath.Key(n.Steps.Take(parent.Steps.Count)) == parent.Key);
+        _children.TryGetValue(parent.Key, out var children) ? children : Array.Empty<XmpNode>();
 
     public IEnumerable<XmpNode> TopLevel => Nodes.Where(n => n.Steps.Count == 1);
 

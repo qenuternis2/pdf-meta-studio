@@ -234,6 +234,20 @@ def test_open_edit_reread(c):
     assert "Проект «Атлас» — обзор" in title and "Project Atlas overview" in title, "переводы потеряны"
 
 
+def test_untouched_compressed_metadata_preserves_encoding(c):
+    from pypdf import PdfReader
+    source = c.pdf("compressed-metadata.pdf", compress_xmp=True)
+    opened = c.open(source)
+    target = os.path.join(c.tmp, "compressed-metadata-copy.pdf")
+    result = c.save(source, opened, {"info": [{"op": "set", "key": "/Title", "value": "Updated title"}]}, target=target)
+    assert_checks_ok(result)
+    before = PdfReader(source).trailer["/Root"]["/Metadata"]
+    after = PdfReader(target).trailer["/Root"]["/Metadata"]
+    assert before["/Filter"] == after["/Filter"] == "/FlateDecode"
+    assert before._data == after._data, "Untouched compressed metadata bytes changed"
+    assert ident(doc_stream(opened)["model"]) == ident(doc_stream(c.open(target))["model"])
+
+
 def test_unknown_tags_preserved_add_delete(c):
     src = c.pdf("custom.pdf", info={"Title": "T"})
     o = c.open(src)

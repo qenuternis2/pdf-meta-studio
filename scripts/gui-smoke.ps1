@@ -7,9 +7,17 @@ param(
     [Parameter(Mandatory)] [string]$Pdf,
     [Parameter(Mandatory)] [string]$OutDir,
     [string]$NewTitle = 'Проверка GUI ✓',
-    [string]$NewAuthor = 'Автор из GUI ✓'
+    [string]$NewAuthor = 'Автор из GUI ✓',
+    [switch]$KeyboardChecks,
+    [switch]$LayoutChecks,
+    [switch]$StressChecks,
+    [ValidateSet('', 'light', 'dark')][string]$ExpectedTheme = ''
 )
 $ErrorActionPreference = 'Stop'
+# Shell file dialogs require native separators even when CI supplied mixed paths.
+$Exe = [IO.Path]::GetFullPath($Exe).Replace('/', '\')
+$Pdf = [IO.Path]::GetFullPath($Pdf).Replace('/', '\')
+$OutDir = [IO.Path]::GetFullPath($OutDir).Replace('/', '\')
 # Prefer Windows PowerShell modules when this process is launched from PowerShell 7.
 $env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Windows.Forms, System.Drawing
@@ -42,6 +50,26 @@ function AndCond($a, $b) { New-Object System.Windows.Automation.AndCondition($a,
 function ByName($root, [string]$name) { $root.FindFirst($TS::Descendants, (Cond $AE::NameProperty $name)) }
 function Press($el) { $el.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke() }
 function SetValue($el, [string]$v) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($v) }
+function Value($el) { $el.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value }
+function FocusId($el) { (@($el.GetRuntimeId()) -join '.') }
+function Keys([string]$keys) { [System.Windows.Forms.SendKeys]::SendWait($keys); Start-Sleep -Milliseconds 70 }
+function AssertTabCycle($anchor, [string]$keys) {
+    $anchor.SetFocus()
+    $start = FocusId $anchor
+    $visited = @()
+    for ($i = 0; $i -lt 128; $i++) {
+        Keys $keys
+        $focus = $AE::FocusedElement
+        if ($focus.Current.ProcessId -ne $proc.Id) { throw 'Keyboard focus left the application' }
+        $id = FocusId $focus
+        if ($id -eq $start -and $visited.Count -gt 0) {
+            Log ("OK  keyboard cycle {0}: {1} focus targets; {2}" -f $keys, $visited.Count, ($visited -join ' | '))
+            return
+        }
+        $visited += $focus.Current.Name
+    }
+    throw ("Keyboard focus did not return within 128 steps: {0}; visited: {1}" -f $keys, ($visited -join ' | '))
+}
 # Диалоги (выбор файла, MessageBox) принадлежат главному окну и в дереве UIA лежат под ним.
 function Dialog([int]$processId) {
     $cls = Cond $AE::ClassNameProperty '#32770'
@@ -118,6 +146,38 @@ try {
     $items = $sections.FindAll($TS::Children, (Cond $AE::ControlTypeProperty $CT::ListItem))
     Log ("OK  редактор открыт за {0:N1} с; разделы: {1}" -f $sw.Elapsed.TotalSeconds, (($items | ForEach-Object { $_.Current.Name }) -join ' | '))
     Shot '2-editor'
+    if ($ExpectedTheme) {
+        $image = [Drawing.Bitmap]::FromFile((Join-Path $OutDir '2-editor.png'))
+        try {
+            $bounds = $win.Current.BoundingRectangle
+            $pixel = $image.GetPixel([Math]::Min($image.Width - 1, [int]$bounds.Right - 40), [Math]::Max(0, [int]$bounds.Top + 50))
+            $brightness = [int]$pixel.R + [int]$pixel.G + [int]$pixel.B
+            if (($ExpectedTheme -eq 'dark' -and $brightness -ge 384) -or ($ExpectedTheme -eq 'light' -and $brightness -le 600)) {
+                throw "Requested $ExpectedTheme theme did not produce the expected background: $pixel"
+            }
+            Log "OK  observed $ExpectedTheme application background: $pixel"
+        } finally { $image.Dispose() }
+    }
+
+    if ($LayoutChecks) {
+        $transform = $win.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
+        $transform.Move(0, 0)
+        foreach ($size in @(@(640, 480), @(1000, 700))) {
+            $transform.Resize($size[0], $size[1])
+            Start-Sleep -Milliseconds 500
+            foreach ($section in @('Основные', 'Даты и ПО', 'Все теги', 'Объекты PDF')) {
+                ($items | Where-Object { $_.Current.Name -eq $section } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+                Start-Sleep -Milliseconds 150
+                $bounds = $win.Current.BoundingRectangle
+                $buttonBounds = $review.Current.BoundingRectangle
+                if ($review.Current.IsOffscreen -or $buttonBounds.Left -lt $bounds.Left -or $buttonBounds.Right -gt $bounds.Right -or $buttonBounds.Bottom -gt $bounds.Bottom) {
+                    throw "Review action is clipped at $($size -join 'x') in $section"
+                }
+                Shot ("layout-{0}-{1}" -f ($size -join 'x'), $section)
+            }
+            Log ("OK  resize {0}: all sections and review action accessible" -f ($size -join 'x'))
+        }
+    }
 
     $step = 'sections'
     foreach ($name in @('Все теги', 'Объекты PDF', 'Даты и ПО', 'Основные')) {
@@ -138,6 +198,29 @@ try {
     if ($marks -ne 0 -or $deleted -ne 0) { throw "без правок видны пометки: «изменено» ×$marks, «удалено» ×$deleted" }
     Log 'OK  без правок нет пометок «изменено» и «удалено»'
 
+    if ($StressChecks) {
+        ($items | Where-Object { $_.Current.Name -eq 'Все теги' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $search = ByName $win 'Поиск по тегам: имя, пространство имён или значение'
+        $timer = [Diagnostics.Stopwatch]::StartNew()
+        SetValue $search 'Tag09999'
+        $found = WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::TreeItem)) | Where-Object { $_.Current.Name -like 'load:Tag09999,*' } | Select-Object -First 1 } 15
+        if (-not $found) { throw 'The last of 10,000 tags was not reachable by search' }
+        Log ("OK  10,000-tag search completed in {0:N1} s" -f $timer.Elapsed.TotalSeconds)
+        SetValue $search 'LongValue'
+        $long = WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::TreeItem)) | Where-Object { $_.Current.Name -like 'load:LongValue,*' } | Select-Object -First 1 } 15
+        if (-not $long) { throw 'The multiline stress value was not found' }
+        $long.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        $input = WaitFor { ByName $win 'Значение выбранного тега' } 15
+        if (-not $input -or (Value $input).Length -ne 1048576) { throw 'The 1 MiB multiline value was truncated' }
+        $stressValue = Value $input
+        $input.SetFocus(); Keys '{TAB}'; Keys '+{TAB}'
+        if ((FocusId $AE::FocusedElement) -ne (FocusId $input)) { throw 'Keyboard navigation failed in the long-value editor' }
+        Shot 'stress-long-value'
+        Log 'OK  1 MiB multiline value is complete and keyboard navigation remains available'
+        SetValue $search ''
+        ($items | Where-Object { $_.Current.Name -eq 'Основные' } | Select-Object -First 1).GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    }
+
     $step = 'edit-title'
     $title = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Edit) (Cond $AE::NameProperty 'Название документа'))) } 10
     if (-not $title) { throw 'поле «Название документа» не найдено' }
@@ -146,6 +229,19 @@ try {
     Log ("OK  название: «{0}» → «{1}»" -f $before, $NewTitle)
     $marks = WaitFor { $n = CountByName $win ' · изменено'; if ($n -eq 1) { $n } } 5
     if (-not $marks) { throw ("после правки названия пометок «изменено»: {0}, ожидалась 1" -f (CountByName $win ' · изменено')) }
+    if ($KeyboardChecks) {
+        AssertTabCycle $title '{TAB}'
+        AssertTabCycle $title '+{TAB}'
+        if ((Value $title) -ne $NewTitle) { throw 'Keyboard navigation changed the title without editing it' }
+        if ((Value (ByName $win 'Язык поля: Название документа')) -ne 'x-default') { throw 'Preview or keyboard navigation cleared the selected language' }
+        $title.SetFocus(); Keys '^z'
+        if (-not (WaitFor { (Value $title) -eq $before } 5)) { throw 'Ctrl+Z did not restore the original title' }
+        Keys '^y'
+        if (-not (WaitFor { (Value $title) -eq $NewTitle } 5)) { throw 'Ctrl+Y did not redo the title' }
+        Keys '^z'; Keys '^+z'
+        if (-not (WaitFor { (Value $title) -eq $NewTitle } 5)) { throw 'Ctrl+Shift+Z did not redo the title' }
+        Log 'OK  Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z with text input focused'
+    }
 
     $step = 'edit-annotation'
     $objItem = $items | Where-Object { $_.Current.Name -eq 'Объекты PDF' } | Select-Object -First 1
@@ -160,7 +256,7 @@ try {
     Shot '2c-objects'
 
     $step = 'review'
-    Press $review
+    if ($KeyboardChecks) { $author.SetFocus(); Keys '^s' } else { Press $review }
     $saveCopy = WaitFor { $b = ByName $win 'Сохранить копию…'; if ($b -and $b.Current.IsEnabled) { $b } } 60
     if (-not $saveCopy) { throw 'кнопка «Сохранить копию…» не стала доступной после проверки' }
     $rows = ByName $win 'Список изменений'
@@ -168,11 +264,19 @@ try {
     if ($rows) { $texts = @($rows.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Text)) | ForEach-Object { $_.Current.Name } | Where-Object { $_ }) }
     Log ("OK  «Было → Станет»: {0}" -f (($texts | Select-Object -First 16) -join ' | '))
     Shot '3-review'
+    if ($KeyboardChecks) {
+        $menuButton = ByName $win 'Дополнительно ▾'
+        $menuButton.SetFocus(); Keys ' '
+        $menu = WaitFor { $AE::RootElement.FindFirst($TS::Descendants, (AndCond (Cond $AE::ProcessIdProperty $proc.Id) (Cond $AE::NameProperty 'Заменить оригинал…'))) } 10
+        if (-not $menu) { throw 'The additional save menu could not be opened from the keyboard' }
+        Keys '{ESC}'
+        Log 'OK  Ctrl+S opens review and the additional save menu opens from the keyboard'
+    }
 
     $step = 'save-copy'
     $target = Join-Path $OutDir 'gui_meta.pdf'
     Remove-Item $target -ErrorAction SilentlyContinue
-    Press $saveCopy
+    if ($KeyboardChecks) { $saveCopy.SetFocus(); Keys ' ' } else { Press $saveCopy }
     $sdlg = WaitFor { Dialog $proc.Id } 20
     if (-not $sdlg) { throw 'диалог сохранения не появился' }
     Log ("OK  диалог сохранения: «{0}»" -f $sdlg.Current.Name)
@@ -213,6 +317,30 @@ try {
     $c = $result.data.annotations[0].hasContents
     if (-not $c) { throw 'в копии у аннотации пропал текст комментария' }
     Log ("OK  независимое чтение копии: /Title = «{0}», автор аннотации = «{1}»" -f $t, $a)
+    if ($StressChecks) {
+        $loadNodes = @($result.data.metadataStreams | Where-Object { $_.document } | ForEach-Object { $_.model.nodes } | Where-Object { $_.ns -eq 'https://example.org/acceptance/load/' })
+        $tags = @($loadNodes | Where-Object { $_.steps.Count -eq 1 -and $_.steps[0].name -match '^Tag\d{5}$' })
+        if ($tags.Count -ne 10000 -or @($tags | Group-Object { $_.steps[0].name }).Count -ne 10000) { throw 'Saved copy did not preserve all 10,000 distinct tags' }
+        foreach ($tag in $tags) {
+            if ($tag.value -cne ('value ' + $tag.steps[0].name.Substring(3))) { throw 'Saved copy changed a stress tag value' }
+        }
+        $savedLong = @($loadNodes | Where-Object { $_.steps.Count -eq 1 -and $_.steps[0].name -eq 'LongValue' })
+        if ($savedLong.Count -ne 1 -or $savedLong[0].value -cne $stressValue) { throw 'Saved copy changed the complete multiline stress value' }
+        Log 'OK  independent read preserves every stress tag and the exact 1 MiB multiline value'
+    }
+
+    if ($KeyboardChecks) {
+        $openAgain = WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Button)) | Where-Object { $_.Current.Name -like 'Change meta info*' -and -not $_.Current.IsOffscreen } | Select-Object -First 1 } 15
+        if (-not $openAgain) { throw 'The editor did not return to the start screen' }
+        Press $openAgain
+        $dialogAgain = WaitFor { Dialog $proc.Id } 15
+        TypeIntoDialog $dialogAgain $Pdf
+        $titleAgain = WaitFor { $win.FindFirst($TS::Descendants, (AndCond (Cond $AE::ControlTypeProperty $CT::Edit) (Cond $AE::NameProperty 'Название документа'))) } 60
+        if (-not $titleAgain) { throw 'Could not reopen the document for Ctrl+W acceptance' }
+        $titleAgain.SetFocus(); Keys '^w'
+        if (-not (WaitFor { $win.FindAll($TS::Descendants, (Cond $AE::ControlTypeProperty $CT::Button)) | Where-Object { $_.Current.Name -like 'Change meta info*' -and -not $_.Current.IsOffscreen } | Select-Object -First 1 } 15)) { throw 'Ctrl+W did not close the unchanged editor' }
+        Log 'OK  Ctrl+W closes the editor with a text input focused'
+    }
 
     $step = 'close'
     $proc.CloseMainWindow() | Out-Null
