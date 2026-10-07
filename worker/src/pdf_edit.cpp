@@ -573,8 +573,9 @@ json saveEdits(const json& req, Context& ctx) {
     fs::path backup;
     if (mode == "replace") {
         backup = uniqueSibling(dir, pathToUtf8(src.stem()) + ".backup-" + timestamp(), pathToUtf8(src.extension()));
-        backupGuard.path = backup;
         copyFileExact(src, backup);
+        // A failed exclusive copy may collide with another writer's file; only guard an owned backup.
+        backupGuard.path = backup;
         if (computeFingerprint(backup, &ctx).sha256 != srcFp.sha256)
             throw WorkerError("io_error", "Резервная копия не совпадает с оригиналом");
     }
