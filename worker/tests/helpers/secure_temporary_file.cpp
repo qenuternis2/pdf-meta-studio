@@ -86,9 +86,16 @@ int main(int argc, char** argv) {
                                          nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (writer != INVALID_HANDLE_VALUE) CloseHandle(writer);
             require(writer == INVALID_HANDLE_VALUE, "A second writer can modify the temporary file");
+            HANDLE reader = CreateFileW(temporary.path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
+            require(reader == INVALID_HANDLE_VALUE, "Another reader can observe pending output");
             temporary.write("private synthetic metadata");
             temporary.flush();
-            require(read(temporary.path) == "private synthetic metadata", "Verification reader cannot read pending output");
+            std::rewind(temporary.stream());
+            char marker[64]{};
+            auto length = std::fread(marker, 1, sizeof(marker), temporary.stream());
+            require(std::string(marker, length) == "private synthetic metadata", "Retained reader cannot verify pending output");
 #else
             struct stat state{};
             require(::stat(temporary.path.c_str(), &state) == 0 && (state.st_mode & 0777) == 0600,

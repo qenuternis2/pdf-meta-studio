@@ -152,8 +152,8 @@ TemporaryFile::TemporaryFile(const fs::path& dir) {
     for (int i = 0; i < 100; ++i) {
         fs::path candidate = dir / pathFromUtf8(".pdfmeta-" + randomToken() + ".tmp");
 #ifdef _WIN32
-        // Allow verification readers, but deny other writers and deletion while we hold the file.
-        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
+        // Verification uses this same stream; no other reader, writer or deletion is needed.
+        HANDLE h = CreateFileW(candidate.c_str(), GENERIC_READ | GENERIC_WRITE, 0,
                                &attributes, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (h != INVALID_HANDLE_VALUE) {
             int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), _O_BINARY | _O_RDWR | _O_NOINHERIT);
