@@ -213,15 +213,17 @@ fs::path tempPathIn(const fs::path& dir) {
 void carryOverProtection(const fs::path& source, const fs::path& target, const fs::path& temp) {
 #ifdef _WIN32
     std::error_code ec;
-    copyAcl(fs::exists(target, ec) ? target : source, temp);
     // Копия или замена файла из Интернета должна остаться помеченной, иначе программы просмотра
     // перестанут открывать её в защищённом режиме.
     std::ifstream in(fs::path(source.native() + L":Zone.Identifier"), std::ios::binary);
-    if (!in) return;
-    std::string zone((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    std::ofstream out(fs::path(temp.native() + L":Zone.Identifier"), std::ios::binary | std::ios::trunc);
-    out.write(zone.data(), static_cast<std::streamsize>(zone.size()));
-    if (!out) throw WorkerError("io_error", "Не удалось перенести отметку «загружено из Интернета» на новый файл");
+    if (in) {
+        std::string zone((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        std::ofstream out(fs::path(temp.native() + L":Zone.Identifier"), std::ios::binary | std::ios::trunc);
+        out.write(zone.data(), static_cast<std::streamsize>(zone.size()));
+        if (!out) throw WorkerError("io_error", "Не удалось перенести отметку «загружено из Интернета» на новый файл");
+    }
+    // Keep the private pending ACL until alternate-stream writes finish, including read-only sources.
+    copyAcl(fs::exists(target, ec) ? target : source, temp);
 #else
     std::error_code ec;
     fs::perms p = fs::status(fs::exists(target, ec) ? target : source, ec).permissions();
