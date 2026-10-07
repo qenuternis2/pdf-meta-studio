@@ -158,7 +158,9 @@ jobs:
           path: build/native-tools
       - name: Record Windows 11 ARM host and x64 application identity
         shell: powershell
-        run: ./scripts/windows-host-info.ps1 -OutDir windows11-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
+        run: |
+          ./scripts/prepare-windows-desktop.ps1 -OutDir windows11-acceptance
+          ./scripts/windows-host-info.ps1 -OutDir windows11-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
       - name: Native and managed tests on Windows 11
         shell: pwsh
         run: |
@@ -220,6 +222,8 @@ jobs:
         run: |
           dotnet publish src/PdfMetaStudio.App -c Release -r win-x64 --self-contained true -o dist/PdfMetaStudio
           if ($LASTEXITCODE) { throw 'Managed GUI publication failed' }
+          & powershell.exe -NoProfile -File ./scripts/prepare-windows-desktop.ps1 -OutDir windows-acceptance
+          if ($LASTEXITCODE) { throw 'Windows 11 desktop preparation failed' }
           & powershell.exe -NoProfile -File ./scripts/windows-host-info.ps1 -OutDir windows-acceptance -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
           if ($LASTEXITCODE) { throw 'Windows 11 ARM host verification failed' }
           python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"

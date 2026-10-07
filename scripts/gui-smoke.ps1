@@ -82,6 +82,9 @@ function Dialog([int]$processId) {
 function TypeIntoDialog($dlg, [string]$text) {
     try { $dlg.SetFocus() } catch { }
     Start-Sleep -Milliseconds 500
+    # Prefer the Shell dialog's filename control instead of relying on initial focus.
+    $fileName = $dlg.FindFirst($TS::Descendants, (Cond $AE::AutomationIdProperty '1148'))
+    if ($fileName) { try { $fileName.SetFocus() } catch { } }
     $escaped = [regex]::Replace($text, '[+^%~(){}\[\]]', '{$0}')
     [System.Windows.Forms.SendKeys]::SendWait('^a')
     [System.Windows.Forms.SendKeys]::SendWait($escaped)
