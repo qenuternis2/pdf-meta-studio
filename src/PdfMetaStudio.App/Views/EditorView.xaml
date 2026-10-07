@@ -105,7 +105,6 @@
                            FontSize="12" Visibility="{Binding IsDeleted, Converter={StaticResource BoolToVis}}"/>
                 <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
-                <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
                 <TextBlock Text="{Binding Hint}" Style="{StaticResource Secondary}" FontSize="12"
                            Visibility="{Binding Hint, Converter={StaticResource NullToVis}}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="{Binding HasSyncChoice, Converter={StaticResource BoolToVis}}">
@@ -471,8 +470,7 @@
                                         <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
                                             <Run Text="{Binding Path, Mode=OneWay}"/>
                                         </TextBlock>
-                                        <views:DateEditorView DataContext="{Binding DateEditor}" Visibility="{Binding DataContext.DateEditor, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource NullToVis}}"/>
-                <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
+                                        <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
                                         <TextBlock Text="{Binding Note}" Style="{StaticResource Warn}" FontSize="12"
                                                    Visibility="{Binding Note, Converter={StaticResource NullToVis}}"/>
                                         <Grid Margin="0,6,0,0">
