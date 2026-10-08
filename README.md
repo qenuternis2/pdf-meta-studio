@@ -56,7 +56,7 @@ Building the WPF project on Linux verifies compilation, not GUI execution. Worke
 - Advanced creation supports text, dates, booleans, explicit numbers, URI values, Seq/Bag, language variants, structures, alternatives and qualifiers. Language choices preserve other translations. Unknown properties remain text until the user explicitly selects a type.
 - Invalid XML is rejected before replacing pending operations. Undo/redo operate on the edit session; restoring a property after XML replacement copies its original subtree, including qualifiers.
 - Damaged XMP may be replaced with validated XML. An unchanged damaged packet permits saving only a separate copy; its original bytes are preserved and reported.
-- Saving writes a temporary file, reopens it and checks metadata, page content, annotation content, bookmark/form counts, attachments and encryption before committing. Replacement verifies a backup and rechecks the source fingerprint.
+- Saving writes and verifies through the same exclusively created temporary-file stream, checking metadata, page content, annotation content, bookmark/form counts, attachments and encryption before committing. Replacement verifies a backup and rechecks the source fingerprint.
 - Full rewriting removes historical incremental revisions and recreates object numbering/xref offsets. Unrelated unreferenced objects are preserved; an explicitly removed metadata stream is discarded only if no current reference remains.
 - The XMP SDK patch prevents `x-default` from silently replacing another translation. Modified packets are serialized, reparsed and compared semantically. DTDs and entity declarations are prohibited. Decompression caps protect XMP processing; Windows also uses a 4 GiB worker Job limit.
 
