@@ -99,6 +99,9 @@ jobs:
       - name: Install, exercise and uninstall the per-user MSI
         shell: pwsh
         run: ./scripts/test-installer.ps1
+      - name: Upgrade published 0.3.0, exercise GUI and preserve documents
+        shell: pwsh
+        run: ./scripts/test-installer-upgrade.ps1
       - name: Keyboard, theme, resize and large-data acceptance
         timeout-minutes: 12
         shell: pwsh
@@ -118,6 +121,7 @@ jobs:
           path: |
             installer-*.log
             installer-smoke
+            installer-upgrade
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PdfMetaStudio-installer-win-x64
@@ -211,6 +215,9 @@ jobs:
       - name: Windows 11 install, installed GUI and uninstall
         shell: pwsh
         run: ./scripts/test-installer.ps1
+      - name: Windows 11 upgrade published 0.3.0 and preserve documents
+        shell: pwsh
+        run: ./scripts/test-installer-upgrade.ps1
       - name: Windows 11 keyboard, themes, resizing and large metadata
         timeout-minutes: 12
         shell: pwsh
@@ -226,6 +233,7 @@ jobs:
             windows11-acceptance
             installer-*.log
             installer-smoke
+            installer-upgrade
   desktop_probe:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_probe }}
     runs-on: windows-11-arm
