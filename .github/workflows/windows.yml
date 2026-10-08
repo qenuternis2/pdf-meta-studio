@@ -28,16 +28,18 @@ jobs:
     if: ${{ !inputs.gui_only && !inputs.desktop_probe }}
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Desktop preparation regression checks
         shell: powershell
         run: |
           & powershell.exe -NoProfile -File ./tests/scripts/PrepareWindowsDesktop.Tests.ps1
           exit $LASTEXITCODE
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - run: pip install pypdf==6.19.0 cryptography==50.0.2
@@ -89,7 +91,7 @@ jobs:
           if (-not (Test-Path gui-smoke/gui-smoke.log)) { exit 0 }
           $msg = ((Get-Content gui-smoke/gui-smoke.log -Encoding utf8) -join "`n").Replace('%', '%25').Replace("`r", '').Replace("`n", '%0A')
           Write-Output "::notice title=gui smoke::$msg"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: gui-smoke-screenshots
@@ -104,23 +106,23 @@ jobs:
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
           ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: windows-acceptance
           path: windows-acceptance
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: installer-acceptance
           path: |
             installer-*.log
             installer-smoke
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PdfMetaStudio-installer-win-x64
           path: dist/installer/*.msi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
@@ -133,7 +135,7 @@ jobs:
           $qpdf = Get-ChildItem build/worker/qpdf -Recurse -Filter qpdf.exe | Select-Object -First 1
           if (-not $qpdf) { throw 'Native qpdf test tool missing' }
           Copy-Item $qpdf.FullName build/native-tools/qpdf.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: PdfMetaStudio-native-test-tools-win-x64
           path: build/native-tools
@@ -142,7 +144,9 @@ jobs:
     runs-on: windows-11-arm
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Desktop preparation regression checks
         shell: powershell
         run: |
@@ -151,23 +155,23 @@ jobs:
       - name: Report actual Windows product and architecture
         shell: pwsh
         run: Get-ComputerInfo | Select-Object WindowsProductName, OsArchitecture, OsBuildNumber
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
           architecture: x64
       - run: pip install pypdf==6.19.0 cryptography==50.0.2
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-installer-win-x64
           path: dist/installer
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-native-test-tools-win-x64
           path: build/native-tools
@@ -214,7 +218,7 @@ jobs:
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
           ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/tests/fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows11-acceptance/gui" -CalendarChecks
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: windows11-acceptance
@@ -238,7 +242,7 @@ jobs:
           }
           $records | ConvertTo-Json -Depth 4 | Tee-Object -FilePath desktop-windows.json
           Get-Process | Where-Object { $_.ProcessName -match 'privacy|oobe|experience|wwahost' } | Select-Object ProcessName, Id, Path | ConvertTo-Json | Tee-Object -FilePath desktop-setup-processes.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: windows11-desktop-probe
@@ -250,16 +254,18 @@ jobs:
       contents: read
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Report actual Windows product and architecture
         shell: pwsh
         run: Get-ComputerInfo | Select-Object WindowsProductName, OsArchitecture, OsBuildNumber
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           global-json-file: global.json
       - name: Report preinstalled Python for standard-library fixtures
         run: python --version
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
@@ -281,7 +287,7 @@ jobs:
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Acceptance fixture generation failed' }
           ./scripts/windows-acceptance.ps1 -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -Pdf "$PWD/build/acceptance-fixtures/rich.pdf" -StressPdf "$PWD/build/acceptance-fixtures/stress.pdf" -OutDir "$PWD/windows-acceptance" -CalendarChecks
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: windows-acceptance
@@ -294,11 +300,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-win-x64
           path: PdfMetaStudio
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: PdfMetaStudio-installer-win-x64
           path: installer
