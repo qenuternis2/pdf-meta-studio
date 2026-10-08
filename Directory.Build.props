@@ -6,7 +6,7 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <!-- Позволяет компилировать WPF-проект на Linux/macOS (запуск возможен только в Windows). -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <Company>PDF Meta Studio</Company>
   </PropertyGroup>
 </Project>
