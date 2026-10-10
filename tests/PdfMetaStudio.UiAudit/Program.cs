@@ -268,14 +268,13 @@ internal static class Program
                     var close = Descendants<Button>(view).Single(b => Equals(b.Content, "Закрыть"));
                     await FocusWindow(window);
                     apply.Focus(); apply.BringIntoView();
-                    await Idle();
-                    bool applyReachable = apply.IsKeyboardFocused && InViewport(apply, view);
+                    bool applyReachable = await WaitForViewport(apply, view);
+                    string applyBounds = ViewportDiagnostics(apply, view);
                     await Snapshot(window, $"{theme}-xml-apply-layout-{scale:F1}");
                     close.Focus(); close.BringIntoView();
-                    await Idle();
-                    bool closeReachable = close.IsKeyboardFocused && InViewport(close, view);
+                    bool closeReachable = await WaitForViewport(close, view);
                     await Snapshot(window, $"{theme}-xml-close-layout-{scale:F1}");
-                    Check(applyReachable && closeReachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply reachable with focus/scroll: {applyReachable}; close reachable with focus/scroll: {closeReachable}. Ancestor scroll clips checked; transform is not OS DPI.");
+                    Check(applyReachable && closeReachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply reachable with focus/scroll: {applyReachable}; close reachable with focus/scroll: {closeReachable}. {applyBounds}. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI.");
                 });
             }
             await Case(theme, "large-review-realization", service, document, async (vm, view, window, dialogs) =>
@@ -375,6 +374,30 @@ internal static class Program
         for (DependencyObject? ancestor = VisualTreeHelper.GetParent(control); ancestor != null && ancestor != root; ancestor = VisualTreeHelper.GetParent(ancestor))
             if (ancestor is FrameworkElement element && (element.ClipToBounds || element is ScrollContentPresenter) && !Inside(element)) return false;
         return Inside(root);
+    }
+    private static async Task<bool> WaitForViewport(FrameworkElement control, FrameworkElement root)
+    {
+        var timer = Stopwatch.StartNew();
+        do
+        {
+            await Idle();
+            if (control.IsKeyboardFocused && InViewport(control, root)) return true;
+        } while (timer.Elapsed < TimeSpan.FromSeconds(2));
+        return false;
+    }
+    private static string ViewportDiagnostics(FrameworkElement control, FrameworkElement root)
+    {
+        var parts = new List<string>();
+        for (DependencyObject? ancestor = VisualTreeHelper.GetParent(control); ancestor != null; ancestor = VisualTreeHelper.GetParent(ancestor))
+        {
+            if (ancestor is FrameworkElement element && (ancestor == root || element is ScrollContentPresenter))
+            {
+                var bounds = control.TransformToAncestor(element).TransformBounds(new Rect(control.RenderSize));
+                parts.Add($"{element.GetType().Name} {element.ActualWidth:F1}x{element.ActualHeight:F1}, button {bounds}");
+            }
+            if (ancestor == root) break;
+        }
+        return $"Apply focused: {control.IsKeyboardFocused}; " + string.Join("; ", parts);
     }
     private static async Task Snapshot(Window window, string name)
     {
