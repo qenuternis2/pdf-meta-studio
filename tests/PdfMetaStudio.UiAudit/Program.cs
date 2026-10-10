@@ -178,6 +178,28 @@ internal static class Program
                 var year = Descendants<TextBox>(componentView).Single(t => AutomationProperties.GetName(t).StartsWith("Год даты:", StringComparison.Ordinal));
                 Check(date.Error != null && year.IsKeyboardFocused, $"Error produced: {date.Error != null}; invalid year focused: {year.IsKeyboardFocused}");
             });
+            await Case(theme, "date-accessibility-after-section-switch", service, document, async (vm, view, window, dialogs) =>
+            {
+                var handle = new WindowInteropHelper(window).Handle;
+                for (int cycle = 0; cycle < 2; cycle++)
+                {
+                    window.Width = cycle == 0 ? 640 : 1000;
+                    window.Height = cycle == 0 ? 480 : 700;
+                    foreach (var section in vm.Sections)
+                    {
+                        vm.SelectedSection = section;
+                        await Idle();
+                        // Query the same external control view used by production GUI acceptance.
+                        await Task.Run(() => AutomationElement.FromHandle(handle).FindAll(TreeScope.Descendants, System.Windows.Automation.Condition.TrueCondition));
+                    }
+                }
+                vm.SelectedSection = vm.Sections.First(s => s.Id == "dates");
+                await Idle();
+                bool exposed = await Task.Run(() => AutomationElement.FromHandle(handle).FindFirst(TreeScope.Descendants,
+                    new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Group),
+                        new PropertyCondition(AutomationElement.NameProperty, "Компоненты даты, точность и часовой пояс"))) != null);
+                Check(exposed, $"Date component expander exposed through external UIA after both size/section cycles: {exposed}");
+            });
             await Case(theme, "diagnostic-accessible-name", service, document, async (vm, view, window, dialogs) =>
             {
                 Descendants<Expander>(view).First(e => Equals(e.Header, "Размеры страниц (только чтение)")).IsExpanded = true;

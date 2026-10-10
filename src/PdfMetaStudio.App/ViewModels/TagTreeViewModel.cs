@@ -522,6 +522,11 @@ public sealed partial class TagTreeViewModel : ObservableObject
     private async Task Delete()
     {
         var s = Selected!;
+        if (s.Kind != TagNodeKind.InfoKey && !RequireScope(s.Stream)) return;
+        // Explicit deletion cancels input for the removed node and its children.
+        bool before = HasUnappliedChanges;
+        foreach (var node in Flatten(new[] { s })) _valueDrafts.Remove(node.ExactPath);
+        NotifyDrafts(before);
         if (s.Kind == TagNodeKind.InfoKey)
         {
             if (s.Info is null) _session.Revert("info:" + s.Title);
@@ -529,7 +534,6 @@ public sealed partial class TagTreeViewModel : ObservableObject
         }
         else
         {
-            if (!RequireScope(s.Stream)) return;
             if (s.IsAdded && _session.Edits.OfType<XmpOpEdit>().Any(e => e.Op["op"]?.ToString() is "create" or "setArray" or "setLangAlt" &&
                 e.Op["steps"] is JsonArray steps && XmpPath.Key(steps.Select(st => XmpStep.FromJson(st!))) == s.Node!.Key))
             {

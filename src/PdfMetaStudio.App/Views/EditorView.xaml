@@ -241,7 +241,7 @@
                         <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
                             <TextBlock Text="Основные сведения" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
                             <TextBlock Text="Знакомые поля с согласованными значениями в /Info и XMP." Style="{StaticResource Secondary}" Margin="0,2,0,20"/>
-                            <ItemsControl ItemsSource="{Binding MainFields}" ItemTemplate="{StaticResource FieldTemplate}" Focusable="False"/>
+                            <ItemsControl ItemsSource="{Binding MainFields}" ItemTemplate="{StaticResource FieldTemplate}" Focusable="False" IsVisibleChanged="OnFieldsVisibilityChanged"/>
                         </StackPanel>
                     </ScrollViewer>
 
@@ -252,7 +252,7 @@
                             <TextBlock Text="Даты и программы" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
                             <TextBlock Text="Даты сохраняют точность и часовой пояс. Автоматических подстановок нет. Даты файла в Проводнике — отдельные свойства."
                                        Style="{StaticResource Secondary}" Margin="0,2,0,20"/>
-                            <ItemsControl ItemsSource="{Binding DateFields}" ItemTemplate="{StaticResource FieldTemplate}" Focusable="False"/>
+                            <ItemsControl ItemsSource="{Binding DateFields}" ItemTemplate="{StaticResource FieldTemplate}" Focusable="False" IsVisibleChanged="OnFieldsVisibilityChanged"/>
                         </StackPanel>
                     </ScrollViewer>
 

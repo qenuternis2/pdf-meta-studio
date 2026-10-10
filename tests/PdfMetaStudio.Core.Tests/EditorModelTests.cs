@@ -1,6 +1,7 @@
 using PdfMetaStudio.App.ViewModels;
 using PdfMetaStudio.Core;
 using PdfMetaStudio.Core.Editing;
+using PdfMetaStudio.Core.Dates;
 using PdfMetaStudio.Core.Model;
 using Xunit;
 
@@ -125,6 +126,27 @@ public class EditorModelTests
         Assert.Equal(expected, focus);
     }
 
+    [Theory]
+    [InlineData(false, DatePrecision.Minute, ZoneKind.Offset, "+99:99", "Offset")]
+    [InlineData(false, DatePrecision.Hour, ZoneKind.None, "", "Precision")]
+    [InlineData(false, DatePrecision.FractionalSecond, ZoneKind.None, "", "Fraction")]
+    [InlineData(true, DatePrecision.FractionalSecond, ZoneKind.None, "", "Precision")]
+    public void InvalidDateZoneOrPrecisionRequestsTheRelevantControl(bool pdf, DatePrecision precision, ZoneKind zone, string offset, string expected)
+    {
+        bool applied = false;
+        string? focus = null;
+        var editor = new DateEditorViewModel(_ => applied = true);
+        editor.Load("2025-02-28T12:30:00", pdf);
+        editor.ValidationFailed += component => focus = component;
+        editor.Precision = editor.Precisions.First(p => p.Value == precision);
+        editor.Zone = editor.Zones.First(z => z.Value == zone);
+        editor.Offset = offset;
+        editor.ApplyCommand.Execute(null);
+        Assert.False(applied);
+        Assert.NotNull(editor.Error);
+        Assert.Equal(expected, focus);
+    }
+
     [WorkerFact]
     public async Task NewXmpTagIsVisibleEditableAndReversible()
     {
@@ -143,7 +165,9 @@ public class EditorModelTests
         await tree.ApplyCommand.ExecuteAsync(null);
         Assert.Equal("Second", Find(tree, "AuditAdded").Value);
         tree.Selected = Find(tree, "AuditAdded");
+        tree.EditValue = "Input cancelled by explicit deletion";
         await tree.DeleteCommand.ExecuteAsync(null);
+        Assert.False(tree.HasUnappliedChanges);
         Assert.DoesNotContain(Flatten(tree.Roots), n => n.Node?.Steps[^1].Name == "AuditAdded");
         Assert.Equal(0, session.ChangeCount);
         session.Undo();
