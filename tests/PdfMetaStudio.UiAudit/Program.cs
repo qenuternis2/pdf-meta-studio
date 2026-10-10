@@ -41,7 +41,7 @@ internal static class Program
         _output = Path.GetFullPath(args[2]);
         Directory.CreateDirectory(_output);
         Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo("ru-RU");
-        var app = new AuditApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var app = new PdfMetaStudio.App.App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.InitializeComponent();
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
@@ -62,19 +62,14 @@ internal static class Program
                     limits = "Actual WPF components hosted in a test window; this complements the separate real-application GUI smoke. UIA events do not establish Narrator speech. LayoutTransform tests are not physical Windows DPI changes. No standard-user physical x64/offline or microphone/audio acceptance."
                 }, new JsonSerializerOptions { WriteIndented = true }));
                 foreach (var r in Results) Console.WriteLine($"{r.Status} {r.Theme}/{r.Check}: {r.Detail}");
-                Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                Console.WriteLine("All results saved; native worker disposed, UIA handlers detached and high contrast restored.");
+                Environment.Exit(_exitCode); // Original App owns a home window; do not await its asynchronous close on a stopped dispatcher.
             }
         }));
         Dispatcher.Run();
         Console.WriteLine("Audit dispatcher exited; all results and cleanup completed.");
         Environment.Exit(_exitCode); // UIA can retain native client threads after every handler is removed.
         return _exitCode;
-    }
-
-    private sealed class AuditApplication : PdfMetaStudio.App.App
-    {
-        // Load the unchanged application resources without launching its separate home window.
-        protected override void OnStartup(StartupEventArgs e) { }
     }
 
     private static async Task Run(Application app, string fixture, string worker, string requestedTheme)

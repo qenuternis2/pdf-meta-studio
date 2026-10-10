@@ -8,6 +8,9 @@ from a verified successful Windows workflow whose native inputs still match.
 
 Run the **Windows UI audit** workflow with `package_run_id` set to that run.
 The managed application and harness are rebuilt from the selected source commit.
+`additional_only` skips baseline GUI acceptance explicitly; it does not establish
+baseline acceptance for that run. Use it only when those checks already passed
+and application code is unchanged.
 The `windows-ui-audit` artifact records native provenance, host architecture/DPI,
 existing acceptance, machine-readable additional results and native client screenshots.
 
