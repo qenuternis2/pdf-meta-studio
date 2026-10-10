@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:PdfMetaStudio.App.Views"
              xmlns:vm="clr-namespace:PdfMetaStudio.App.ViewModels"
+             xmlns:editing="clr-namespace:PdfMetaStudio.Core.Editing;assembly=PdfMetaStudio.Core"
              PreviewKeyDown="OnEditorPreviewKeyDown" PreviewMouseDown="OnEditorPreviewMouseDown"
              AutomationProperties.Name="Редактор метаданных">
     <UserControl.InputBindings>
@@ -141,7 +142,7 @@
                     </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding XmpBlocked}" Style="{StaticResource Warn}" Visibility="{Binding XmpBlocked, Converter={StaticResource NullToVis}}"/>
-                <TextBlock Text="{Binding Problem}" Style="{StaticResource Warn}" Visibility="{Binding Problem, Converter={StaticResource NullToVis}}"
+                <views:LiveTextBlock Text="{Binding Problem}" Style="{StaticResource Warn}" Visibility="{Binding Problem, Converter={StaticResource NullToVis}}"
                            AutomationProperties.LiveSetting="Polite"/>
                 <Button Content="Подтвердить потерю точности в /Info" Command="{Binding AcceptLossCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
                         Visibility="{Binding NeedsPrecisionConfirm, Converter={StaticResource BoolToVis}}"/>
@@ -164,7 +165,8 @@
         </HierarchicalDataTemplate>
     </UserControl.Resources>
 
-    <Grid>
+    <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Focusable="False">
+    <Grid Width="{Binding ViewportWidth, ElementName=EditorScroll}" Height="{Binding ViewportHeight, ElementName=EditorScroll}" MinWidth="600" MinHeight="400">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -178,7 +180,7 @@
             <TextBlock Text="{Binding Summary}" Style="{StaticResource Secondary}" FontSize="12"/><WrapPanel IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}"><Button Content="Перезапустить обработчик" Command="{Binding RestartWorkerCommand}"/><Button Content="Перезагрузить файл" Command="{Binding ReloadCommand}"/><Button Content="Ввести пароль владельца" Command="{Binding EnterOwnerPasswordCommand}" Visibility="{Binding IsEncrypted, Converter={StaticResource BoolToVis}}"/><Button Content="Разрешить правки подписанной копии" Command="{Binding AllowSignedCopyEditingCommand}" Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/></WrapPanel>
             <TextBlock Text="{Binding ReadOnlyMessage}" Visibility="{Binding IsReadOnly, Converter={StaticResource BoolToVis}}" Style="{StaticResource Warn}"/>
             <ComboBox IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" ItemsSource="{Binding DocumentScopeOptions}" SelectedItem="{Binding SelectedDocumentScope}" DisplayMemberPath="Title" Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" AutomationProperties.Name="Область правки XMP документа"/>
-            <Expander Header="Размеры страниц (только чтение)"><TextBox Text="{Binding PageDimensions, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="140" VerticalScrollBarVisibility="Auto"/></Expander>
+            <Expander Header="Размеры страниц (только чтение)"><TextBox Text="{Binding PageDimensions, Mode=OneWay}" AutomationProperties.Name="Размеры страниц PDF (только чтение)" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="140" VerticalScrollBarVisibility="Auto"/></Expander>
             <ItemsControl ItemsSource="{Binding DocumentNotes}" Visibility="{Binding HasDocumentNotes, Converter={StaticResource BoolToVis}}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -251,7 +253,18 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
+                            <RowDefinition>
+                                <RowDefinition.Style>
+                                    <Style TargetType="RowDefinition">
+                                        <Setter Property="Height" Value="Auto"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsExpanded, ElementName=XmlExpander}" Value="True">
+                                                <Setter Property="Height" Value="*"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </RowDefinition.Style>
+                            </RowDefinition>
                         </Grid.RowDefinitions>
                         <TextBlock Text="Все теги документа" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
                         <DockPanel Grid.Row="1" Margin="0,10,0,10">
@@ -315,10 +328,11 @@
                                         <Expander Header="Диагностика PDF: тип и исходные байты"><TextBox Text="{Binding SelectedDiagnostic, Mode=OneWay}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="300" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Диагностика выбранного PDF-значения"/></Expander>
                                         <WrapPanel Margin="0,8,0,0">
                                             <Button Content="_Применить" Command="{Binding ApplyCommand}" Margin="0,0,8,6"/>
+                                            <Button Content="Отменить ввод значения" Command="{Binding ResetValueCommand}" Margin="0,0,8,6"/>
                                             <Button Content="Удалить" Command="{Binding DeleteCommand}" Margin="0,0,8,6"/>
                                             <Button Content="Восстановить" Command="{Binding RestoreCommand}" Margin="0,0,8,6"/>
                                         </WrapPanel>
-                                        <TextBlock Text="{Binding Message}" Style="{StaticResource Warn}" Visibility="{Binding Message, Converter={StaticResource NullToVis}}"
+                                        <views:LiveTextBlock Text="{Binding Message}" Style="{StaticResource Warn}" Visibility="{Binding Message, Converter={StaticResource NullToVis}}"
                                                    AutomationProperties.LiveSetting="Polite"/>
                                     </StackPanel>
                                     <!-- Добавление тега -->
@@ -343,7 +357,7 @@
                                             <TextBox x:Name="NewValue" Text="{Binding NewValue, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" MinHeight="60" TextWrapping="Wrap"/>
                                             <Label Content="Языковая _метка (для языкового варианта)" Padding="0,8,0,4"/>
                                             <TextBox Text="{Binding NewLanguage, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Язык нового варианта"/>
-                                            <TextBlock Text="{Binding AddError}" Style="{StaticResource Warn}" Visibility="{Binding AddError, Converter={StaticResource NullToVis}}"
+                                            <views:LiveTextBlock Text="{Binding AddError}" Style="{StaticResource Warn}" Visibility="{Binding AddError, Converter={StaticResource NullToVis}}"
                                                        AutomationProperties.LiveSetting="Assertive"/>
                                             <Button Content="Добавить" Command="{Binding AddCommand}" HorizontalAlignment="Left" Margin="0,10,0,0"
                                                     Style="{DynamicResource AccentButtonStyle}"/>
@@ -353,7 +367,8 @@
                             </ScrollViewer>
                         </Grid>
                         <!-- Исходный XMP -->
-                        <Expander Grid.Row="3" Header="Исходный XMP выбранного объекта (XML)" Margin="0,12,0,0">
+                        <Expander x:Name="XmlExpander" Grid.Row="3" Header="Исходный XMP выбранного объекта (XML)" Margin="0,12,0,0">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                             <StackPanel>
                                 <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedStream}" DisplayMemberPath="Title"
                                           AutomationProperties.Name="Объект для редактирования XMP"/>
@@ -361,7 +376,7 @@
                                           Visibility="{Binding HasScopeChoice, Converter={StaticResource BoolToVis}}"
                                           AutomationProperties.Name="Область правки выбранного потока"/>
                                 <Button IsEnabled="True" Content="Экспортировать исходный пакет без изменения байтов…" Command="{Binding ExportOriginalPacketCommand}" HorizontalAlignment="Left"/>
-                                <Expander Header="Исходные байты не-UTF-8 пакета (Base64)" Visibility="{Binding RawPacketBase64, Converter={StaticResource NullToVis}}"><TextBox Text="{Binding RawPacketBase64, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto"/></Expander>
+                                <Expander Header="Исходные байты не-UTF-8 пакета (Base64)" Visibility="{Binding RawPacketBase64, Converter={StaticResource NullToVis}}"><TextBox Text="{Binding RawPacketBase64, Mode=OneWay}" AutomationProperties.Name="Исходные байты пакета XMP в Base64" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto"/></Expander>
                                 <TextBlock Text="{Binding DocumentXmpProblem}" Style="{StaticResource Warn}"
                                            Visibility="{Binding DocumentXmpProblem, Converter={StaticResource NullToVis}}"/>
                                 <TextBox Text="{Binding RawXml, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
@@ -371,6 +386,7 @@
                                 <Button Content="Применить XML" Command="{Binding ApplyRawXmlCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
                                 <Button Content="Отменить ввод XML" Command="{Binding ResetXmlCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
                             </StackPanel>
+                            </ScrollViewer>
                         </Expander>
                     </Grid>
 
@@ -430,7 +446,7 @@
                                             <TextBlock Text="{Binding Title}"/>
                                             <TextBlock Text="{Binding Details}" Style="{StaticResource Secondary}" FontSize="12" TextWrapping="Wrap"/>
                                             <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource ObjectFieldTemplate}"/>
-                                            <Expander Header="Типы и исходные байты"><TextBox Text="{Binding Diagnostic, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="240" VerticalScrollBarVisibility="Auto"/></Expander>
+                                            <Expander Header="Типы и исходные байты"><TextBox Text="{Binding Diagnostic, Mode=OneWay}" AutomationProperties.Name="Типы и исходные байты частных данных" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="240" VerticalScrollBarVisibility="Auto"/></Expander>
                                             <Button IsEnabled="True" Content="Экспортировать частные данные…" Command="{Binding ExportCommand}" HorizontalAlignment="Left"/>
                                         </StackPanel>
                                     </DataTemplate>
@@ -446,26 +462,11 @@
         <Border Grid.Row="1" Visibility="{Binding IsReviewing, Converter={StaticResource BoolToVis}}"
                 BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
                 Background="{DynamicResource LayerFillColorDefaultBrush}">
-            <ScrollViewer Padding="26,22" Focusable="False" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
-                <StackPanel MaxWidth="900">
-                    <TextBlock Text="Проверка изменений" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
-                    <TextBlock Text="Сравните значения перед сохранением. Исходный файл не изменится, пока вы не выберете «Заменить оригинал…»."
-                               Style="{StaticResource Secondary}" Margin="0,2,0,14"/>
-                    <ItemsControl ItemsSource="{Binding ReviewIssues}" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Message}" Style="{StaticResource Warn}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" Margin="0,8,0,8">
-                        <TextBlock Text="XMP документа общий с другими объектами. Как его менять?" FontWeight="SemiBold"/>
-                        <RadioButton Content="Изменить для всех владельцев" GroupName="DocScope" Margin="0,6,0,0" Checked="OnScopeAll"/>
-                        <RadioButton Content="Отделить копию только для документа" GroupName="DocScope" Checked="OnScopeDetach"/>
-                    </StackPanel>
-                    <ItemsControl ItemsSource="{Binding ReviewRows}" Focusable="False" AutomationProperties.Name="Список изменений">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+            <ItemsControl IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}" Focusable="False" AutomationProperties.Name="Список изменений"
+                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
+                <ItemsControl.Resources>
+                    <CollectionViewSource x:Key="ReviewRowsSource" Source="{Binding ReviewRows}"/>
+                            <DataTemplate DataType="{x:Type editing:ReviewRow}">
                                 <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="0,10">
                                     <StackPanel>
                                         <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
@@ -491,8 +492,42 @@
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
+                </ItemsControl.Resources>
+                <ItemsControl.Template>
+                    <ControlTemplate TargetType="ItemsControl">
+                        <ScrollViewer Padding="26,22" CanContentScroll="True" Focusable="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <ItemsPresenter/>
+                        </ScrollViewer>
+                    </ControlTemplate>
+                </ItemsControl.Template>
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><VirtualizingStackPanel/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemsSource>
+                    <CompositeCollection>
+                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False">
+                            <StackPanel>
+                    <TextBlock Text="Проверка изменений" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
+                    <TextBlock Text="Сравните значения перед сохранением. Исходный файл не изменится, пока вы не выберете «Заменить оригинал…»."
+                               Style="{StaticResource Secondary}" Margin="0,2,0,14"/>
+                    <ItemsControl ItemsSource="{Binding ReviewIssues}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Message}" Style="{StaticResource Warn}"/>
+                            </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <StackPanel Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" Margin="0,8,0,8">
+                        <TextBlock Text="XMP документа общий с другими объектами. Как его менять?" FontWeight="SemiBold"/>
+                        <RadioButton Content="Изменить для всех владельцев" GroupName="DocScope" Margin="0,6,0,0" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=all}"/>
+                        <RadioButton Content="Отделить копию только для документа" GroupName="DocScope" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=detach}"/>
+                    </StackPanel>
+
+                            </StackPanel>
+                        </ContentControl>
+                        <CollectionContainer Collection="{Binding Source={StaticResource ReviewRowsSource}}"/>
+                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False">
+                            <StackPanel>
                     <ItemsControl ItemsSource="{Binding ReviewNotes}" Margin="0,12,0,0" Focusable="False">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -511,8 +546,12 @@
                     <TextBlock Style="{StaticResource Secondary}" FontSize="12" Margin="0,12,0,0">
                         <Run Text="Имя копии по умолчанию: "/><Run Text="{Binding CopyName, Mode=OneWay}"/>
                     </TextBlock>
-                </StackPanel>
-            </ScrollViewer>
+
+                            </StackPanel>
+                        </ContentControl>
+                    </CompositeCollection>
+                </ItemsControl.ItemsSource>
+            </ItemsControl>
         </Border>
 
         <!-- Действия -->
@@ -521,14 +560,14 @@
                 <StackPanel Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" Margin="0,0,0,10">
                     <DockPanel>
                         <Button DockPanel.Dock="Right" Content="Отмена" Command="{Binding CancelCommand}" Margin="8,0,0,0"/>
-                        <TextBlock Text="{Binding BusyText}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
+                        <views:LiveTextBlock Text="{Binding BusyText}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
                     </DockPanel>
                     <ProgressBar Value="{Binding BusyPercent}" Maximum="100" Height="4" Margin="0,6,0,0"
                                  AutomationProperties.Name="Ход выполнения"/>
                 </StackPanel>
                 <!-- Режим правки -->
                 <WrapPanel Visibility="{Binding IsReviewing, Converter={StaticResource NotVis}}" HorizontalAlignment="Right">
-                    <TextBlock DockPanel.Dock="Left" Text="{Binding Status}" VerticalAlignment="Center" Style="{StaticResource Secondary}"
+                    <views:LiveTextBlock DockPanel.Dock="Left" Text="{Binding Status}" VerticalAlignment="Center" Style="{StaticResource Secondary}"
                                AutomationProperties.LiveSetting="Polite"/>
                     <Button DockPanel.Dock="Right" Content="Проверить и сохранить" Command="{Binding ReviewCommand}"
                             Style="{DynamicResource AccentButtonStyle}" Margin="8,0,0,0" ToolTip="Ctrl+S"/>
@@ -550,4 +589,5 @@
             </StackPanel>
         </Border>
     </Grid>
+    </ScrollViewer>
 </UserControl>

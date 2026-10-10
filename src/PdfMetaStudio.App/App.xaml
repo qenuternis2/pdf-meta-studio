@@ -13,6 +13,7 @@
             <v:InverseBoolToVisibilityConverter x:Key="NotVis"/>
             <v:NullToVisibilityConverter x:Key="NullToVis"/>
             <v:SectionVisibilityConverter x:Key="SectionVis"/>
+            <v:ScopeEqualsConverter x:Key="ScopeSelected"/>
             <DataTemplate DataType="{x:Type vm:EditorViewModel}">
                 <v:EditorView/>
             </DataTemplate>

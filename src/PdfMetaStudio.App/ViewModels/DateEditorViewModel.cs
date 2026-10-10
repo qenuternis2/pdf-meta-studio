@@ -13,6 +13,7 @@ public sealed partial class DateEditorViewModel : ObservableObject
 {
     private readonly Action<string> _apply;
     private bool _loading;
+    public event Action<string>? ValidationFailed;
     public DateEditorViewModel(Action<string> apply) { _apply = apply; _precision = Precisions[0]; _zone = Zones[0]; }
     public IReadOnlyList<DatePrecisionOption> Precisions { get; } = new[] {
         new DatePrecisionOption(DatePrecision.Year, "Год"), new DatePrecisionOption(DatePrecision.Month, "Месяц"),
@@ -97,5 +98,25 @@ public sealed partial class DateEditorViewModel : ObservableObject
         Error = result.Error;
         return result.Ok ? value : null;
     }
-    [RelayCommand] private void Apply() { var value = Compose(); if (value != null) _apply(value); }
+    [RelayCommand] private void Apply()
+    {
+        var value = Compose();
+        if (value != null) _apply(value);
+        else ValidationFailed?.Invoke(FirstInvalidComponent());
+    }
+    private string FirstInvalidComponent()
+    {
+        bool InRange(string text, int min, int max) => int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n >= min && n <= max;
+        if (!InRange(Year, 1, 9999)) return nameof(Year);
+        if (HasMonth && !InRange(Month, 1, 12)) return nameof(Month);
+        if (HasDay && !InRange(Day, 1, DateTime.DaysInMonth(int.Parse(Year, CultureInfo.InvariantCulture), int.Parse(Month, CultureInfo.InvariantCulture)))) return nameof(Day);
+        if (HasHour && !InRange(Hour, 0, 23)) return nameof(Hour);
+        if (HasMinute && !InRange(Minute, 0, 59)) return nameof(Minute);
+        if (HasSecond && !InRange(Second, 0, 59)) return nameof(Second);
+        if (HasFraction && (OutputPdf || Fraction.Length == 0 || Fraction.Any(c => c is < '0' or > '9')))
+            return OutputPdf ? nameof(Precision) : nameof(Fraction);
+        if (!OutputPdf && Precision.Value == DatePrecision.Hour) return nameof(Precision);
+        if (!HasHour && Zone.Value != ZoneKind.None) return nameof(Zone);
+        return HasOffset ? nameof(Offset) : nameof(Precision);
+    }
 }

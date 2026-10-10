@@ -15,15 +15,6 @@ public partial class EditorView : UserControl
         if (Vm is { } vm) vm.Tags.Selected = e.NewValue as TagNodeViewModel;
     }
 
-    private void OnScopeAll(object sender, RoutedEventArgs e)
-    {
-        if (Vm is { } vm) vm.DocumentScope = "all";
-    }
-
-    private void OnScopeDetach(object sender, RoutedEventArgs e)
-    {
-        if (Vm is { } vm) vm.DocumentScope = "detach";
-    }
     private void OnSaveMenu(object sender, System.Windows.RoutedEventArgs e) {
         if (sender is System.Windows.Controls.Button { ContextMenu: { } menu }) { menu.PlacementTarget = (System.Windows.UIElement)sender; menu.IsOpen = true; }
     }

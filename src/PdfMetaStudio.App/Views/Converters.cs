@@ -4,6 +4,12 @@ using System.Windows.Data;
 
 namespace PdfMetaStudio.App.Views;
 
+public sealed class ScopeEqualsConverter : IValueConverter
+{
+    public object Convert(object? value, Type t, object p, CultureInfo c) => Equals(value, p);
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => value is true ? p : Binding.DoNothing;
+}
+
 public sealed class InverseBoolConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, CultureInfo c) => value is not true;

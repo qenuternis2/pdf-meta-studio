@@ -95,17 +95,45 @@ internal static class Program
             });
             await Case(theme, "xml-draft-stream-switch", service, document, async (vm, view, window, dialogs) =>
             {
+                string originalKey = vm.Tags.SelectedStream!.Key;
                 vm.Tags.RawXml = "AUDIT unapplied XML";
-                var next = vm.Tags.Sources.First(s => s.Key != vm.Tags.SelectedStream?.Key);
+                var next = vm.Tags.Sources.First(s => s.Key != originalKey);
+                vm.Tags.SelectedStream = next;
+                bool isolated = vm.Tags.RawXml == next.Packet;
+                vm.Tags.RawXml = "SECOND unapplied XML";
+                vm.Tags.SelectedStream = vm.Tags.Sources.First(s => s.Key == originalKey);
+                bool retained = vm.Tags.RawXml == "AUDIT unapplied XML";
                 vm.Tags.SelectedStream = next;
                 await Idle();
-                Check(vm.Tags.RawXml == "AUDIT unapplied XML" || dialogs.Confirmations > 0, $"Draft retained: {vm.Tags.RawXml == "AUDIT unapplied XML"}; confirmations: {dialogs.Confirmations}");
+                Check(isolated && retained && vm.Tags.RawXml == "SECOND unapplied XML" && vm.Tags.HasUnappliedChanges && vm.Session.ChangeCount == 0,
+                    $"Packets isolated: {isolated}; both drafts retained: {retained && vm.Tags.RawXml == "SECOND unapplied XML"}; session changes: {vm.Session.ChangeCount}");
             });
             await Case(theme, "close-unapplied-xml", service, document, async (vm, view, window, dialogs) =>
             {
                 vm.Tags.RawXml = "AUDIT unapplied XML";
                 bool closed = await vm.TryCloseAsync();
                 Check(!closed && dialogs.UnsavedQuestions > 0, $"Close allowed: {closed}; unsaved questions: {dialogs.UnsavedQuestions}; session changes: {vm.Session.ChangeCount}");
+            });
+            await Case(theme, "close-save-unapplied-tag", service, document, async (vm, view, window, dialogs) =>
+            {
+                vm.SelectedSection = vm.Sections.First(s => s.Id == "all");
+                vm.Tags.Selected = Flatten(vm.Tags.Roots).First(n => n.Kind == TagNodeKind.InfoKey && n.IsEditable);
+                vm.Tags.EditValue = "AUDIT pending value";
+                dialogs.Answer = CloseAnswer.Save;
+                bool closed = await vm.TryCloseAsync();
+                Check(!closed && dialogs.UnsavedQuestions == 1 && dialogs.Information == 1 && vm.Tags.EditValue == "AUDIT pending value" && !vm.IsReviewing,
+                    $"Save choice preserves pending input: {!closed && vm.Tags.EditValue == "AUDIT pending value"}; review explains apply/reset: {dialogs.Information}; session changes: {vm.Session.ChangeCount}");
+            });
+            await Case(theme, "reviewed-save-disabled-by-draft", service, document, async (vm, view, window, dialogs) =>
+            {
+                vm.MainFields.First(f => f.Id == "title").Text = "AUDIT applied title";
+                await vm.ReviewCommand.ExecuteAsync(null);
+                bool before = vm.SaveCopyCommand.CanExecute(null);
+                vm.Tags.RawXml = "AUDIT pending XML";
+                bool disabled = !vm.SaveCopyCommand.CanExecute(null) && !vm.ReplaceCommand.CanExecute(null);
+                await vm.ReloadCommand.ExecuteAsync(null);
+                Check(before && disabled && dialogs.Confirmations == 1 && vm.Tags.HasUnappliedChanges,
+                    $"Reviewed save initially enabled: {before}; save/replace disabled for pending XML: {disabled}; reload prompted and cancellation retained draft: {dialogs.Confirmations == 1 && vm.Tags.HasUnappliedChanges}");
             });
             await Case(theme, "tree-expansion-state", service, document, async (vm, view, window, dialogs) =>
             {
@@ -123,7 +151,14 @@ internal static class Program
                 vm.IsReviewing = true;
                 await Idle();
                 var radios = Descendants<RadioButton>(view).Where(r => r.GroupName == "DocScope").ToArray();
-                Check(radios.Length == 2 && radios[0].IsChecked == true, $"Model scope: {vm.DocumentScope}; review choices checked: {string.Join(",", radios.Select(r => r.IsChecked))}");
+                bool initiallyAll = radios.Length == 2 && radios[0].IsChecked == true && radios[1].IsChecked == false;
+                if (radios.Length == 2) radios[1].IsChecked = true;
+                await Idle();
+                bool detached = vm.DocumentScope == "detach" && vm.SelectedDocumentScope?.Scope == "detach";
+                vm.SelectedDocumentScope = vm.DocumentScopeOptions.First(s => s.Scope == "all");
+                await Idle();
+                Check(initiallyAll && detached && radios[0].IsChecked == true && radios[1].IsChecked == false,
+                    $"Initial all displayed: {initiallyAll}; radio synchronized model/selector: {detached}; selector synchronized radios: {radios[0].IsChecked == true && radios[1].IsChecked == false}");
             });
             await Case(theme, "invalid-date-focus", service, document, async (vm, view, window, dialogs) =>
             {
@@ -208,9 +243,16 @@ internal static class Program
                     await Idle();
                     var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Применить XML"));
                     var close = Descendants<Button>(view).Single(b => Equals(b.Content, "Закрыть"));
-                    bool reachable = InViewport(apply, view) && InViewport(close, view);
-                    await Snapshot(window, $"{theme}-xml-layout-{scale:F1}");
-                    Check(reachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply viewport: {InViewport(apply, view)}; close viewport: {InViewport(close, view)}. Transform is not OS DPI.");
+                    await FocusWindow(window);
+                    apply.Focus(); apply.BringIntoView();
+                    await Idle();
+                    bool applyReachable = apply.IsKeyboardFocused && InViewport(apply, view);
+                    await Snapshot(window, $"{theme}-xml-apply-layout-{scale:F1}");
+                    close.Focus(); close.BringIntoView();
+                    await Idle();
+                    bool closeReachable = close.IsKeyboardFocused && InViewport(close, view);
+                    await Snapshot(window, $"{theme}-xml-close-layout-{scale:F1}");
+                    Check(applyReachable && closeReachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply reachable with focus/scroll: {applyReachable}; close reachable with focus/scroll: {closeReachable}. Ancestor scroll clips checked; transform is not OS DPI.");
                 });
             }
             await Case(theme, "large-review-realization", service, document, async (vm, view, window, dialogs) =>
@@ -221,7 +263,16 @@ internal static class Program
                 await Idle();
                 var list = Descendants<ItemsControl>(view).Single(c => AutomationProperties.GetName(c) == "Список изменений");
                 int realized = Enumerable.Range(0, list.Items.Count).Count(i => list.ItemContainerGenerator.ContainerFromIndex(i) != null);
-                Check(realized < 1000, $"1000 rows; realized containers: {realized}; UI layout elapsed {timer.Elapsed.TotalMilliseconds:F0} ms. Full realization confirms virtualization absence, not a measured hang.");
+                var scroll = Descendants<ScrollViewer>(list).First();
+                scroll.ScrollToEnd();
+                await Idle();
+                bool footerReachable = Descendants<CheckBox>(list).Any(c => c.Content?.ToString()?.StartsWith("Обновить дату изменения", StringComparison.Ordinal) == true && InViewport(c, view));
+                scroll.ScrollToVerticalOffset(Math.Max(0, scroll.ExtentHeight - scroll.ViewportHeight - 200));
+                await Idle();
+                bool lastRowReachable = Descendants<TextBlock>(list).Any(t => t.Text == "/Audit999");
+                int after = Enumerable.Range(0, list.Items.Count).Count(i => list.ItemContainerGenerator.ContainerFromIndex(i) != null);
+                Check(realized < 100 && after < 100 && footerReachable && lastRowReachable,
+                    $"1000 rows; realized initially/after scroll: {realized}/{after}; last row realized: {lastRowReachable}; footer in viewport: {footerReachable}; UI layout/scroll elapsed {timer.Elapsed.TotalMilliseconds:F0} ms.");
             });
         }
         await HighContrast(app, service, document);
@@ -283,8 +334,15 @@ internal static class Program
     }
     private static bool InViewport(FrameworkElement control, FrameworkElement root)
     {
-        var bounds = control.TransformToAncestor(root).TransformBounds(new Rect(control.RenderSize));
-        return control.IsVisible && control.ActualWidth > 0 && control.ActualHeight > 0 && bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= root.ActualWidth + 1 && bounds.Bottom <= root.ActualHeight + 1;
+        if (!control.IsVisible || control.ActualWidth <= 0 || control.ActualHeight <= 0) return false;
+        bool Inside(FrameworkElement ancestor)
+        {
+            var bounds = control.TransformToAncestor(ancestor).TransformBounds(new Rect(control.RenderSize));
+            return bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= ancestor.ActualWidth + 1 && bounds.Bottom <= ancestor.ActualHeight + 1;
+        }
+        for (DependencyObject? ancestor = VisualTreeHelper.GetParent(control); ancestor != null && ancestor != root; ancestor = VisualTreeHelper.GetParent(ancestor))
+            if (ancestor is FrameworkElement element && (element.ClipToBounds || element is ScrollContentPresenter) && !Inside(element)) return false;
+        return Inside(root);
     }
     private static async Task Snapshot(Window window, string name)
     {
@@ -444,7 +502,9 @@ internal static class Program
         public int UnsavedQuestions { get; private set; }
         public int Confirmations { get; private set; }
         public bool Discard { get; set; }
-        public CloseAnswer AskUnsavedChanges() { UnsavedQuestions++; return Discard ? CloseAnswer.Discard : CloseAnswer.Return; }
+        public CloseAnswer Answer { get; set; } = CloseAnswer.Return;
+        public int Information { get; private set; }
+        public CloseAnswer AskUnsavedChanges() { UnsavedQuestions++; return Discard ? CloseAnswer.Discard : Answer; }
         public bool Confirm(string title, string message, string okText, string cancelText) { Confirmations++; return false; }
         public string? PickPdf() => null;
         public string? PickExportTarget() => null;
@@ -452,7 +512,7 @@ internal static class Program
         public string? PickValidator() => null;
         public string? PickSaveTarget(string suggestedPath) => null;
         public string? AskPassword(string fileName, bool retry) => null;
-        public void Info(string title, string message) { }
+        public void Info(string title, string message) { Information++; }
         public void Error(string title, string message) => throw new InvalidOperationException(title + ": " + message);
     }
 }
