@@ -1,4 +1,9 @@
-# Windows UI audit — 2026-10-10
+# Windows UI audit and corrections — 2026-10-10
+
+The findings and line numbers below describe the original audit source
+`bb039c19ea53b7f935b76801068e8d3ebf3af375`. The user subsequently authorized
+corrections in [PR #22](https://github.com/qenuternis2/pdf-meta-studio/pull/22).
+Original failing evidence is retained; final correction evidence is recorded below.
 
 ## src/PdfMetaStudio.App/ViewModels/TagTreeViewModel.cs
 
@@ -22,14 +27,13 @@
 - src/PdfMetaStudio.App/Views/EditorView.xaml:466 — **P2:** all 1,000 review containers are realized; layout takes 4,995 ms in light and 4,920 ms in dark. Use a compatible virtualizing scroll owner/panel and verify keyboard/UIA behavior; full realization alone does not prove a hang.
 - src/PdfMetaStudio.App/Views/EditorView.xaml:532 — **P2:** a status update emits zero UIA live-region events despite `LiveSetting="Polite"`; the explicit-event positive control delivers two events. Raise the appropriate peer notification when status changes; Narrator speech remains untested.
 
-## Executed checks and evidence
+## Original checks and evidence
 
 [Machine-readable results](validation/ui-audit-windows11.json) preserve source commits,
 host information, native provenance, every additional check and baseline results.
-Application source, native source, installer and dependency inputs are unchanged
-between the baseline and final UI audit; only test automation/documentation changed.
-The findings above remain **unfixed application behavior**. Functional fixes are
-outside this testing task and require the separately requested agreement.
+Application source, native source, installer and dependency inputs were unchanged
+between the original baseline and original additional audit; only automation and
+documentation changed. These results describe the behavior before PR #22.
 
 | Run | Source commit | Actual result |
 |---|---|---|
@@ -95,6 +99,79 @@ navigation and broader contrast/readability acceptance remain pending in
 
 Local cross-build of the final harness passed with zero warnings/errors;
 `actionlint`, PowerShell syntax validation and `git diff --check` passed.
-Existing native build warning LNK4044 (ignored `/link`) and GitHub's pinned-action
-Node 20 deprecation notices remain CI maintenance items; action versions were not
-changed in this task. Passing baseline tests does not clear the additional findings.
+The original baseline also contained LNK4044 (ignored `/link`) and pinned-action
+Node 20 deprecation notices. PR #22 removes qpdf's MSVC driver separator from
+linker options while retaining `wsetargv.obj`, and pins official Node 24 actions.
+Passing baseline tests alone does not clear additional findings.
+
+
+## Implemented corrections (PR #22)
+
+- `src/PdfMetaStudio.App/ViewModels/TagTreeViewModel.cs:62` — **P1/P3:** tag values/types and raw XML are retained in memory by stable tag/stream key; search, selection and preview keep drafts. Filtered expansion no longer replaces unfiltered expansion. Apply/reset remove only the relevant draft; explicit deletion cancels input for removed nodes.
+- `src/PdfMetaStudio.App/ViewModels/EditorViewModel.cs:136` — **P1:** close and reload guards include tag/XML input. Review points to unapplied input and requires apply/reset; a previously reviewed save/replace cannot silently omit new drafts. Drafts are not persisted or silently added to the PDF edit session.
+- `src/PdfMetaStudio.App/ViewModels/DateEditorViewModel.cs:105` — **P2:** failed component application identifies the invalid year/month/day/time/zone/precision input; `DateEditorView.xaml.cs:20` focuses it. Date parsing/serialization rules remain unchanged.
+- `src/PdfMetaStudio.App/Views/EditorView.xaml:193` — **P2:** read-only dimensions, Base64 packet and private-byte diagnostics receive stable UIA names.
+- `src/PdfMetaStudio.App/Views/EditorView.xaml:169` — **P2:** an outer constrained-size scroll owner and a scrollable XML panel keep apply/reset and footer actions reachable. Expanded XML reserves enough logical height; smaller/scaled viewports scroll rather than clip the action region.
+- `src/PdfMetaStudio.App/Views/EditorView.xaml:533` — **P2:** both scope radios and the document-scope selector reflect the same model in both directions; obsolete checked handlers are removed.
+- `src/PdfMetaStudio.App/Views/EditorView.xaml:475` — **P2:** a bounded recycling panel virtualizes review rows. The interactive header/footer remain realized for keyboard navigation; the same collection can scroll to the final row and footer.
+- `src/PdfMetaStudio.App/Views/LiveTextBlock.cs:11` — **P2:** dynamic status/error regions raise UIA live-region notifications when text changes and clients listen. Static `LiveSetting` alone was insufficient.
+- `src/PdfMetaStudio.App/Views/EditorView.xaml.cs:15` — **P2, additional observation:** the first production dark GUI run displayed date inputs but its external UIA tree exposed only empty data-item peers after section/size switches. Refresh existing peers after field templates become visible; a new external-client regression covers these transitions.
+- `worker/CMakeLists.txt:39` / `.github/workflows/windows.yml:31` — **P3:** omit qpdf's unnecessary MSVC driver separator, retain the required wide-argument object, and update SHA-pinned official CI actions to their Node 24 releases. Shipped dependency versions and installation/versioning behavior are unchanged.
+
+Original report and line references remain above for traceability. The first correction run
+[38053960218](https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38053960218)
+confirmed the draft/state/focus/UIA notification fixes and 7–8 realized review containers,
+but still failed all six XML size/theme checks and one production calendar/UIA case.
+Those failures were retained and prompted the subsequent layout/peer corrections;
+this intermediate run is not final acceptance.
+
+
+## Verification of corrections
+
+[Final correction results](validation/ui-audit-fixed-windows11.json) preserve source,
+provenance, host, all checks and remaining limits separately from the original failures.
+[UI run 38057802192](https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38057802192)
+from `c44dd01644b310cce1e95d811fb4d598cb4c3ce7` completed successfully:
+**34 PASS, 4 SKIP, zero FAIL/ERROR/BLOCKED**, plus all three production GUI cases
+(light, dark and 10,000 tags/1 MiB text) with verified saves. It used
+`additional_only=false`; the rebuilt application and harness match that source.
+Native inputs matched successful full Windows package run `38054424785`.
+
+[Full Windows run 38057801600](https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38057801600)
+also passed for the same `c44dd01644b310cce1e95d811fb4d598cb4c3ce7` source.
+It rebuilt the native worker, managed application and MSI, and passed Windows
+Server 2022 and Windows 11 ARM64 acceptance. Windows 11 recorded **95 Core tests
+with no skips**, **50 native checks with three explicit Linux-only skips**, and
+all three production GUI scenarios. Its corpus checked 628 files, opened 586
+and verified 470 saves with zero unexpected failures; seven preservation-blocked
+files were refused rather than counted as saves. MSI installation/uninstallation
+and upgrade from 0.3.0 to 0.3.1 passed, verifying 424 payload files and preserving
+both control documents. The completed build log contains neither LNK4044 nor
+Node 20 deprecation notices. This is a hosted elevated ARM64/emulated-x64 result,
+not clean physical x64 or standard-user/offline acceptance. The workflow's
+`windows11-acceptance` and `PdfMetaStudio-installer-win-x64` artifacts retain the
+detailed reports and built MSI; no new release or version change is part of this PR.
+
+All ten original confirmed findings are addressed. The additional date-peer transition,
+close/save/reload guards and review keyboard regressions also passed in both themes.
+Review retained 7 initial / 8 post-scroll containers for 1,000 rows, reached the last
+row and footer, and moved keyboard focus to the footer via Tab traversal. Recorded
+765/785 ms includes keyboard traversal and scrolling; it is not the same timing
+scope as the original layout-only observation. Sampled contrast remains 6.065:1
+light and 9.492:1 dark. Actual high-contrast title focus/content passed again.
+Inspected XML action screenshots at constrained scale confirm the complete button.
+
+The guarded intermediate diagnostic `38057386351` still found 5 logical pixels of
+outer clipping in dark 1.5x even after a bounded two-second layout wait. The final
+view brings the focused XML action and its outline into view after layout updates.
+Viewport assertions retain all ancestor clips; the timeout does not waive visibility.
+The hosted-image desktop guard is shared by baseline/additional checks, restricted
+to disposable Windows ARM GitHub Actions, and stopped in `finally`. A separate
+foreground-blocked run is excluded rather than counted as a passed application check.
+
+Local baseline Core tests passed 85/85 before changes; the corrected suite passed
+95/95 with no skips. WPF app/harness cross-build passed without warnings/errors;
+PowerShell syntax, `actionlint` and whitespace checks passed. Local native tests
+passed 45 with eight explicit environment/fixture skips, not eight successful tests.
+Narrator speech, physical DPI and clean x64/non-elevated/offline acceptance remain
+pending; the hosted results do not certify complete accessibility or security.

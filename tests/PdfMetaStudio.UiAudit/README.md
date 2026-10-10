@@ -14,10 +14,16 @@ and application code is unchanged.
 The `windows-ui-audit` artifact records native provenance, host architecture/DPI,
 existing acceptance, machine-readable additional results and native client screenshots.
 
-Additional checks cover draft retention during search/stream changes/closing,
-tree expansion, shared-XMP choice display, invalid-date focus, actual UIA naming,
+Additional checks cover per-tag/per-stream draft retention, close/save/reload guards,
+tree expansion, two-way shared-XMP choice display, invalid-date focus, date controls
+in the external UIA tree after section/size cycles, actual UIA naming,
 observed WPF text contrast, status live-region events with an explicit-event
-positive control, expanded XML layout and realized containers for 1,000 review rows.
+positive control, focused/scrollable XML actions at three constrained sizes, and
+realized containers plus last-row/footer/Tab reachability for 1,000 review rows.
+Layout reachability checks respect ancestor scroll clips as well as window bounds,
+wait up to two seconds for asynchronous layout/scrolling, and record exact bounds.
+The shared hosted-image desktop guard runs during baseline and additional checks
+only on disposable Windows ARM GitHub Actions; both callers stop it in `finally`.
 Light and dark cases use separate processes with the actual system application theme, restored by the wrapper in `finally`. The harness also attempts the actual Windows
 high-contrast flag and restores the original user state in `finally`.
 

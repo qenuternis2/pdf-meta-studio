@@ -1,0 +1,782 @@
+{
+  "schemaVersion": 1,
+  "scope": "Authorized corrections of the original Windows UI audit; hosted native WPF checks do not certify complete accessibility or safety.",
+  "codeSourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+  "uiWorkflow": {
+    "runId": 38057802192,
+    "url": "https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38057802192",
+    "conclusion": "success",
+    "artifactId": 11671959957,
+    "additionalOnly": false
+  },
+  "originalEvidence": "ui-audit-windows11.json",
+  "host": {
+    "sourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+    "product": "Microsoft Windows 11 Enterprise",
+    "registryProductName": "Windows 10 Enterprise",
+    "build": "26200",
+    "version": "10.0.26200",
+    "osArchitecture": "ARM 64-bit Processor",
+    "processorArchitectureCode": 12,
+    "runnerArchitecture": "ARM64",
+    "powershellArchitecture": "ARM64",
+    "applicationMachine": "0x8664",
+    "applicationSha256": "841A0CF4CF6183306FB88CA2E2510073AEFFE9A1F91461481CE53C69EB69C8F8",
+    "elevated": true,
+    "interactive": true,
+    "desktop": {
+      "dpi": 96,
+      "scalePercent": 100,
+      "width": 1024,
+      "height": 768
+    },
+    "limits": "Hosted VM with SDKs/tools installed. x64 application runs under Windows ARM64 emulation. This is not a clean x64 PC or standard-user/non-elevated/offline acceptance. Recorded desktop DPI does not establish scale-change coverage or Narrator speech."
+  },
+  "nativeProvenance": {
+    "currentCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+    "sourceCommit": "c8c035d0380760505dde9ef5c40c1a21004ddf02",
+    "runId": 38054424785,
+    "scope": "Reused native worker; managed application and audit harness are rebuilt from current source"
+  },
+  "guiAcceptance": {
+    "limits": "Hosted Windows automation: observed light/dark backgrounds, keyboard cycles/shortcuts, 640x480 and 1000x700 windows, large-data search/read/save. Physical DPI changes and Narrator speech were not tested. GUI-only workflow runs reuse the recorded native package and do not establish native/MSI acceptance for this source.",
+    "enginePackageRun": "38054424785",
+    "sourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "cases": [
+      {
+        "exitCode": 0,
+        "case": "light",
+        "seconds": 78.368923
+      },
+      {
+        "exitCode": 0,
+        "case": "dark",
+        "seconds": 67.3608961
+      },
+      {
+        "exitCode": 0,
+        "case": "10000-tags-1MiB-text",
+        "seconds": 77.6481644
+      }
+    ]
+  },
+  "additional": {
+    "outcomes": {
+      "PASS": 34,
+      "SKIP": 4
+    },
+    "cases": [
+      {
+        "Theme": "light",
+        "Check": "tag-draft-search",
+        "Status": "PASS",
+        "Detail": "Same selected path: True; draft retained: True; session changes: 0"
+      },
+      {
+        "Theme": "light",
+        "Check": "xml-draft-stream-switch",
+        "Status": "PASS",
+        "Detail": "Packets isolated: True; both drafts retained: True; session changes: 0"
+      },
+      {
+        "Theme": "light",
+        "Check": "close-unapplied-xml",
+        "Status": "PASS",
+        "Detail": "Close allowed: False; unsaved questions: 1; session changes: 0"
+      },
+      {
+        "Theme": "light",
+        "Check": "close-save-unapplied-tag",
+        "Status": "PASS",
+        "Detail": "Save choice preserves pending input: True; review explains apply/reset: 1; session changes: 0"
+      },
+      {
+        "Theme": "light",
+        "Check": "reviewed-save-disabled-by-draft",
+        "Status": "PASS",
+        "Detail": "Reviewed save initially enabled: True; save/replace disabled for pending XML: True; reload prompted and cancellation retained draft: True"
+      },
+      {
+        "Theme": "light",
+        "Check": "tree-expansion-state",
+        "Status": "PASS",
+        "Detail": "Collapsed root remains collapsed: True"
+      },
+      {
+        "Theme": "light",
+        "Check": "scope-choice-display",
+        "Status": "PASS",
+        "Detail": "Initial all displayed: True; radio synchronized model/selector: True; selector synchronized radios: True"
+      },
+      {
+        "Theme": "light",
+        "Check": "invalid-date-focus",
+        "Status": "PASS",
+        "Detail": "Error produced: True; invalid year focused: True"
+      },
+      {
+        "Theme": "light",
+        "Check": "date-accessibility-after-section-switch",
+        "Status": "PASS",
+        "Detail": "Date component expander exposed through external UIA after both size/section cycles: True"
+      },
+      {
+        "Theme": "light",
+        "Check": "diagnostic-accessible-name",
+        "Status": "PASS",
+        "Detail": "UIA name: Размеры страниц PDF (только чтение); explicit name: Размеры страниц PDF (только чтение)"
+      },
+      {
+        "Theme": "light",
+        "Check": "secondary-text-contrast",
+        "Status": "PASS",
+        "Detail": "Actual WPF foreground #FF5F5F5F, background #FFF9F9F9, contrast 6.065:1; normal text reference 4.5:1"
+      },
+      {
+        "Theme": "light",
+        "Check": "status-live-region-event",
+        "Status": "PASS",
+        "Detail": "Application status events: 2; explicit-event positive control: 2; this does not test speech"
+      },
+      {
+        "Theme": "light",
+        "Check": "xml-layout-transform-1.0",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 1.0; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 379.0x49.0, button 0,13,128,32; ScrollContentPresenter 624.0x441.0, button 213,406.88086350824574,128,32; EditorView 624.0x441.0, button 213,406.88086350824574,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "light",
+        "Check": "xml-layout-transform-1.5",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 1.5; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 355.0x49.0, button 0,13,128,32; ScrollContentPresenter 416.0x294.0, button 213,258,128,32; EditorView 416.0x294.0, button 213,258,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "light",
+        "Check": "xml-layout-transform-2.0",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 2.0; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 355.0x49.0, button 0,13,128,32; ScrollContentPresenter 312.0x220.0, button 176,184,128,32; EditorView 312.0x220.0, button 176,184,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "light",
+        "Check": "large-review-realization",
+        "Status": "PASS",
+        "Detail": "1000 rows; realized initially/after scroll: 7/8; last row realized: True; footer in viewport: True; footer reached with Tab traversal: True; UI layout/scroll elapsed 765 ms."
+      },
+      {
+        "Theme": "high-contrast",
+        "Check": "focus-and-content",
+        "Status": "PASS",
+        "Detail": "Actual system high contrast: True; title focused: True; review visible: True. Screenshot retained; human focus-ring inspection still needed."
+      },
+      {
+        "Theme": "host",
+        "Check": "narrator-speech",
+        "Status": "SKIP",
+        "Detail": "Speech output and comprehension require human/audio acceptance; UIA notifications are checked separately."
+      },
+      {
+        "Theme": "host",
+        "Check": "physical-dpi-150-200",
+        "Status": "SKIP",
+        "Detail": "No physical display/session scale change; separate LayoutTransform checks cover constrained layout only."
+      },
+      {
+        "Theme": "dark",
+        "Check": "tag-draft-search",
+        "Status": "PASS",
+        "Detail": "Same selected path: True; draft retained: True; session changes: 0"
+      },
+      {
+        "Theme": "dark",
+        "Check": "xml-draft-stream-switch",
+        "Status": "PASS",
+        "Detail": "Packets isolated: True; both drafts retained: True; session changes: 0"
+      },
+      {
+        "Theme": "dark",
+        "Check": "close-unapplied-xml",
+        "Status": "PASS",
+        "Detail": "Close allowed: False; unsaved questions: 1; session changes: 0"
+      },
+      {
+        "Theme": "dark",
+        "Check": "close-save-unapplied-tag",
+        "Status": "PASS",
+        "Detail": "Save choice preserves pending input: True; review explains apply/reset: 1; session changes: 0"
+      },
+      {
+        "Theme": "dark",
+        "Check": "reviewed-save-disabled-by-draft",
+        "Status": "PASS",
+        "Detail": "Reviewed save initially enabled: True; save/replace disabled for pending XML: True; reload prompted and cancellation retained draft: True"
+      },
+      {
+        "Theme": "dark",
+        "Check": "tree-expansion-state",
+        "Status": "PASS",
+        "Detail": "Collapsed root remains collapsed: True"
+      },
+      {
+        "Theme": "dark",
+        "Check": "scope-choice-display",
+        "Status": "PASS",
+        "Detail": "Initial all displayed: True; radio synchronized model/selector: True; selector synchronized radios: True"
+      },
+      {
+        "Theme": "dark",
+        "Check": "invalid-date-focus",
+        "Status": "PASS",
+        "Detail": "Error produced: True; invalid year focused: True"
+      },
+      {
+        "Theme": "dark",
+        "Check": "date-accessibility-after-section-switch",
+        "Status": "PASS",
+        "Detail": "Date component expander exposed through external UIA after both size/section cycles: True"
+      },
+      {
+        "Theme": "dark",
+        "Check": "diagnostic-accessible-name",
+        "Status": "PASS",
+        "Detail": "UIA name: Размеры страниц PDF (только чтение); explicit name: Размеры страниц PDF (только чтение)"
+      },
+      {
+        "Theme": "dark",
+        "Check": "secondary-text-contrast",
+        "Status": "PASS",
+        "Detail": "Actual WPF foreground #FFCECECE, background #FF272727, contrast 9.492:1; normal text reference 4.5:1"
+      },
+      {
+        "Theme": "dark",
+        "Check": "status-live-region-event",
+        "Status": "PASS",
+        "Detail": "Application status events: 2; explicit-event positive control: 2; this does not test speech"
+      },
+      {
+        "Theme": "dark",
+        "Check": "xml-layout-transform-1.0",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 1.0; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 379.0x49.0, button 0,13,128,32; ScrollContentPresenter 624.0x441.0, button 213,408.97156850158404,128,32; EditorView 624.0x441.0, button 213,408.97156850158404,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "dark",
+        "Check": "xml-layout-transform-1.5",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 1.5; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 355.0x49.0, button 0,13,128,32; ScrollContentPresenter 416.0x294.0, button 213,260,128,32; EditorView 416.0x294.0, button 213,260,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "dark",
+        "Check": "xml-layout-transform-2.0",
+        "Status": "PASS",
+        "Detail": "640x480 window; LayoutTransform 2.0; actual DPI 96; XML apply reachable with focus/scroll: True; close reachable with focus/scroll: True. Apply focused: True; ScrollContentPresenter 355.0x49.0, button 0,13,128,32; ScrollContentPresenter 312.0x220.0, button 176,184,128,32; EditorView 312.0x220.0, button 176,184,128,32. Ancestor scroll clips checked after bounded layout settling; transform is not OS DPI."
+      },
+      {
+        "Theme": "dark",
+        "Check": "large-review-realization",
+        "Status": "PASS",
+        "Detail": "1000 rows; realized initially/after scroll: 7/8; last row realized: True; footer in viewport: True; footer reached with Tab traversal: True; UI layout/scroll elapsed 785 ms."
+      },
+      {
+        "Theme": "high-contrast",
+        "Check": "focus-and-content",
+        "Status": "PASS",
+        "Detail": "Actual system high contrast: True; title focused: True; review visible: True. Screenshot retained; human focus-ring inspection still needed."
+      },
+      {
+        "Theme": "host",
+        "Check": "narrator-speech",
+        "Status": "SKIP",
+        "Detail": "Speech output and comprehension require human/audio acceptance; UIA notifications are checked separately."
+      },
+      {
+        "Theme": "host",
+        "Check": "physical-dpi-150-200",
+        "Status": "SKIP",
+        "Detail": "No physical display/session scale change; separate LayoutTransform checks cover constrained layout only."
+      }
+    ],
+    "limits": "Actual WPF components hosted in a test window; this complements the separate real-application GUI smoke. UIA events do not establish Narrator speech. LayoutTransform tests are not physical Windows DPI changes. No standard-user physical x64/offline or microphone/audio acceptance."
+  },
+  "localValidation": {
+    "baselineCore": {
+      "passed": 85,
+      "failed": 0,
+      "skipped": 0
+    },
+    "correctedCore": {
+      "passed": 95,
+      "failed": 0,
+      "skipped": 0
+    },
+    "crossBuild": {
+      "warnings": 0,
+      "errors": 0
+    },
+    "nativeLinux": {
+      "passed": 45,
+      "skipped": 8,
+      "failed": 0,
+      "limitations": "Windows-only conditions, unavailable corpus fixtures when running without --corpus, and restricted tmpfs mounting; complete Windows native/corpus acceptance is recorded separately."
+    },
+    "actionlint": "PASS",
+    "powerShellSyntax": "PASS",
+    "gitDiffCheck": "PASS"
+  },
+  "guidelines": {
+    "url": "https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md",
+    "httpStatus": 200,
+    "date": "2026-10-10",
+    "sha256": "d246b026f4f29b5823a9cc857f9edf3d2507002e055e32040cadeaf3b38e0234",
+    "application": "Relevant UX/accessibility criteria adapted to WPF; HTML/ARIA/CSS/browser rules do not directly apply."
+  },
+  "intermediateEvidence": [
+    {
+      "runId": 38053960218,
+      "scope": "Initial corrections retained failing XML/layout and calendar/UIA observations; not final acceptance."
+    },
+    {
+      "runId": 38056834506,
+      "scope": "Foreground-blocked diagnostic run; excluded from conclusions about application behavior."
+    },
+    {
+      "runId": 38057386351,
+      "scope": "Guarded strict diagnostic retained a dark 1.5x failure: button y=267,height=32 exceeded the 294-high outer viewport by 5 logical pixels."
+    }
+  ],
+  "remainingAcceptance": [
+    "Human Narrator speech/comprehension",
+    "Physical Windows DPI 150%/200%",
+    "Complete keyboard/high-contrast/contrast coverage",
+    "Clean physical x64 standard-user/offline installation"
+  ],
+  "fullWindowsWorkflow": {
+    "runId": 38057801600,
+    "url": "https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38057801600",
+    "sourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+    "conclusion": "success",
+    "windows11ArtifactId": 11673100102,
+    "installerArtifactId": 11672735538,
+    "jobs": [
+      {
+        "name": "build",
+        "conclusion": "success"
+      },
+      {
+        "name": "gui_acceptance",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "desktop_probe",
+        "conclusion": "skipped"
+      },
+      {
+        "name": "windows11",
+        "conclusion": "success"
+      },
+      {
+        "name": "release",
+        "conclusion": "skipped"
+      }
+    ],
+    "windows11": {
+      "host": {
+        "sourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+        "product": "Microsoft Windows 11 Enterprise",
+        "registryProductName": "Windows 10 Enterprise",
+        "build": "26200",
+        "version": "10.0.26200",
+        "osArchitecture": "ARM 64-bit Processor",
+        "processorArchitectureCode": 12,
+        "runnerArchitecture": "ARM64",
+        "powershellArchitecture": "ARM64",
+        "applicationMachine": "0x8664",
+        "applicationSha256": "841A0CF4CF6183306FB88CA2E2510073AEFFE9A1F91461481CE53C69EB69C8F8",
+        "elevated": true,
+        "interactive": true,
+        "desktop": {
+          "dpi": 96,
+          "scalePercent": 100,
+          "width": 1024,
+          "height": 768
+        },
+        "limits": "Hosted VM with SDKs/tools installed. x64 application runs under Windows ARM64 emulation. This is not a clean x64 PC or standard-user/non-elevated/offline acceptance. Recorded desktop DPI does not establish scale-change coverage or Narrator speech."
+      },
+      "coreTests": {
+        "passed": 95,
+        "failed": 0,
+        "skipped": 0
+      },
+      "nativeOutcomes": {
+        "PASS": 50,
+        "SKIP": 3
+      },
+      "nativeTests": [
+        {
+          "test": "test_annotation_attachment_fields_edit",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_annotation_attachment_fields_rejected",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_annotations_attachments_reported",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_array_movement_rename_and_qualifiers",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_bounded_queue_and_queued_cancellation",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_cancel_save",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_compound_array_items_and_positional_restore",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_conflicting_object_generations_cannot_change_pages",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_copy_onto_source_refused",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_damaged_xmp",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_declared_profile_edit_constraints",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_direct_annotations_and_known_private_adapter",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_discovery_includes_orphan_containers_not_arbitrary_xml",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_external_change_detected",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_independent_read_and_visual",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_invalid_dates_rejected",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_invalid_protocol_envelopes_do_not_crash_worker",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_known_date_shape_rejected",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_mark_of_the_web_kept",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_metadata_bomb_capped",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_missing_metadata_created",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_nested_shared_owner_detach_and_remove",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_no_changes_not_written",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_no_space",
+          "status": "SKIP",
+          "detail": "маленький tmpfs доступен только в Linux"
+        },
+        {
+          "test": "test_object_metadata_addressed",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_open_edit_reread",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_original_packet_export_is_byte_exact",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_password_and_encryption_preserved",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_password_not_logged",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_pdf_identity_detects_replacement_with_identical_bytes",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_permissions_carried_over",
+          "status": "SKIP",
+          "detail": "права POSIX проверяются только в Linux"
+        },
+        {
+          "test": "test_preview_does_not_write",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_private_data_copy_only",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_private_opaque_export_keeps_raw_stream_bytes",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_removed_stream_not_left_orphaned",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_repaired_structure_is_never_silently_saved",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_replace_original_with_backup",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_rich_values_roundtrip",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_secure_temporary_file_descriptor_and_permissions",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_shared_stream_scope",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_signed_document_copy_only",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_trapped_name_and_delete",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_unchanged_broken_xmp_requires_copy",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_unknown_tags_preserved_add_delete",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_unrelated_orphan_metadata_preserved",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_untouched_compressed_metadata_preserves_encoding",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_unwritable_target_dir",
+          "status": "SKIP",
+          "detail": "в Windows chmod не ограничивает запись в каталог"
+        },
+        {
+          "test": "test_utf16_xmp_rejects_unpaired_surrogate",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_windows_backup_retains_protected_acl",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_windows_locked_original_can_only_be_copied",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_windows_long_path_copy",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_x_default_does_not_touch_translations",
+          "status": "PASS",
+          "detail": ""
+        },
+        {
+          "test": "test_xxe_and_doctype_blocked",
+          "status": "PASS",
+          "detail": ""
+        }
+      ],
+      "corpus": {
+        "files": 628,
+        "opened": 586,
+        "saved": 470,
+        "refused": {
+          "password_required": 23,
+          "pdf_damaged": 113,
+          "permission_denied": 5,
+          "unsupported_profile_edit": 10
+        },
+        "verification_blocked": [
+          [
+            "V4-clearmeta.pdf",
+            [
+              "encryption"
+            ]
+          ],
+          [
+            "V4.pdf",
+            [
+              "encryption"
+            ]
+          ],
+          [
+            "bad-encryption-length.pdf",
+            [
+              "info",
+              "logical_graph",
+              "pages"
+            ]
+          ],
+          [
+            "empty-stream-compressed.pdf",
+            [
+              "logical_graph"
+            ]
+          ],
+          [
+            "form-filled-with-atril.pdf",
+            [
+              "logical_graph"
+            ]
+          ],
+          [
+            "metadata-crypt-filter.pdf",
+            [
+              "encryption"
+            ]
+          ],
+          [
+            "overlay-no-resources.pdf",
+            [
+              "logical_graph"
+            ]
+          ]
+        ],
+        "failed": []
+      },
+      "guiAcceptance": {
+        "limits": "Hosted Windows automation: observed light/dark backgrounds, keyboard cycles/shortcuts, 640x480 and 1000x700 windows, large-data search/read/save. Physical DPI changes and Narrator speech were not tested. GUI-only workflow runs reuse the recorded native package and do not establish native/MSI acceptance for this source.",
+        "enginePackageRun": null,
+        "cases": [
+          {
+            "exitCode": 0,
+            "case": "light",
+            "seconds": 65.5484903
+          },
+          {
+            "exitCode": 0,
+            "case": "dark",
+            "seconds": 62.7053844
+          },
+          {
+            "exitCode": 0,
+            "case": "10000-tags-1MiB-text",
+            "seconds": 75.9174611
+          }
+        ],
+        "sourceCommit": "c44dd01644b310cce1e95d811fb4d598cb4c3ce7",
+        "os": "Microsoft Windows NT 10.0.26200.0"
+      },
+      "installerUpgrade": {
+        "version": "0.3.1",
+        "preservedDocuments": 2,
+        "baselineVersion": "0.3.0",
+        "uninstallExitCode": 0,
+        "verifiedPayloadFiles": 424,
+        "limits": "Disposable hosted Windows session; standard-user physical x64/offline upgrade remains untested.",
+        "documentSha256": "2FC26BD92112AB9A8B5A847A8560D92F59CC72EFB02E90AFF09822285B40564A",
+        "status": "PASS",
+        "baselineUrl": "https://github.com/qenuternis2/pdf-meta-studio/releases/download/v0.3.0/PdfMetaStudio-0.3.0-win-x64.msi",
+        "baselineExitCode": 0,
+        "productCode": "{9507EFC2-8BAD-4491-AC56-C38735D541F3}",
+        "baselineProductCode": "{8FE2948E-49C6-48FC-9E49-29CEA83F1F72}",
+        "upgradeCode": "{CA630B1F-9153-5830-A5EC-84A95D16534D}",
+        "baselineSha256": "cfa7398eb07b8025afc67820bc10f86da16bcd142531253005ef6c8eabacd05a",
+        "upgradeExitCode": 0
+      }
+    },
+    "limits": "The native worker and MSI are built from this exact source. Windows 11 checks execute the x64 application under ARM64 emulation on an elevated SDK-equipped hosted VM. Physical x64, standard-user/offline installation, Narrator and OS DPI changes remain manual acceptance."
+  }
+}

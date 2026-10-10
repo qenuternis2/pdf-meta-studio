@@ -24,9 +24,10 @@ The `windows-acceptance` CI artifact contains per-case logs, screenshots and `re
 
 [Windows 11 CI](WINDOWS11_CI.md) records the ARM64 host and x64 emulation boundary. Read completed job artifacts before asserting a passed automated result; SDK-equipped/elevated hosted VMs do not fulfill clean x64 standard-user acceptance.
 
-[Additional UI audit (2026-10-10)](UI_AUDIT.md) records 24 failed check instances
-across two themes, including unapplied draft loss, clipped expanded XML actions
-at 640×480, inconsistent scope choices, invalid-date focus and UIA naming/events.
-It also records passed sampled contrast/high-contrast checks and the exact source,
-host and baseline evidence. Existing production GUI acceptance passed; the added
-findings remain open and Windows acceptance is incomplete.
+[UI audit and authorized corrections (2026-10-10)](UI_AUDIT.md) retain the original
+24 failed instances and separate [final correction evidence](validation/ui-audit-fixed-windows11.json).
+All ten confirmed findings were addressed; the final Windows 11 ARM run passed
+34 additional checks (four human/physical-DPI skips), all three production GUI
+scenarios, and guarded draft/state/focus/UIA/virtualization regressions. XML action
+reachability was checked with ancestor clipping at 1x/1.5x/2x LayoutTransform;
+these are simulations. The manual acceptance items above remain pending.
