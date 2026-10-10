@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -263,6 +264,15 @@ internal static class Program
                 await Idle();
                 var list = Descendants<ItemsControl>(view).Single(c => AutomationProperties.GetName(c) == "Список изменений");
                 int realized = Enumerable.Range(0, list.Items.Count).Count(i => list.ItemContainerGenerator.ContainerFromIndex(i) != null);
+                var footerInput = Descendants<CheckBox>(list).Single(c => c.Content?.ToString()?.StartsWith("Обновить дату изменения", StringComparison.Ordinal) == true);
+                await FocusWindow(window);
+                Descendants<Button>(view).Single(b => Equals(b.Content, "Перезагрузить файл")).Focus();
+                for (int i = 0; i < 20 && !footerInput.IsKeyboardFocused; i++)
+                {
+                    (Keyboard.FocusedElement as UIElement)?.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                    await Idle();
+                }
+                bool keyboardReachable = footerInput.IsKeyboardFocused && InViewport(footerInput, view);
                 var scroll = Descendants<ScrollViewer>(list).First();
                 scroll.ScrollToEnd();
                 await Idle();
@@ -271,8 +281,8 @@ internal static class Program
                 await Idle();
                 bool lastRowReachable = Descendants<TextBlock>(list).Any(t => t.Text == "/Audit999");
                 int after = Enumerable.Range(0, list.Items.Count).Count(i => list.ItemContainerGenerator.ContainerFromIndex(i) != null);
-                Check(realized < 100 && after < 100 && footerReachable && lastRowReachable,
-                    $"1000 rows; realized initially/after scroll: {realized}/{after}; last row realized: {lastRowReachable}; footer in viewport: {footerReachable}; UI layout/scroll elapsed {timer.Elapsed.TotalMilliseconds:F0} ms.");
+                Check(realized < 100 && after < 100 && footerReachable && lastRowReachable && keyboardReachable,
+                    $"1000 rows; realized initially/after scroll: {realized}/{after}; last row realized: {lastRowReachable}; footer in viewport: {footerReachable}; footer reached with Tab traversal: {keyboardReachable}; UI layout/scroll elapsed {timer.Elapsed.TotalMilliseconds:F0} ms.");
             });
         }
         await HighContrast(app, service, document);

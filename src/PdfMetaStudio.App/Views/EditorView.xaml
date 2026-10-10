@@ -166,7 +166,17 @@
     </UserControl.Resources>
 
     <ScrollViewer x:Name="EditorScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Focusable="False">
-    <Grid Width="{Binding ViewportWidth, ElementName=EditorScroll}" Height="{Binding ViewportHeight, ElementName=EditorScroll}" MinWidth="600" MinHeight="400">
+    <Grid Width="{Binding ViewportWidth, ElementName=EditorScroll}" Height="{Binding ViewportHeight, ElementName=EditorScroll}" MinWidth="600">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Setter Property="MinHeight" Value="400"/>
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsExpanded, ElementName=XmlExpander}" Value="True">
+                        <Setter Property="MinHeight" Value="600"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -466,32 +476,32 @@
                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingPanel.ScrollUnit="Pixel">
                 <ItemsControl.Resources>
                     <CollectionViewSource x:Key="ReviewRowsSource" Source="{Binding ReviewRows}"/>
-                            <DataTemplate DataType="{x:Type editing:ReviewRow}">
-                                <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="0,10">
-                                    <StackPanel>
-                                        <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
-                                            <Run Text="{Binding Path, Mode=OneWay}"/>
-                                        </TextBlock>
-                                        <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
-                                        <TextBlock Text="{Binding Note}" Style="{StaticResource Warn}" FontSize="12"
-                                                   Visibility="{Binding Note, Converter={StaticResource NullToVis}}"/>
-                                        <Grid Margin="0,6,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition/>
-                                                <ColumnDefinition/>
-                                            </Grid.ColumnDefinitions>
-                                            <StackPanel Margin="0,0,16,0">
-                                                <TextBlock Text="Было" Style="{StaticResource Secondary}" FontSize="12"/>
-                                                <TextBlock Text="{Binding Before}" TextWrapping="Wrap" Style="{StaticResource Secondary}"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1">
-                                                <TextBlock Text="Станет" Style="{StaticResource Secondary}" FontSize="12"/>
-                                                <TextBlock Text="{Binding After}" TextWrapping="Wrap"/>
-                                            </StackPanel>
-                                        </Grid>
+                    <DataTemplate DataType="{x:Type editing:ReviewRow}">
+                        <Border BorderThickness="0,0,0,1" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="0,10">
+                            <StackPanel>
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+                                    <Run Text="{Binding Path, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Text="{Binding Source}" Style="{StaticResource Mono}"/>
+                                <TextBlock Text="{Binding Note}" Style="{StaticResource Warn}" FontSize="12"
+                                           Visibility="{Binding Note, Converter={StaticResource NullToVis}}"/>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition/>
+                                        <ColumnDefinition/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Text="Было" Style="{StaticResource Secondary}" FontSize="12"/>
+                                        <TextBlock Text="{Binding Before}" TextWrapping="Wrap" Style="{StaticResource Secondary}"/>
                                     </StackPanel>
-                                </Border>
-                            </DataTemplate>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Станет" Style="{StaticResource Secondary}" FontSize="12"/>
+                                        <TextBlock Text="{Binding After}" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
                 </ItemsControl.Resources>
                 <ItemsControl.Template>
                     <ControlTemplate TargetType="ItemsControl">
@@ -505,48 +515,47 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemsSource>
                     <CompositeCollection>
-                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False">
+                        <!-- Keep interactive header/footer controls realized for Tab navigation. -->
+                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False" VirtualizingPanel.IsContainerVirtualizable="False">
                             <StackPanel>
-                    <TextBlock Text="Проверка изменений" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
-                    <TextBlock Text="Сравните значения перед сохранением. Исходный файл не изменится, пока вы не выберете «Заменить оригинал…»."
-                               Style="{StaticResource Secondary}" Margin="0,2,0,14"/>
-                    <ItemsControl ItemsSource="{Binding ReviewIssues}" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Message}" Style="{StaticResource Warn}"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <StackPanel Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" Margin="0,8,0,8">
-                        <TextBlock Text="XMP документа общий с другими объектами. Как его менять?" FontWeight="SemiBold"/>
-                        <RadioButton Content="Изменить для всех владельцев" GroupName="DocScope" Margin="0,6,0,0" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=all}"/>
-                        <RadioButton Content="Отделить копию только для документа" GroupName="DocScope" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=detach}"/>
-                    </StackPanel>
-
+                                <TextBlock Text="Проверка изменений" FontSize="19" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2"/>
+                                <TextBlock Text="Сравните значения перед сохранением. Исходный файл не изменится, пока вы не выберете «Заменить оригинал…»."
+                                           Style="{StaticResource Secondary}" Margin="0,2,0,14"/>
+                                <ItemsControl ItemsSource="{Binding ReviewIssues}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Message}" Style="{StaticResource Warn}"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Visibility="{Binding NeedsScopeChoice, Converter={StaticResource BoolToVis}}" Margin="0,8,0,8">
+                                    <TextBlock Text="XMP документа общий с другими объектами. Как его менять?" FontWeight="SemiBold"/>
+                                    <RadioButton Content="Изменить для всех владельцев" GroupName="DocScope" Margin="0,6,0,0" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=all}"/>
+                                    <RadioButton Content="Отделить копию только для документа" GroupName="DocScope" IsChecked="{Binding DocumentScope, Mode=TwoWay, Converter={StaticResource ScopeSelected}, ConverterParameter=detach}"/>
+                                </StackPanel>
                             </StackPanel>
                         </ContentControl>
                         <CollectionContainer Collection="{Binding Source={StaticResource ReviewRowsSource}}"/>
-                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False">
+                        <ContentControl DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=views:EditorView}}" Focusable="False" VirtualizingPanel.IsContainerVirtualizable="False">
                             <StackPanel>
-                    <ItemsControl ItemsSource="{Binding ReviewNotes}" Margin="0,12,0,0" Focusable="False">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Secondary}" FontSize="12"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Expander Header="Внешний валидатор профиля (необязательно)">
-                        <StackPanel><TextBlock Text="После сохранения локальный veraPDF проверит записанный файл. Проверка PDF/A или PDF/UA не подтверждает PDF/X; статус каждого профиля оценивается отдельно." TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding ValidatorPath}" TextWrapping="Wrap"/><WrapPanel><Button Content="Выбрать veraPDF CLI…" Command="{Binding SelectValidatorCommand}"/><Button Content="Отключить валидатор" Command="{Binding ClearValidatorCommand}"/></WrapPanel>
-                        </StackPanel>
-                    </Expander>
-                    <CheckBox Content="Обновить дату изменения (/ModDate, xmp:ModifyDate, xmp:MetadataDate)" IsChecked="{Binding UpdateModifyDate}" Margin="0,14,0,0"/>
-                    <CheckBox Content="Я понимаю, что подпись в копии станет недействительной" IsChecked="{Binding SignedAcknowledged}" Margin="0,8,0,0"
-                              Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/>
-                    <TextBlock Style="{StaticResource Secondary}" FontSize="12" Margin="0,12,0,0">
-                        <Run Text="Имя копии по умолчанию: "/><Run Text="{Binding CopyName, Mode=OneWay}"/>
-                    </TextBlock>
-
+                                <ItemsControl ItemsSource="{Binding ReviewNotes}" Margin="0,12,0,0" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding StringFormat='• {0}'}" Style="{StaticResource Secondary}" FontSize="12"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Expander Header="Внешний валидатор профиля (необязательно)">
+                                    <StackPanel><TextBlock Text="После сохранения локальный veraPDF проверит записанный файл. Проверка PDF/A или PDF/UA не подтверждает PDF/X; статус каждого профиля оценивается отдельно." TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding ValidatorPath}" TextWrapping="Wrap"/><WrapPanel><Button Content="Выбрать veraPDF CLI…" Command="{Binding SelectValidatorCommand}"/><Button Content="Отключить валидатор" Command="{Binding ClearValidatorCommand}"/></WrapPanel>
+                                    </StackPanel>
+                                </Expander>
+                                <CheckBox Content="Обновить дату изменения (/ModDate, xmp:ModifyDate, xmp:MetadataDate)" IsChecked="{Binding UpdateModifyDate}" Margin="0,14,0,0"/>
+                                <CheckBox Content="Я понимаю, что подпись в копии станет недействительной" IsChecked="{Binding SignedAcknowledged}" Margin="0,8,0,0"
+                                          Visibility="{Binding IsSigned, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Style="{StaticResource Secondary}" FontSize="12" Margin="0,12,0,0">
+                                    <Run Text="Имя копии по умолчанию: "/><Run Text="{Binding CopyName, Mode=OneWay}"/>
+                                </TextBlock>
                             </StackPanel>
                         </ContentControl>
                     </CompositeCollection>

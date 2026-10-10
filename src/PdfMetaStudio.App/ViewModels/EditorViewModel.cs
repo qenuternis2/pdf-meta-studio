@@ -176,8 +176,8 @@ public sealed partial class EditorViewModel : ObservableObject
     {
         int n = Session.ChangeCount;
         HasChanges = n > 0 || Session.UpdateModifyDate;
-        Status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
-        if (Tags.HasUnappliedChanges) Status += " · есть неприменённый ввод";
+        string status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
+        Status = status + (Tags.HasUnappliedChanges ? " · есть неприменённый ввод" : "");
         var built = Session.Build();
         foreach (var f in Fields) f.SetProblem(built.Issues.FirstOrDefault(i => i.FieldId == f.Id));
         Objects.Refresh(built);
@@ -217,6 +217,7 @@ public sealed partial class EditorViewModel : ObservableObject
     {
         if (Tags.HasUnappliedChanges)
         {
+            IsReviewing = false;
             SelectedSection = Sections.First(s => s.Id == "all");
             Tags.ShowUnappliedDraft();
             _dialogs.Info("Неприменённый ввод", "Примените или отмените ввод значения и XML перед проверкой. Черновики ещё не включены в изменения PDF.");
