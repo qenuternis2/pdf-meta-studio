@@ -26,7 +26,11 @@ erroneous required check returns a nonzero exit code; findings are not converted
 to successful checks. Every case is collected and checkpointed so one finding does not suppress
 the rest. The synthetic audit fixture explicitly contains editable Info keys and two
 XMP streams. Contrast uses captured client background pixels and the actual text
-brush; a transparent rendered visual is not treated as an opaque background. A provider that cannot deliver the explicit UIA event is blocked rather
+brush. Captures read the composited desktop at the verified foreground client's
+physical position, after DWM synchronization; a window DC or transparent rendered
+visual omits Fluent translucency and is not evidence of displayed contrast.
+Foreground acquisition and desktop bounds are checked; unavailable capture is
+blocked. A provider that cannot deliver the explicit UIA event is blocked rather
 than evidence that the application emits no events.
 
 The 150%/200% LayoutTransform scenarios are constrained-layout simulations, not

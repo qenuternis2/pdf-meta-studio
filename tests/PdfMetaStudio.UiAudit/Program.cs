@@ -233,11 +233,12 @@ internal static class Program
         var dialogs = new AuditDialogs();
         var vm = new EditorViewModel(service, dialogs, document);
         var view = new EditorView { DataContext = vm };
-        var window = new Window { ThemeMode = ThemeMode.System, Title = "PDF Meta Studio UI audit", Content = view, Left = 0, Top = 0, Width = 1000, Height = 700, FontFamily = new FontFamily("Segoe UI"), FontSize = 14, UseLayoutRounding = true };
+        var window = new Window { ThemeMode = ThemeMode.System, Title = "PDF Meta Studio UI audit", Content = view, Topmost = true, Left = 0, Top = 0, Width = 1000, Height = 700, FontFamily = new FontFamily("Segoe UI"), FontSize = 14, UseLayoutRounding = true };
         Console.WriteLine($"START {theme}/{name}");
         try
         {
             window.Show();
+            FocusWindow(window);
             await Idle();
             await test(vm, view, window, dialogs);
             Results.Add(new(theme, name, "PASS", _detail));
@@ -292,6 +293,16 @@ internal static class Program
     }
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint { public int X, Y; }
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr process);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AttachThreadInput(uint first, uint second, bool attach);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientToScreen(IntPtr window, ref NativePoint point);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+    [DllImport("dwmapi.dll")] private static extern int DwmFlush();
     [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
     [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetClientRect(IntPtr window, out NativeRect rect);
@@ -301,20 +312,37 @@ internal static class Program
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteObject(IntPtr item);
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteDC(IntPtr dc);
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint mode);
+    private static void FocusWindow(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        uint current = GetCurrentThreadId(), foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+        bool attached = foreground != 0 && foreground != current && AttachThreadInput(current, foreground, true);
+        try { SetForegroundWindow(handle); window.Activate(); }
+        finally { if (attached) AttachThreadInput(current, foreground, false); }
+        if (GetForegroundWindow() != handle) throw new BlockedException("Audit window cannot obtain foreground; cannot trust focus or captured pixels");
+    }
     private static BitmapSource Capture(Window window)
     {
-        if (!window.Activate() || !window.IsActive) throw new BlockedException("Audit window cannot obtain foreground; cannot trust its captured pixels");
+        FocusWindow(window);
         window.UpdateLayout();
+        if (DwmFlush() < 0) throw new BlockedException("Desktop composition did not synchronize; cannot trust captured pixels");
         var handle = new WindowInteropHelper(window).Handle;
         if (!GetClientRect(handle, out var rect)) throw new InvalidOperationException("Cannot read audit client dimensions");
         int width = rect.Right - rect.Left, height = rect.Bottom - rect.Top;
-        IntPtr source = GetDC(handle), target = IntPtr.Zero, bitmap = IntPtr.Zero, previous = IntPtr.Zero;
+        var origin = new NativePoint();
+        if (!ClientToScreen(handle, ref origin)) throw new InvalidOperationException("Cannot locate audit client on screen");
+        if (origin.X < GetSystemMetrics(76) || origin.Y < GetSystemMetrics(77) ||
+            origin.X + width > GetSystemMetrics(76) + GetSystemMetrics(78) || origin.Y + height > GetSystemMetrics(77) + GetSystemMetrics(79))
+            throw new BlockedException("Audit client is outside the desktop; cannot capture every pixel");
+        // Window DCs omit DWM composition of translucent Fluent brushes. Read the
+        // visible desktop at the verified foreground client's physical position.
+        IntPtr source = GetDC(IntPtr.Zero), target = IntPtr.Zero, bitmap = IntPtr.Zero, previous = IntPtr.Zero;
         try
         {
             target = CreateCompatibleDC(source); bitmap = CreateCompatibleBitmap(source, width, height);
             if (source == IntPtr.Zero || target == IntPtr.Zero || bitmap == IntPtr.Zero) throw new InvalidOperationException("Cannot create native capture resources");
             previous = SelectObject(target, bitmap);
-            if (!BitBlt(target, 0, 0, width, height, source, 0, 0, 0x00CC0020)) throw new InvalidOperationException("Cannot capture audit client pixels");
+            if (!BitBlt(target, 0, 0, width, height, source, origin.X, origin.Y, 0x00CC0020)) throw new InvalidOperationException("Cannot capture composited audit client pixels");
             var image = Imaging.CreateBitmapSourceFromHBitmap(bitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
             image.Freeze(); return image;
         }
@@ -323,7 +351,7 @@ internal static class Program
             if (previous != IntPtr.Zero) SelectObject(target, previous);
             if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
             if (target != IntPtr.Zero) DeleteDC(target);
-            if (source != IntPtr.Zero) ReleaseDC(handle, source);
+            if (source != IntPtr.Zero) ReleaseDC(IntPtr.Zero, source);
         }
     }
     private static Color Pixel(BitmapSource image, int x, int y)
