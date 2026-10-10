@@ -9,19 +9,21 @@ from a verified successful Windows workflow whose native inputs still match.
 Run the **Windows UI audit** workflow with `package_run_id` set to that run.
 The managed application and harness are rebuilt from the selected source commit.
 The `windows-ui-audit` artifact records native provenance, host architecture/DPI,
-existing acceptance, machine-readable additional results and rendered screenshots.
+existing acceptance, machine-readable additional results and native client screenshots.
 
 Additional checks cover draft retention during search/stream changes/closing,
 tree expansion, shared-XMP choice display, invalid-date focus, actual UIA naming,
 observed WPF text contrast, status live-region events with an explicit-event
 positive control, expanded XML layout and realized containers for 1,000 review rows.
-Light and dark cases are separate. The harness also attempts the actual Windows
+Light and dark cases use separate processes with the actual system application theme, restored by the wrapper in `finally`. The harness also attempts the actual Windows
 high-contrast flag and restores the original user state in `finally`.
 
 `PASS`, `FAIL`, `ERROR`, `BLOCKED` and `SKIP` are distinct. Any failed, blocked or
 erroneous required check returns a nonzero exit code; findings are not converted
-to successful checks. Every case is collected so one finding does not suppress
-the rest. A provider that cannot deliver the explicit UIA event is blocked rather
+to successful checks. Every case is collected and checkpointed so one finding does not suppress
+the rest. The synthetic audit fixture explicitly contains editable Info keys and two
+XMP streams. Contrast uses captured client background pixels and the actual text
+brush; a transparent rendered visual is not treated as an opaque background. A provider that cannot deliver the explicit UIA event is blocked rather
 than evidence that the application emits no events.
 
 The 150%/200% LayoutTransform scenarios are constrained-layout simulations, not

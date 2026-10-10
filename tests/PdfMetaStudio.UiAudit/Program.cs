@@ -33,21 +33,21 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (!OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" || args.Length != 3)
+        if (!OperatingSystem.IsWindows() || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" || args.Length != 4)
         {
-            Console.Error.WriteLine("Run only in disposable Windows GitHub Actions: <synthetic PDF> <worker> <output directory>.");
+            Console.Error.WriteLine("Run only in disposable Windows GitHub Actions: <synthetic PDF> <worker> <output directory> <light|dark>.");
             return 2;
         }
         _output = Path.GetFullPath(args[2]);
         Directory.CreateDirectory(_output);
         Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo("ru-RU");
-        var app = new PdfMetaStudio.App.App { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        var app = new AuditApplication { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         app.InitializeComponent();
         app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
         SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
         Dispatcher.CurrentDispatcher.BeginInvoke(new Action(async () =>
         {
-            try { await Run(app, args[0], args[1]); }
+            try { await Run(app, args[0], args[1], args[3]); }
             catch (Exception ex) { Results.Add(new("host", "audit-execution", "ERROR", ex.ToString())); }
             finally
             {
@@ -66,16 +66,27 @@ internal static class Program
             }
         }));
         Dispatcher.Run();
+        Console.WriteLine("Audit dispatcher exited; all results and cleanup completed.");
+        Environment.Exit(_exitCode); // UIA can retain native client threads after every handler is removed.
         return _exitCode;
     }
 
-    private static async Task Run(Application app, string fixture, string worker)
+    private sealed class AuditApplication : PdfMetaStudio.App.App
+    {
+        // Load the unchanged application resources without launching its separate home window.
+        protected override void OnStartup(StartupEventArgs e) { }
+    }
+
+    private static async Task Run(Application app, string fixture, string worker, string requestedTheme)
     {
         await using var service = new DocumentService(worker);
         var document = await service.OpenAsync(Path.GetFullPath(fixture), null);
-        foreach (string theme in new[] { "light", "dark" })
+        if (requestedTheme is not ("light" or "dark")) throw new ArgumentException("Theme must be light or dark");
+        Console.WriteLine($"Fixture: {document.Info.Count} Info keys, {document.Streams.Count} streams; requested {requestedTheme} system theme.");
+        if (!document.Info.Any(e => e.Kind is "string" or "name") || document.Streams.Count < 2) throw new InvalidOperationException("Audit fixture requires editable Info and at least two XMP streams");
+        foreach (string theme in new[] { requestedTheme })
         {
-            app.ThemeMode = theme == "light" ? ThemeMode.Light : ThemeMode.Dark;
+            app.ThemeMode = ThemeMode.System;
             await Case(theme, "tag-draft-search", service, document, async (vm, view, window, dialogs) =>
             {
                 vm.SelectedSection = vm.Sections.First(s => s.Id == "all");
@@ -151,10 +162,14 @@ internal static class Program
                 await Idle();
                 var text = Descendants<TextBlock>(view).Single(t => t.Text == "Before value");
                 if (text.Foreground is not SolidColorBrush brush) throw new InvalidOperationException("Contrast requires an observed solid foreground brush");
-                var background = Background(text);
+                if (!text.IsEnabled) throw new BlockedException("Contrast target is disabled; normal text contrast cannot be assessed");
+                var image = Capture(window);
+                var bounds = text.TransformToAncestor(window).TransformBounds(new Rect(text.RenderSize));
+                var dpi = VisualTreeHelper.GetDpi(window);
+                var background = Pixel(image, (int)((bounds.Right - 2) * dpi.DpiScaleX), (int)((bounds.Top + text.ActualHeight / 2) * dpi.DpiScaleY));
                 var foreground = Composite(brush.Color, background, brush.Opacity * text.Opacity);
                 double ratio = (Math.Max(Luminance(foreground), Luminance(background)) + .05) / (Math.Min(Luminance(foreground), Luminance(background)) + .05);
-                Snapshot(view, theme + "-contrast");
+                SaveImage(image, theme + "-contrast");
                 Check(ratio >= 4.5, $"Actual WPF foreground {foreground}, background {background}, contrast {ratio:F3}:1; normal text reference 4.5:1");
             });
             await Case(theme, "status-live-region-event", service, document, async (vm, view, window, dialogs) =>
@@ -197,7 +212,7 @@ internal static class Program
                     var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Применить XML"));
                     var close = Descendants<Button>(view).Single(b => Equals(b.Content, "Закрыть"));
                     bool reachable = InViewport(apply, view) && InViewport(close, view);
-                    Snapshot(view, $"{theme}-xml-layout-{scale:F1}");
+                    Snapshot(window, $"{theme}-xml-layout-{scale:F1}");
                     Check(reachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply viewport: {InViewport(apply, view)}; close viewport: {InViewport(close, view)}. Transform is not OS DPI.");
                 });
             }
@@ -223,7 +238,8 @@ internal static class Program
         var dialogs = new AuditDialogs();
         var vm = new EditorViewModel(service, dialogs, document);
         var view = new EditorView { DataContext = vm };
-        var window = new Window { Title = "PDF Meta Studio UI audit", Content = view, Width = 1040, Height = 760, FontFamily = new FontFamily("Segoe UI"), FontSize = 14, UseLayoutRounding = true };
+        var window = new Window { ThemeMode = ThemeMode.System, Title = "PDF Meta Studio UI audit", Content = view, Left = 0, Top = 0, Width = 1000, Height = 700, FontFamily = new FontFamily("Segoe UI"), FontSize = 14, UseLayoutRounding = true };
+        Console.WriteLine($"START {theme}/{name}");
         try
         {
             window.Show();
@@ -239,6 +255,9 @@ internal static class Program
             dialogs.Discard = true;
             await vm.TryCloseAsync();
             window.Close();
+            var result = Results.Last();
+            Console.WriteLine($"{result.Status} {result.Theme}/{result.Check}: {result.Detail}");
+            File.WriteAllText(Path.Combine(_output, "checkpoint.json"), JsonSerializer.Serialize(Results, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
 
@@ -270,24 +289,54 @@ internal static class Program
         var bounds = control.TransformToAncestor(root).TransformBounds(new Rect(control.RenderSize));
         return control.IsVisible && control.ActualWidth > 0 && control.ActualHeight > 0 && bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= root.ActualWidth + 1 && bounds.Bottom <= root.ActualHeight + 1;
     }
-    private static void Snapshot(FrameworkElement root, string name)
+    private static void Snapshot(Window window, string name) => SaveImage(Capture(window), name);
+    private static void SaveImage(BitmapSource image, string name)
     {
-        var image = new RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(root.ActualWidth)), Math.Max(1, (int)Math.Ceiling(root.ActualHeight)), 96, 96, PixelFormats.Pbgra32);
-        image.Render(root);
         var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(image));
         using var file = File.Create(Path.Combine(_output, name + ".png")); png.Save(file);
     }
-    private static Color Background(DependencyObject node)
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetClientRect(IntPtr window, out NativeRect rect);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleBitmap(IntPtr dc, int width, int height);
+    [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr dc, IntPtr item);
+    [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteObject(IntPtr item);
+    [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteDC(IntPtr dc);
+    [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint mode);
+    private static BitmapSource Capture(Window window)
     {
-        var layers = new Stack<Color>();
-        for (DependencyObject? current = node; current != null; current = VisualTreeHelper.GetParent(current))
+        if (!window.Activate() || !window.IsActive) throw new BlockedException("Audit window cannot obtain foreground; cannot trust its captured pixels");
+        window.UpdateLayout();
+        var handle = new WindowInteropHelper(window).Handle;
+        if (!GetClientRect(handle, out var rect)) throw new InvalidOperationException("Cannot read audit client dimensions");
+        int width = rect.Right - rect.Left, height = rect.Bottom - rect.Top;
+        IntPtr source = GetDC(handle), target = IntPtr.Zero, bitmap = IntPtr.Zero, previous = IntPtr.Zero;
+        try
         {
-            Brush? brush = current switch { Border b => b.Background, Panel p => p.Background, Control c => c.Background, TextBlock t => t.Background, _ => null };
-            if (brush is SolidColorBrush solid && solid.Color.A != 0) layers.Push(Color.FromArgb((byte)Math.Round(solid.Color.A * solid.Opacity), solid.Color.R, solid.Color.G, solid.Color.B));
+            target = CreateCompatibleDC(source); bitmap = CreateCompatibleBitmap(source, width, height);
+            if (source == IntPtr.Zero || target == IntPtr.Zero || bitmap == IntPtr.Zero) throw new InvalidOperationException("Cannot create native capture resources");
+            previous = SelectObject(target, bitmap);
+            if (!BitBlt(target, 0, 0, width, height, source, 0, 0, 0x00CC0020)) throw new InvalidOperationException("Cannot capture audit client pixels");
+            var image = Imaging.CreateBitmapSourceFromHBitmap(bitmap, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            image.Freeze(); return image;
         }
-        Color result = SystemColors.WindowColor;
-        foreach (Color layer in layers) result = Composite(layer, result);
-        return result;
+        finally
+        {
+            if (previous != IntPtr.Zero) SelectObject(target, previous);
+            if (bitmap != IntPtr.Zero) DeleteObject(bitmap);
+            if (target != IntPtr.Zero) DeleteDC(target);
+            if (source != IntPtr.Zero) ReleaseDC(handle, source);
+        }
+    }
+    private static Color Pixel(BitmapSource image, int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= image.PixelWidth || y >= image.PixelHeight) throw new InvalidOperationException("Contrast sample lies outside captured client");
+        var converted = new FormatConvertedBitmap(image, PixelFormats.Bgra32, null, 0);
+        var pixel = new byte[4]; converted.CopyPixels(new Int32Rect(x, y, 1, 1), pixel, 4, 0);
+        return Color.FromRgb(pixel[2], pixel[1], pixel[0]);
     }
     private static Color Composite(Color foreground, Color background, double opacity = 1)
     {
@@ -329,10 +378,10 @@ internal static class Program
             await Case("high-contrast", "focus-and-content", service, document, async (vm, view, window, dialogs) =>
             {
                 var review = Descendants<Button>(view).Single(b => Equals(b.Content, "Проверить и сохранить"));
-                var input = Descendants<TextBox>(view).First(t => AutomationProperties.GetName(t) == "Название документа");
+                var input = Descendants<TextBox>(view).First(t => AutomationProperties.GetName(t).StartsWith("Название документа", StringComparison.Ordinal));
                 input.Focus();
                 await Idle();
-                Snapshot(view, "high-contrast");
+                Snapshot(window, "high-contrast");
                 Check(input.IsKeyboardFocused && review.IsVisible, $"Actual system high contrast: {SystemParameters.HighContrast}; title focused: {input.IsKeyboardFocused}; review visible: {review.IsVisible}. Screenshot retained; human focus-ring inspection still needed.");
             });
         }

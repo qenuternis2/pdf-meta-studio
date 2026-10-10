@@ -56,7 +56,7 @@ jobs:
         run: |
           ./scripts/prepare-windows-desktop.ps1 -OutDir ui-audit
           ./scripts/windows-host-info.ps1 -OutDir ui-audit -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
-          python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
+          python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('build/acceptance-fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf()); (p/'audit-rich.pdf').write_bytes(pdfgen.make_pdf(info={'Title':'Audit title','Author':'Audit author'},page_meta=[0]))"
           if ($LASTEXITCODE) { throw 'Synthetic fixture generation failed' }
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Stress fixture generation failed' }
@@ -73,8 +73,7 @@ jobs:
         env:
           GUI_ENGINE_PACKAGE_RUN: ${{ inputs.package_run_id }}
         run: |
-          & ./build/ui-audit/PdfMetaStudio.UiAudit.exe "$PWD/build/acceptance-fixtures/rich.pdf" "$PWD/dist/PdfMetaStudio/pdfmeta-worker.exe" "$PWD/ui-audit/additional"
-          if ($LASTEXITCODE) { throw 'Additional UI audit found failed checks or execution errors; inspect results.json' }
+          ./scripts/test-ui-audit.ps1 -Exe "$PWD/build/ui-audit/PdfMetaStudio.UiAudit.exe" -Pdf "$PWD/build/acceptance-fixtures/audit-rich.pdf" -Worker "$PWD/dist/PdfMetaStudio/pdfmeta-worker.exe" -OutDir "$PWD/ui-audit/additional"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:

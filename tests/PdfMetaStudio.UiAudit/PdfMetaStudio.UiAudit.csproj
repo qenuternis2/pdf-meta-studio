@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationManifest>../../src/PdfMetaStudio.App/app.manifest</ApplicationManifest>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
