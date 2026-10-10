@@ -29,6 +29,12 @@ public sealed partial class EditorViewModel : ObservableObject
         Fields = StandardFields.All.Select(f => new FieldViewModel(Session, Session.Origins[f.Id], service)).ToList();
         Tags = new TagTreeViewModel(Session, service, dialogs.PickPacketTarget);
         Objects = new ObjectsViewModel(Session, service, dialogs.PickExportTarget, message => dialogs.Info("Частные данные", message));
+        Tags.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(TagTreeViewModel.HasUnappliedChanges)) return;
+            UpdateStatus();
+            SaveCopyCommand.NotifyCanExecuteChanged(); ReplaceCommand.NotifyCanExecuteChanged();
+        };
         IsReadOnly = doc.Signed || !doc.CanModify;
         SelectedSection = Sections[0];
         Session.Changed += OnSessionChanged;
@@ -127,7 +133,7 @@ public sealed partial class EditorViewModel : ObservableObject
         if (password != null) await ReopenAsync(password, true);
     }
     [RelayCommand] private async Task Reload() {
-        if (HasChanges && !_dialogs.Confirm("Перезагрузить документ", "Несохранённые правки будут отброшены. Будет открыт текущий файл с диска.", "Перезагрузить", "Отмена")) return;
+        if ((HasChanges || Tags.HasUnappliedChanges) && !_dialogs.Confirm("Перезагрузить документ", "Несохранённые правки и неприменённый ввод будут отброшены. Будет открыт текущий файл с диска.", "Перезагрузить", "Отмена")) return;
         await ReopenAsync(Document.Password, false);
     }
     private async Task ReopenAsync(string? password, bool ownerRequired) {
@@ -170,7 +176,8 @@ public sealed partial class EditorViewModel : ObservableObject
     {
         int n = Session.ChangeCount;
         HasChanges = n > 0 || Session.UpdateModifyDate;
-        Status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
+        string status = n == 0 ? Session.UpdateModifyDate ? "Будет обновлена дата изменения" : "Нет изменений" : "Изменений: " + n;
+        Status = status + (Tags.HasUnappliedChanges ? " · есть неприменённый ввод" : "");
         var built = Session.Build();
         foreach (var f in Fields) f.SetProblem(built.Issues.FirstOrDefault(i => i.FieldId == f.Id));
         Objects.Refresh(built);
@@ -188,6 +195,7 @@ public sealed partial class EditorViewModel : ObservableObject
 
     partial void OnDocumentScopeChanged(string? value)
     {
+        if (SelectedDocumentScope?.Scope != value) SelectedDocumentScope = DocumentScopeOptions.FirstOrDefault(s => s.Scope == value);
         Session.DocumentStreamScope = value;
         if (IsReviewing) _ = RefreshReviewAsync();
     }
@@ -200,16 +208,25 @@ public sealed partial class EditorViewModel : ObservableObject
     private void Redo() { Session.Redo(); Tags.Rebuild(); }
     private bool CanRedo() => Session.CanRedo && !IsBusy;
 
-    [RelayCommand(CanExecute = nameof(HasChanges))]
-    private void RevertAll() { UpdateModifyDate = false; Session.RevertAll(); Tags.Rebuild(); }
+    [RelayCommand(CanExecute = nameof(CanRevertAll))]
+    private void RevertAll() { Tags.DiscardDrafts(); UpdateModifyDate = false; Session.RevertAll(); Tags.Rebuild(); }
+    private bool CanRevertAll() => HasChanges || Tags.HasUnappliedChanges;
 
     [RelayCommand(CanExecute = nameof(CanReview))]
     private async Task Review()
     {
+        if (Tags.HasUnappliedChanges)
+        {
+            IsReviewing = false;
+            SelectedSection = Sections.First(s => s.Id == "all");
+            Tags.ShowUnappliedDraft();
+            _dialogs.Info("Неприменённый ввод", "Примените или отмените ввод значения и XML перед проверкой. Черновики ещё не включены в изменения PDF.");
+            return;
+        }
         IsReviewing = true;
         await RefreshReviewAsync();
     }
-    private bool CanReview() => (HasChanges || UpdateModifyDate) && !IsBusy && !IsReadOnly;
+    private bool CanReview() => (HasChanges || UpdateModifyDate || Tags.HasUnappliedChanges) && !IsBusy && !IsReadOnly;
 
     private async Task RefreshReviewAsync()
     {
@@ -243,8 +260,8 @@ public sealed partial class EditorViewModel : ObservableObject
     [RelayCommand]
     private void BackToEdit() => IsReviewing = false;
 
-    private bool CanSaveCopy() => _reviewed != null && !IsBusy && (!Document.Signed || SignedAcknowledged);
-    private bool CanReplace() => _reviewed != null && !IsBusy && !Document.Signed && !HasPrivateData;
+    private bool CanSaveCopy() => _reviewed != null && !IsBusy && !Tags.HasUnappliedChanges && (!Document.Signed || SignedAcknowledged);
+    private bool CanReplace() => _reviewed != null && !IsBusy && !Tags.HasUnappliedChanges && !Document.Signed && !HasPrivateData;
 
     /// <summary>Частные данные приложений без адаптера: разрешена только запись в копию.</summary>
     public bool HasPrivateData => Document.PieceInfo.SelectMany(piece => (System.Text.Json.Nodes.JsonArray?)piece?["apps"] ?? new()).Any(app => app?["adapter"] == null);
@@ -338,7 +355,7 @@ public sealed partial class EditorViewModel : ObservableObject
     public async Task<bool> TryCloseAsync()
     {
         if (IsBusy) return false;
-        if (HasChanges)
+        if (HasChanges || Tags.HasUnappliedChanges)
         {
             switch (_dialogs.AskUnsavedChanges())
             {

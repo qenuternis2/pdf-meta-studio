@@ -57,6 +57,13 @@ public sealed partial class TagTreeViewModel : ObservableObject
     private readonly Func<string?>? _pickPacketTarget;
     private bool _rawDirty;
     private string? _sourceKey;
+    private bool _loadingValue;
+    private bool _rebuilding;
+    private readonly Dictionary<string, (string Value, string Type)> _valueDrafts = new();
+    private readonly Dictionary<string, string> _xmlDrafts = new();
+    private readonly Dictionary<string, bool> _expansion = new();
+    private readonly Dictionary<string, bool> _searchExpansion = new();
+    private string _lastSearch = "";
 
     public TagTreeViewModel(EditSession session, DocumentService service, Func<string?>? pickPacketTarget = null)
     {
@@ -64,7 +71,7 @@ public sealed partial class TagTreeViewModel : ObservableObject
         _service = service;
         _pickPacketTarget = pickPacketTarget;
         DateEditor = new DateEditorViewModel(value => EditValue = value);
-        RawXml = session.Document.DocumentStream?.Packet ?? "";
+        LoadXml(session.Document.DocumentStream?.Packet ?? "");
         _session.PreviewChanged += (_, _) => Rebuild();
         Rebuild();
     }
@@ -86,7 +93,30 @@ public sealed partial class TagTreeViewModel : ObservableObject
     public bool IsBooleanInput => SelectedValueType?.Id == "bool";
     public bool IsTextInput => !IsBooleanInput;
     partial void OnSelectedValueTypeChanged(AddTagType? value)
-    { OnPropertyChanged(nameof(IsBooleanInput)); OnPropertyChanged(nameof(IsTextInput)); OnPropertyChanged(nameof(IsDateInput)); DateEditor.Load(EditValue); }
+    {
+        OnPropertyChanged(nameof(IsBooleanInput)); OnPropertyChanged(nameof(IsTextInput)); OnPropertyChanged(nameof(IsDateInput));
+        if (!_loadingValue) DateEditor.Load(EditValue);
+        TrackValueDraft();
+    }
+    partial void OnEditValueChanged(string value) => TrackValueDraft();
+    public bool HasUnappliedChanges => _valueDrafts.Count > 0 || _xmlDrafts.Count > 0;
+    private string DefaultValueType(TagNodeViewModel? value) => value?.Node is not { } node ? "text" :
+        node.IsUri ? "uri" : IsKnownDate(node) ? "date" :
+        node.Steps.Count == 1 && node.Steps[0].Ns == XmpNamespaces.XmpRights && node.Steps[0].Name == "Marked" ? "bool" : "text";
+    private void TrackValueDraft()
+    {
+        if (_loadingValue || _rebuilding || Selected is not { IsEditable: true } selected) return;
+        bool before = HasUnappliedChanges;
+        string type = SelectedValueType?.Id ?? "text";
+        if (EditValue == (selected.PendingValue ?? selected.Value ?? "") && type == DefaultValueType(selected))
+            _valueDrafts.Remove(selected.ExactPath);
+        else _valueDrafts[selected.ExactPath] = (EditValue, type);
+        NotifyDrafts(before);
+    }
+    private void NotifyDrafts(bool before)
+    {
+        if (before != HasUnappliedChanges) OnPropertyChanged(nameof(HasUnappliedChanges));
+    }
     public bool HasScopeChoice => SelectedStream?.IsShared == true;
 
     [ObservableProperty] private string _search = "";
@@ -126,14 +156,26 @@ public sealed partial class TagTreeViewModel : ObservableObject
         new AddTagType("number", "Число (точность сохраняется)"),
     };
 
-    partial void OnRawXmlChanged(string value) { if (!_loadingXml) _rawDirty = true; }
+    partial void OnRawXmlChanged(string value)
+    {
+        if (_loadingXml || _sourceKey is null) return;
+        bool before = HasUnappliedChanges;
+        _rawDirty = value != (SelectedStream?.Packet ?? "");
+        if (_rawDirty) _xmlDrafts[_sourceKey] = value; else _xmlDrafts.Remove(_sourceKey);
+        NotifyDrafts(before);
+    }
     partial void OnSelectedStreamChanged(MetadataStream? value)
+    {
+        if (!_rebuilding) UpdateSelectedStream(value);
+    }
+    private void UpdateSelectedStream(MetadataStream? value)
     {
         var scope = SelectedScope;
         bool changed = _sourceKey != value?.Key;
         _sourceKey = value?.Key;
-        if (changed) { _rawDirty = false; SelectedScope = null; }
-        if (!_rawDirty) LoadXml(value?.Packet ?? "");
+        if (changed) SelectedScope = null;
+        _rawDirty = _sourceKey != null && _xmlDrafts.ContainsKey(_sourceKey);
+        LoadXml(_rawDirty ? _xmlDrafts[_sourceKey!] : value?.Packet ?? "");
         ScopeOptions.Clear();
         ScopeOptions.Add(new(null, null, null, "Выберите область правки…"));
         ScopeOptions.Add(new("all", null, null, "Для всех владельцев"));
@@ -181,13 +223,23 @@ public sealed partial class TagTreeViewModel : ObservableObject
 
     partial void OnSelectedChanged(TagNodeViewModel? value)
     {
+        if (!_rebuilding) LoadSelectedValue(value);
+    }
+    private void LoadSelectedValue(TagNodeViewModel? value)
+    {
         Message = null;
         DateEditor.ContextLabel = value?.Title ?? "Выбранный тег";
-        EditValue = value?.PendingValue ?? value?.Value ?? "";
+        _loadingValue = true;
+        try
+        {
+            bool draft = value != null && _valueDrafts.ContainsKey(value.ExactPath);
+            EditValue = draft ? _valueDrafts[value!.ExactPath].Value : value?.PendingValue ?? value?.Value ?? "";
+            string type = draft ? _valueDrafts[value!.ExactPath].Type : DefaultValueType(value);
+            SelectedValueType = ValueTypes.First(t => t.Id == type);
+            DateEditor.Load(EditValue);
+        }
+        finally { _loadingValue = false; }
         var node = value?.Node;
-        string type = node is null ? "text" : node.IsUri ? "uri" : IsKnownDate(node) ? "date" :
-            node.Steps.Count == 1 && node.Steps[0].Ns == XmpNamespaces.XmpRights && node.Steps[0].Name == "Marked" ? "bool" : "text";
-        SelectedValueType = ValueTypes.First(t => t.Id == type);
         ApplyCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
         RestoreCommand.NotifyCanExecuteChanged();
@@ -200,81 +252,122 @@ public sealed partial class TagTreeViewModel : ObservableObject
     public void Rebuild()
     {
         string? selectedPath = Selected?.ExactPath;
-        Roots.Clear();
         string q = Search.Trim();
-        bool Match(string s) => q.Length == 0 || s.Contains(q, StringComparison.OrdinalIgnoreCase);
-
-        var doc = _session.WorkingDocument;
-        string? sourceKey = SelectedStream?.Key;
-        Sources.Clear();
-        foreach (var stream in doc.Streams) Sources.Add(stream);
-        if (doc.DocumentStream is null)
-            Sources.Insert(0, new MetadataStream("", true, true, Array.Empty<MetadataOwner>(), "", true, null, XmpModel.Empty, false));
-        var detached = SelectedScope?.Scope == "detach" ? Sources.FirstOrDefault(s => s.Scope == "detach" &&
-            s.TargetOwner == SelectedScope.Owner && (s.OwnerPath?.ToJsonString() ?? "[]") == (SelectedScope.Path?.ToJsonString() ?? "[]")) : null;
-        if (detached != null && sourceKey != null && selectedPath != null)
-            selectedPath = selectedPath.Replace("{" + sourceKey + "}", "{" + detached.Key + "}");
-        SelectedStream = detached ?? Sources.FirstOrDefault(s => s.Key == sourceKey) ?? Sources.FirstOrDefault(s => s.IsDocument) ?? Sources.FirstOrDefault();
-        var infoRoot = new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "/Info", Subtitle = "Словарь сведений документа", IsExpanded = true };
-        foreach (var e in _session.Document.Info.Concat(doc.Info.Where(e => _session.Document.InfoValue(e.Key) is null)))
+        var previousExpansion = _lastSearch.Length == 0 ? _expansion : _searchExpansion;
+        foreach (var node in Flatten(Roots).Where(n => n.Children.Count > 0 || n.Kind == TagNodeKind.Source))
+            previousExpansion[node.ExactPath] = node.IsExpanded;
+        if (q != _lastSearch) _searchExpansion.Clear();
+        _lastSearch = q;
+        _rebuilding = true;
+        try
         {
-            var pending = _session.Get("info:" + e.Key) as InfoKeyEdit;
-            var current = doc.InfoValue(e.Key);
-            if (!Match(e.Key + " " + (current?.Value ?? e.Value))) continue;
-            infoRoot.Children.Add(new TagNodeViewModel
-            {
-                Kind = TagNodeKind.InfoKey, Title = e.Key, Subtitle = InfoKind(e), Value = e.Value, ExactPath = "/Info" + e.Key,
-                Info = e, PendingValue = pending?.NewValue ?? (current?.Value != e.Value ? current?.Value : null),
-                PendingDelete = pending is { NewValue: null } || current is null,
-            });
-        }
-        foreach (var added in _session.Edits.OfType<InfoKeyEdit>().Where(k => doc.InfoValue(k.InfoKey) is null &&
-            _session.Document.InfoValue(k.InfoKey) is null && k.NewValue != null))
-            infoRoot.Children.Add(new TagNodeViewModel
-            {
-                Kind = TagNodeKind.InfoKey, Title = added.InfoKey, Subtitle = "новый ключ", Value = null, PendingValue = added.NewValue,
-                ExactPath = "/Info" + added.InfoKey,
-            });
-        Roots.Add(infoRoot);
+            string? sourceKey = SelectedStream?.Key;
+            var scope = SelectedScope;
+            Roots.Clear();
+            bool Match(string s) => q.Length == 0 || s.Contains(q, StringComparison.OrdinalIgnoreCase);
 
-        foreach (var ds in doc.Streams)
-        {
-            var xmpRoot = new TagNodeViewModel
+            var doc = _session.WorkingDocument;
+            Sources.Clear();
+            foreach (var stream in doc.Streams) Sources.Add(stream);
+            if (doc.DocumentStream is null)
+                Sources.Insert(0, new MetadataStream("", true, true, Array.Empty<MetadataOwner>(), "", true, null, XmpModel.Empty, false));
+            var detached = scope?.Scope == "detach" ? Sources.FirstOrDefault(s => s.Scope == "detach" &&
+                s.TargetOwner == scope.Owner && (s.OwnerPath?.ToJsonString() ?? "[]") == (scope.Path?.ToJsonString() ?? "[]")) : null;
+            if (detached != null && sourceKey != null && selectedPath != null)
+                selectedPath = selectedPath.Replace("{" + sourceKey + "}", "{" + detached.Key + "}");
+            SelectedStream = detached ?? Sources.FirstOrDefault(s => s.Key == sourceKey) ?? Sources.FirstOrDefault(s => s.IsDocument) ?? Sources.FirstOrDefault();
+            var infoRoot = new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "/Info", ExactPath = "/Info", Subtitle = "Словарь сведений документа", IsExpanded = true };
+            foreach (var e in _session.Document.Info.Concat(doc.Info.Where(e => _session.Document.InfoValue(e.Key) is null)))
             {
-                Kind = TagNodeKind.Source, IsExpanded = true,
-                Title = ds.Title, Stream = ds, Subtitle = ds.ParseOk ? "Поток " + ds.Ref + " R" : "Повреждён — только просмотр",
-            };
-            var originalModel = _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Model ?? XmpModel.Empty;
-            var missing = originalModel.Nodes.Where(n => ds.Model.Find(n.Steps) is null);
-            var m = new XmpModel(ds.Model.About, originalModel.Prefixes.Concat(ds.Model.Prefixes)
-                .GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value), ds.Model.Nodes.Concat(missing).ToList());
-            foreach (var group in m.TopLevel.GroupBy(n => n.Steps[0].Ns ?? "").OrderBy(g => m.PrefixOf(g.Key)))
-            {
-                var nsNode = new TagNodeViewModel
+                var pending = _session.Get("info:" + e.Key) as InfoKeyEdit;
+                var current = doc.InfoValue(e.Key);
+                if (!Match(e.Key + " " + (current?.Value ?? e.Value))) continue;
+                infoRoot.Children.Add(new TagNodeViewModel
                 {
-                    Kind = TagNodeKind.Namespace, Title = (m.PrefixOf(group.Key) ?? "?") + ":", Subtitle = group.Key, IsExpanded = q.Length > 0,
-                };
-                foreach (var top in group.OrderBy(n => n.Steps[0].Name))
-                {
-                    var node = BuildXmpNode(ds, m, top, Match);
-                    if (node != null) nsNode.Children.Add(node);
-                }
-                if (nsNode.Children.Count > 0 || Match(group.Key)) xmpRoot.Children.Add(nsNode);
+                    Kind = TagNodeKind.InfoKey, Title = e.Key, Subtitle = InfoKind(e), Value = e.Value, ExactPath = "/Info" + e.Key,
+                    Info = e, PendingValue = pending?.NewValue ?? (current?.Value != e.Value ? current?.Value : null),
+                    PendingDelete = pending is { NewValue: null } || current is null,
+                });
             }
-            Roots.Add(xmpRoot);
-        }
-        if (doc.DocumentStream is null)
-        {
-            Roots.Add(new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "XMP документа", Subtitle = "Отсутствует — будет создан при добавлении тега" });
-        }
+            foreach (var added in _session.Edits.OfType<InfoKeyEdit>().Where(k => doc.InfoValue(k.InfoKey) is null &&
+                _session.Document.InfoValue(k.InfoKey) is null && k.NewValue != null))
+                infoRoot.Children.Add(new TagNodeViewModel
+                {
+                    Kind = TagNodeKind.InfoKey, Title = added.InfoKey, Subtitle = "новый ключ", Value = null, PendingValue = added.NewValue,
+                    ExactPath = "/Info" + added.InfoKey,
+                });
+            Roots.Add(infoRoot);
 
-        if (selectedPath != null)
-        {
-            bool found = false;
-            foreach (var n in Flatten(Roots))
-                if (n.ExactPath == selectedPath) { n.IsSelected = true; Selected = n; found = true; break; }
-            if (!found) Selected = null;
+            foreach (var ds in doc.Streams)
+            {
+                var xmpRoot = new TagNodeViewModel
+                {
+                    Kind = TagNodeKind.Source, IsExpanded = true, ExactPath = "{" + ds.Key + "}",
+                    Title = ds.Title, Stream = ds, Subtitle = ds.ParseOk ? "Поток " + ds.Ref + " R" : "Повреждён — только просмотр",
+                };
+                var originalModel = _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Model ?? XmpModel.Empty;
+                var missing = originalModel.Nodes.Where(n => ds.Model.Find(n.Steps) is null);
+                var m = new XmpModel(ds.Model.About, originalModel.Prefixes.Concat(ds.Model.Prefixes)
+                    .GroupBy(p => p.Key).ToDictionary(g => g.Key, g => g.Last().Value), ds.Model.Nodes.Concat(missing).ToList());
+                foreach (var group in m.TopLevel.GroupBy(n => n.Steps[0].Ns ?? "").OrderBy(g => m.PrefixOf(g.Key)))
+                {
+                    var nsNode = new TagNodeViewModel
+                    {
+                        Kind = TagNodeKind.Namespace, Title = (m.PrefixOf(group.Key) ?? "?") + ":", Subtitle = group.Key,
+                        ExactPath = "{" + ds.Key + "}namespace:" + group.Key, IsExpanded = q.Length > 0,
+                    };
+                    foreach (var top in group.OrderBy(n => n.Steps[0].Name))
+                    {
+                        var node = BuildXmpNode(ds, m, top, Match);
+                        if (node != null) nsNode.Children.Add(node);
+                    }
+                    if (nsNode.Children.Count > 0 || Match(group.Key)) xmpRoot.Children.Add(nsNode);
+                }
+                Roots.Add(xmpRoot);
+            }
+            if (doc.DocumentStream is null)
+            {
+                Roots.Add(new TagNodeViewModel { Kind = TagNodeKind.Source, Title = "XMP документа", ExactPath = "missing-document-xmp", Subtitle = "Отсутствует — будет создан при добавлении тега" });
+            }
+
+            var expansion = q.Length == 0 ? _expansion : _searchExpansion;
+            foreach (var node in Flatten(Roots))
+                if (expansion.TryGetValue(node.ExactPath, out bool expanded)) node.IsExpanded = expanded;
+            if (selectedPath != null)
+            {
+                bool found = false;
+                foreach (var n in Flatten(Roots))
+                    if (n.ExactPath == selectedPath) { n.IsSelected = true; Selected = n; found = true; break; }
+                if (!found) Selected = null;
+            }
         }
+        finally { _rebuilding = false; }
+        UpdateSelectedStream(SelectedStream);
+        LoadSelectedValue(Selected);
+    }
+
+    public void ShowUnappliedDraft()
+    {
+        Search = "";
+        var node = Flatten(Roots).FirstOrDefault(n => _valueDrafts.ContainsKey(n.ExactPath));
+        if (node != null) { Selected = node; node.IsSelected = true; }
+        else if (Sources.FirstOrDefault(s => _xmlDrafts.ContainsKey(s.Key)) is { } stream) SelectedStream = stream;
+    }
+
+    public void DiscardDrafts()
+    {
+        bool before = HasUnappliedChanges;
+        _valueDrafts.Clear(); _xmlDrafts.Clear(); _rawDirty = false;
+        LoadSelectedValue(Selected); LoadXml(SelectedStream?.Packet ?? "");
+        NotifyDrafts(before);
+    }
+
+    [RelayCommand] private void ResetValue()
+    {
+        bool before = HasUnappliedChanges;
+        if (Selected != null) _valueDrafts.Remove(Selected.ExactPath);
+        LoadSelectedValue(Selected);
+        NotifyDrafts(before);
     }
 
     private TagNodeViewModel? BuildXmpNode(MetadataStream ds, XmpModel m, XmpNode n, Func<string, bool> match)
@@ -419,6 +512,9 @@ public sealed partial class TagTreeViewModel : ObservableObject
                     new JsonObject { ["op"] = "set", ["steps"] = XmpPath.ToJson(n.Steps), ["value"] = EditValue,
                         ["uri"] = SelectedValueType?.Id == "uri" }, s.ExactPath));
         }
+        bool before = HasUnappliedChanges;
+        _valueDrafts.Remove(s.ExactPath);
+        NotifyDrafts(before);
         await RefreshAsync();
     }
 
@@ -426,6 +522,11 @@ public sealed partial class TagTreeViewModel : ObservableObject
     private async Task Delete()
     {
         var s = Selected!;
+        if (s.Kind != TagNodeKind.InfoKey && !RequireScope(s.Stream)) return;
+        // Explicit deletion cancels input for the removed node and its children.
+        bool before = HasUnappliedChanges;
+        foreach (var node in Flatten(new[] { s })) _valueDrafts.Remove(node.ExactPath);
+        NotifyDrafts(before);
         if (s.Kind == TagNodeKind.InfoKey)
         {
             if (s.Info is null) _session.Revert("info:" + s.Title);
@@ -433,7 +534,6 @@ public sealed partial class TagTreeViewModel : ObservableObject
         }
         else
         {
-            if (!RequireScope(s.Stream)) return;
             if (s.IsAdded && _session.Edits.OfType<XmpOpEdit>().Any(e => e.Op["op"]?.ToString() is "create" or "setArray" or "setLangAlt" &&
                 e.Op["steps"] is JsonArray steps && XmpPath.Key(steps.Select(st => XmpStep.FromJson(st!))) == s.Node!.Key))
             {
@@ -574,6 +674,9 @@ public sealed partial class TagTreeViewModel : ObservableObject
             if (RawXml == _session.Document.Streams.FirstOrDefault(s => s.Ref == ds.Ref)?.Packet) _session.Revert(edit.Key);
             else _session.SetRawPacket(edit);
             _rawDirty = false;
+            bool before = HasUnappliedChanges;
+            _xmlDrafts.Remove(ds.Key);
+            NotifyDrafts(before);
             if (await RefreshAsync()) Message = "XML проверен; дерево и сравнение обновлены";
         }
         catch (WorkerException ex) { Message = ex.Message; }
@@ -587,7 +690,13 @@ public sealed partial class TagTreeViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ResetXml() { _rawDirty = false; LoadXml(SelectedStream?.Packet ?? ""); Message = null; }
+    private void ResetXml()
+    {
+        bool before = HasUnappliedChanges;
+        if (_sourceKey != null) _xmlDrafts.Remove(_sourceKey);
+        _rawDirty = false; LoadXml(SelectedStream?.Packet ?? ""); Message = null;
+        NotifyDrafts(before);
+    }
 
     private static bool ValidValue(string type, string value, out string? error)
     {

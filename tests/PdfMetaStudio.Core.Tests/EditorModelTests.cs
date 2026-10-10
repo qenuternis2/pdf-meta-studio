@@ -1,6 +1,7 @@
 using PdfMetaStudio.App.ViewModels;
 using PdfMetaStudio.Core;
 using PdfMetaStudio.Core.Editing;
+using PdfMetaStudio.Core.Dates;
 using PdfMetaStudio.Core.Model;
 using Xunit;
 
@@ -31,6 +32,122 @@ public class EditorModelTests
         Flatten(tree.Roots).First(n => n.Node?.Steps[^1].Name == localName);
 
     [WorkerFact]
+    public async Task ValueDraftSurvivesSearchSelectionAndPreviewWithoutEditingPdf()
+    {
+        await using var service = new DocumentService();
+        var session = new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null));
+        var tree = new TagTreeViewModel(session, service);
+        Assert.False(tree.HasUnappliedChanges);
+        tree.Selected = Find(tree, "ProjectCode");
+        tree.EditValue = "UNAPPLIED";
+        tree.SelectedValueType = tree.ValueTypes.First(t => t.Id == "uri");
+        tree.Search = "no matching tag";
+        Assert.Null(tree.Selected);
+        Assert.True(tree.HasUnappliedChanges);
+        tree.Search = "";
+        tree.Selected = Find(tree, "Marker");
+        tree.EditValue = "SECOND DRAFT";
+        await tree.RefreshAsync();
+        tree.Selected = Find(tree, "ProjectCode");
+        Assert.Equal("UNAPPLIED", tree.EditValue);
+        Assert.Equal("uri", tree.SelectedValueType?.Id);
+        Assert.Equal(0, session.ChangeCount);
+        tree.ResetValueCommand.Execute(null);
+        Assert.Equal("ATL-2026", tree.EditValue);
+        Assert.True(tree.HasUnappliedChanges);
+        tree.Selected = Find(tree, "Marker");
+        Assert.Equal("SECOND DRAFT", tree.EditValue);
+        await tree.ApplyCommand.ExecuteAsync(null);
+        Assert.False(tree.HasUnappliedChanges);
+        Assert.Equal("SECOND DRAFT", Find(tree, "Marker").Value);
+    }
+
+    [WorkerFact]
+    public async Task XmlDraftsAreIsolatedPerStreamAndResetOnlyTheSelectedDraft()
+    {
+        await using var service = new DocumentService();
+        var session = new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null));
+        var tree = new TagTreeViewModel(session, service);
+        string documentKey = tree.SelectedStream!.Key;
+        string documentPacket = tree.RawXml;
+        tree.RawXml = "<invalid document draft";
+        var page = tree.Sources.First(s => s.Packet?.Contains("PAGE-MARKER") == true);
+        tree.SelectedStream = page;
+        Assert.Equal(page.Packet, tree.RawXml);
+        tree.RawXml = tree.RawXml.Replace("PAGE-MARKER", "PAGE DRAFT");
+        await tree.ApplyRawXmlCommand.ExecuteAsync(null);
+        Assert.True(tree.HasUnappliedChanges);
+        tree.SelectedStream = tree.Sources.First(s => s.Key == documentKey);
+        Assert.Equal("<invalid document draft", tree.RawXml);
+        long revision = session.Revision;
+        await tree.ApplyRawXmlCommand.ExecuteAsync(null);
+        Assert.Equal(revision, session.Revision);
+        Assert.True(tree.HasUnappliedChanges);
+        tree.ResetXmlCommand.Execute(null);
+        Assert.Equal(documentPacket, tree.RawXml);
+        Assert.False(tree.HasUnappliedChanges);
+        Assert.Contains("PAGE DRAFT", session.WorkingDocument.Streams.First(s => s.Key == page.Key).Packet);
+    }
+
+    [WorkerFact]
+    public async Task SearchDoesNotReplaceTheUnfilteredExpansionState()
+    {
+        await using var service = new DocumentService();
+        var tree = new TagTreeViewModel(new EditSession(await service.OpenAsync(Fixture("rich.pdf"), null)), service);
+        tree.Roots[0].IsExpanded = false;
+        var ns = Flatten(tree.Roots).First(n => n.Kind == TagNodeKind.Namespace);
+        ns.IsExpanded = true;
+        string key = ns.ExactPath;
+        tree.Search = "ProjectCode";
+        tree.Roots[0].IsExpanded = true;
+        tree.Search = "";
+        Assert.False(tree.Roots[0].IsExpanded);
+        Assert.True(Flatten(tree.Roots).Single(n => n.ExactPath == key).IsExpanded);
+        await tree.RefreshAsync();
+        Assert.False(tree.Roots[0].IsExpanded);
+        Assert.True(Flatten(tree.Roots).Single(n => n.ExactPath == key).IsExpanded);
+    }
+
+    [Theory]
+    [InlineData("invalid", "02", "28", "Year")]
+    [InlineData("2025", "13", "28", "Month")]
+    [InlineData("2025", "02", "29", "Day")]
+    public void InvalidDateRequestsFocusWithoutApplying(string year, string month, string day, string expected)
+    {
+        bool applied = false;
+        string? focus = null;
+        var editor = new DateEditorViewModel(_ => applied = true);
+        editor.Load("2025-02-28");
+        editor.ValidationFailed += component => focus = component;
+        editor.Year = year; editor.Month = month; editor.Day = day;
+        editor.ApplyCommand.Execute(null);
+        Assert.False(applied);
+        Assert.NotNull(editor.Error);
+        Assert.Equal(expected, focus);
+    }
+
+    [Theory]
+    [InlineData(false, DatePrecision.Minute, ZoneKind.Offset, "+99:99", "Offset")]
+    [InlineData(false, DatePrecision.Hour, ZoneKind.None, "", "Precision")]
+    [InlineData(false, DatePrecision.FractionalSecond, ZoneKind.None, "", "Fraction")]
+    [InlineData(true, DatePrecision.FractionalSecond, ZoneKind.None, "", "Precision")]
+    public void InvalidDateZoneOrPrecisionRequestsTheRelevantControl(bool pdf, DatePrecision precision, ZoneKind zone, string offset, string expected)
+    {
+        bool applied = false;
+        string? focus = null;
+        var editor = new DateEditorViewModel(_ => applied = true);
+        editor.Load("2025-02-28T12:30:00", pdf);
+        editor.ValidationFailed += component => focus = component;
+        editor.Precision = editor.Precisions.First(p => p.Value == precision);
+        editor.Zone = editor.Zones.First(z => z.Value == zone);
+        editor.Offset = offset;
+        editor.ApplyCommand.Execute(null);
+        Assert.False(applied);
+        Assert.NotNull(editor.Error);
+        Assert.Equal(expected, focus);
+    }
+
+    [WorkerFact]
     public async Task NewXmpTagIsVisibleEditableAndReversible()
     {
         await using var service = new DocumentService();
@@ -48,7 +165,9 @@ public class EditorModelTests
         await tree.ApplyCommand.ExecuteAsync(null);
         Assert.Equal("Second", Find(tree, "AuditAdded").Value);
         tree.Selected = Find(tree, "AuditAdded");
+        tree.EditValue = "Input cancelled by explicit deletion";
         await tree.DeleteCommand.ExecuteAsync(null);
+        Assert.False(tree.HasUnappliedChanges);
         Assert.DoesNotContain(Flatten(tree.Roots), n => n.Node?.Steps[^1].Name == "AuditAdded");
         Assert.Equal(0, session.ChangeCount);
         session.Undo();

@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation.Peers;
+using System.Windows.Threading;
 using PdfMetaStudio.App.ViewModels;
 
 namespace PdfMetaStudio.App.Views;
@@ -10,20 +12,36 @@ public partial class EditorView : UserControl
 
     private EditorViewModel? Vm => DataContext as EditorViewModel;
 
+    private void OnFieldsVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not ItemsControl { IsVisible: true } fields) return;
+        // UIA can cache empty item children while a section is collapsed.
+        // Refresh after templates are laid out, without rebuilding the inputs.
+        fields.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (!fields.IsVisible) return;
+            var peer = UIElementAutomationPeer.FromElement(fields);
+            peer?.ResetChildrenCache();
+            foreach (var item in peer?.GetChildren() ?? []) item.ResetChildrenCache();
+        }));
+    }
+
+    private void OnXmlActionFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        if (e.NewFocus is not Button action) return;
+        // Leave space for the focus outline after both scroll owners finish layout.
+        action.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (action.IsKeyboardFocused)
+                action.BringIntoView(new Rect(-4, -4, action.ActualWidth + 8, action.ActualHeight + 8));
+        }));
+    }
+
     private void OnTreeSelection(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (Vm is { } vm) vm.Tags.Selected = e.NewValue as TagNodeViewModel;
     }
 
-    private void OnScopeAll(object sender, RoutedEventArgs e)
-    {
-        if (Vm is { } vm) vm.DocumentScope = "all";
-    }
-
-    private void OnScopeDetach(object sender, RoutedEventArgs e)
-    {
-        if (Vm is { } vm) vm.DocumentScope = "detach";
-    }
     private void OnSaveMenu(object sender, System.Windows.RoutedEventArgs e) {
         if (sender is System.Windows.Controls.Button { ContextMenu: { } menu }) { menu.PlacementTarget = (System.Windows.UIElement)sender; menu.IsOpen = true; }
     }

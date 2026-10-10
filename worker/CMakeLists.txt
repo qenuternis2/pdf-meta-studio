@@ -35,6 +35,17 @@ if(MSVC AND DEFINED VCPKG_TARGET_TRIPLET)
   find_library(LIBJPEG_LIB_PATH NAMES jpeg PATHS "${_vcpkg_rel}/lib" NO_DEFAULT_PATH)
 endif()
 add_subdirectory("${PDFMETA_EXTERNAL_DIR}/qpdf" qpdf EXCLUDE_FROM_ALL)
+if(MSVC)
+  # qpdf adds the cl.exe driver separator to linker options. Visual Studio
+  # invokes link.exe directly; retain wsetargv.obj but omit the separator.
+  foreach(_qpdf_cli qpdf fix-qdf test_unicode_filenames test_shell_glob)
+    get_target_property(_qpdf_link_options ${_qpdf_cli} LINK_OPTIONS)
+    if(_qpdf_link_options)
+      list(REMOVE_ITEM _qpdf_link_options -link /link)
+      set_property(TARGET ${_qpdf_cli} PROPERTY LINK_OPTIONS "${_qpdf_link_options}")
+    endif()
+  endforeach()
+endif()
 
 # --- Adobe XMP Core + Expat ----------------------------------------------
 include(cmake/XMPCore.cmake)

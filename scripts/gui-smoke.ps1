@@ -248,16 +248,7 @@ try {
         & (Join-Path $PSScriptRoot 'prepare-windows-desktop.ps1') -OutDir $OutDir
         # First-logon tasks can relaunch WSL/Terminal during a later save dialog.
         # Reap only known hosted-image setup surfaces for the lifetime of this CI case.
-        $desktopGuard = Start-Job -ArgumentList (Join-Path $OutDir 'desktop-guard.log') -ScriptBlock {
-            param($guardLog)
-            while ($true) {
-                foreach ($process in @(Get-Process -Name WWAHost, UserOOBEBroker, msoobe, CloudExperienceHostBroker, SystemPropertiesPerformance, wsl, WindowsTerminal -ErrorAction SilentlyContinue)) {
-                    ('{0:o} stopped {1} {2}' -f [DateTime]::UtcNow, $process.ProcessName, $process.Id) | Add-Content -Path $guardLog
-                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                }
-                Start-Sleep -Milliseconds 100
-            }
-        }
+        $desktopGuard = & (Join-Path $PSScriptRoot 'start-windows-desktop-guard.ps1') -OutDir $OutDir
     }
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $proc = Start-Process -FilePath $Exe -PassThru
