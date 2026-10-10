@@ -19,9 +19,10 @@ public partial class EditorView : UserControl
         // Refresh after templates are laid out, without rebuilding the inputs.
         fields.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
+            if (!fields.IsVisible) return;
             var peer = UIElementAutomationPeer.FromElement(fields);
-            foreach (var item in peer?.GetChildren() ?? []) item.InvalidatePeer();
-            peer?.InvalidatePeer();
+            peer?.ResetChildrenCache();
+            foreach (var item in peer?.GetChildren() ?? []) item.ResetChildrenCache();
         }));
     }
 
