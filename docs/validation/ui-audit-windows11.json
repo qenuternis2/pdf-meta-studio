@@ -1,0 +1,334 @@
+{
+  "date": "2026-10-10",
+  "uiAuditRun": {
+    "id": 38051702749,
+    "url": "https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38051702749",
+    "sourceCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+    "conclusion": "failure",
+    "artifactId": 11669084742,
+    "additionalOnly": true
+  },
+  "host": {
+    "sourceCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+    "product": "Microsoft Windows 11 Enterprise",
+    "registryProductName": "Windows 10 Enterprise",
+    "build": "26200",
+    "version": "10.0.26200",
+    "osArchitecture": "ARM 64-bit Processor",
+    "processorArchitectureCode": 12,
+    "runnerArchitecture": "ARM64",
+    "powershellArchitecture": "ARM64",
+    "applicationMachine": "0x8664",
+    "applicationSha256": "6F07D957D0E999E8D6EE48326A064A678A99C72E7F62E3F3D253AB57EA5E2039",
+    "elevated": true,
+    "interactive": true,
+    "desktop": {
+      "dpi": 96,
+      "scalePercent": 100,
+      "width": 1024,
+      "height": 768
+    },
+    "limits": "Hosted VM with SDKs/tools installed. x64 application runs under Windows ARM64 emulation. This is not a clean x64 PC or standard-user/non-elevated/offline acceptance. Recorded desktop DPI does not establish scale-change coverage or Narrator speech."
+  },
+  "nativeProvenance": {
+    "runId": 37729944353,
+    "sourceCommit": "f3113a1294e2ca495d2a8aec8e3d6d6dc9bdc5e5",
+    "currentCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+    "scope": "Reused native worker; managed application and audit harness are rebuilt from current source"
+  },
+  "processes": {
+    "sourceCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+    "cases": [
+      {
+        "exitCode": 1,
+        "theme": "light",
+        "seconds": 42.2186772
+      },
+      {
+        "exitCode": 1,
+        "theme": "dark",
+        "seconds": 37.4452713
+      }
+    ]
+  },
+  "checkRecordCounts": {
+    "FAIL": 24,
+    "PASS": 4,
+    "SKIP": 4
+  },
+  "themes": [
+    {
+      "sourceCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+      "enginePackageRun": "37729944353",
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "processArchitecture": "X64",
+      "cases": [
+        {
+          "Theme": "light",
+          "Check": "tag-draft-search",
+          "Status": "FAIL",
+          "Detail": "Same selected path: True; draft retained: False; session changes: 0"
+        },
+        {
+          "Theme": "light",
+          "Check": "xml-draft-stream-switch",
+          "Status": "FAIL",
+          "Detail": "Draft retained: False; confirmations: 0"
+        },
+        {
+          "Theme": "light",
+          "Check": "close-unapplied-xml",
+          "Status": "FAIL",
+          "Detail": "Close allowed: True; unsaved questions: 0; session changes: 0"
+        },
+        {
+          "Theme": "light",
+          "Check": "tree-expansion-state",
+          "Status": "FAIL",
+          "Detail": "Collapsed root remains collapsed: False"
+        },
+        {
+          "Theme": "light",
+          "Check": "scope-choice-display",
+          "Status": "FAIL",
+          "Detail": "Model scope: all; review choices checked: False,False"
+        },
+        {
+          "Theme": "light",
+          "Check": "invalid-date-focus",
+          "Status": "FAIL",
+          "Detail": "Error produced: True; invalid year focused: False"
+        },
+        {
+          "Theme": "light",
+          "Check": "diagnostic-accessible-name",
+          "Status": "FAIL",
+          "Detail": "UIA name: ; explicit name: "
+        },
+        {
+          "Theme": "light",
+          "Check": "secondary-text-contrast",
+          "Status": "PASS",
+          "Detail": "Actual WPF foreground #FF5F5F5F, background #FFF9F9F9, contrast 6.065:1; normal text reference 4.5:1"
+        },
+        {
+          "Theme": "light",
+          "Check": "status-live-region-event",
+          "Status": "FAIL",
+          "Detail": "Application status events: 0; explicit-event positive control: 2; this does not test speech"
+        },
+        {
+          "Theme": "light",
+          "Check": "xml-layout-transform-1.0",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 1.0; actual DPI 96; XML apply viewport: False; close viewport: True. Transform is not OS DPI."
+        },
+        {
+          "Theme": "light",
+          "Check": "xml-layout-transform-1.5",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 1.5; actual DPI 96; XML apply viewport: False; close viewport: True. Transform is not OS DPI."
+        },
+        {
+          "Theme": "light",
+          "Check": "xml-layout-transform-2.0",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 2.0; actual DPI 96; XML apply viewport: False; close viewport: False. Transform is not OS DPI."
+        },
+        {
+          "Theme": "light",
+          "Check": "large-review-realization",
+          "Status": "FAIL",
+          "Detail": "1000 rows; realized containers: 1000; UI layout elapsed 4995 ms. Full realization confirms virtualization absence, not a measured hang."
+        },
+        {
+          "Theme": "high-contrast",
+          "Check": "focus-and-content",
+          "Status": "PASS",
+          "Detail": "Actual system high contrast: True; title focused: True; review visible: True. Screenshot retained; human focus-ring inspection still needed."
+        },
+        {
+          "Theme": "host",
+          "Check": "narrator-speech",
+          "Status": "SKIP",
+          "Detail": "Speech output and comprehension require human/audio acceptance; UIA notifications are checked separately."
+        },
+        {
+          "Theme": "host",
+          "Check": "physical-dpi-150-200",
+          "Status": "SKIP",
+          "Detail": "No physical display/session scale change; separate LayoutTransform checks cover constrained layout only."
+        }
+      ],
+      "limits": "Actual WPF components hosted in a test window; this complements the separate real-application GUI smoke. UIA events do not establish Narrator speech. LayoutTransform tests are not physical Windows DPI changes. No standard-user physical x64/offline or microphone/audio acceptance."
+    },
+    {
+      "sourceCommit": "bb039c19ea53b7f935b76801068e8d3ebf3af375",
+      "enginePackageRun": "37729944353",
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "processArchitecture": "X64",
+      "cases": [
+        {
+          "Theme": "dark",
+          "Check": "tag-draft-search",
+          "Status": "FAIL",
+          "Detail": "Same selected path: True; draft retained: False; session changes: 0"
+        },
+        {
+          "Theme": "dark",
+          "Check": "xml-draft-stream-switch",
+          "Status": "FAIL",
+          "Detail": "Draft retained: False; confirmations: 0"
+        },
+        {
+          "Theme": "dark",
+          "Check": "close-unapplied-xml",
+          "Status": "FAIL",
+          "Detail": "Close allowed: True; unsaved questions: 0; session changes: 0"
+        },
+        {
+          "Theme": "dark",
+          "Check": "tree-expansion-state",
+          "Status": "FAIL",
+          "Detail": "Collapsed root remains collapsed: False"
+        },
+        {
+          "Theme": "dark",
+          "Check": "scope-choice-display",
+          "Status": "FAIL",
+          "Detail": "Model scope: all; review choices checked: False,False"
+        },
+        {
+          "Theme": "dark",
+          "Check": "invalid-date-focus",
+          "Status": "FAIL",
+          "Detail": "Error produced: True; invalid year focused: False"
+        },
+        {
+          "Theme": "dark",
+          "Check": "diagnostic-accessible-name",
+          "Status": "FAIL",
+          "Detail": "UIA name: ; explicit name: "
+        },
+        {
+          "Theme": "dark",
+          "Check": "secondary-text-contrast",
+          "Status": "PASS",
+          "Detail": "Actual WPF foreground #FFCECECE, background #FF272727, contrast 9.492:1; normal text reference 4.5:1"
+        },
+        {
+          "Theme": "dark",
+          "Check": "status-live-region-event",
+          "Status": "FAIL",
+          "Detail": "Application status events: 0; explicit-event positive control: 2; this does not test speech"
+        },
+        {
+          "Theme": "dark",
+          "Check": "xml-layout-transform-1.0",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 1.0; actual DPI 96; XML apply viewport: False; close viewport: True. Transform is not OS DPI."
+        },
+        {
+          "Theme": "dark",
+          "Check": "xml-layout-transform-1.5",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 1.5; actual DPI 96; XML apply viewport: False; close viewport: True. Transform is not OS DPI."
+        },
+        {
+          "Theme": "dark",
+          "Check": "xml-layout-transform-2.0",
+          "Status": "FAIL",
+          "Detail": "640x480 window; LayoutTransform 2.0; actual DPI 96; XML apply viewport: False; close viewport: False. Transform is not OS DPI."
+        },
+        {
+          "Theme": "dark",
+          "Check": "large-review-realization",
+          "Status": "FAIL",
+          "Detail": "1000 rows; realized containers: 1000; UI layout elapsed 4920 ms. Full realization confirms virtualization absence, not a measured hang."
+        },
+        {
+          "Theme": "high-contrast",
+          "Check": "focus-and-content",
+          "Status": "PASS",
+          "Detail": "Actual system high contrast: True; title focused: True; review visible: True. Screenshot retained; human focus-ring inspection still needed."
+        },
+        {
+          "Theme": "host",
+          "Check": "narrator-speech",
+          "Status": "SKIP",
+          "Detail": "Speech output and comprehension require human/audio acceptance; UIA notifications are checked separately."
+        },
+        {
+          "Theme": "host",
+          "Check": "physical-dpi-150-200",
+          "Status": "SKIP",
+          "Detail": "No physical display/session scale change; separate LayoutTransform checks cover constrained layout only."
+        }
+      ],
+      "limits": "Actual WPF components hosted in a test window; this complements the separate real-application GUI smoke. UIA events do not establish Narrator speech. LayoutTransform tests are not physical Windows DPI changes. No standard-user physical x64/offline or microphone/audio acceptance."
+    }
+  ],
+  "baseline": {
+    "runId": 38049028633,
+    "url": "https://github.com/qenuternis2/pdf-meta-studio/actions/runs/38049028633",
+    "sourceCommit": "cd60b7fee210bf2b44b5532cfecca95c37245c8a",
+    "conclusion": "success",
+    "applicationNativeInstallerDependencySourcesUnchangedAtUiAuditCommit": true,
+    "managedCorePassed": 85,
+    "windows11NativePassed": 50,
+    "windows11NativeSkipped": 3,
+    "corpus": {
+      "files": 628,
+      "opened": 586,
+      "saved": 470,
+      "unexpectedFailures": 0,
+      "verificationBlockedFiles": 7
+    },
+    "windows11Gui": {
+      "sourceCommit": "cd60b7fee210bf2b44b5532cfecca95c37245c8a",
+      "os": "Microsoft Windows NT 10.0.26200.0",
+      "cases": [
+        {
+          "exitCode": 0,
+          "seconds": 75.0878569,
+          "case": "light"
+        },
+        {
+          "exitCode": 0,
+          "seconds": 67.0227958,
+          "case": "dark"
+        },
+        {
+          "exitCode": 0,
+          "seconds": 79.7960312,
+          "case": "10000-tags-1MiB-text"
+        }
+      ],
+      "enginePackageRun": null,
+      "limits": "Hosted Windows automation: observed light/dark backgrounds, keyboard cycles/shortcuts, 640x480 and 1000x700 windows, large-data search/read/save. Physical DPI changes and Narrator speech were not tested. GUI-only workflow runs reuse the recorded native package and do not establish native/MSI acceptance for this source."
+    },
+    "windows11Upgrade": {
+      "verifiedPayloadFiles": 424,
+      "uninstallExitCode": 0,
+      "version": "0.3.1",
+      "preservedDocuments": 2,
+      "baselineVersion": "0.3.0",
+      "baselineUrl": "https://github.com/qenuternis2/pdf-meta-studio/releases/download/v0.3.0/PdfMetaStudio-0.3.0-win-x64.msi",
+      "upgradeCode": "{CA630B1F-9153-5830-A5EC-84A95D16534D}",
+      "status": "PASS",
+      "documentSha256": "2FC26BD92112AB9A8B5A847A8560D92F59CC72EFB02E90AFF09822285B40564A",
+      "baselineExitCode": 0,
+      "baselineProductCode": "{8FE2948E-49C6-48FC-9E49-29CEA83F1F72}",
+      "baselineSha256": "cfa7398eb07b8025afc67820bc10f86da16bcd142531253005ef6c8eabacd05a",
+      "productCode": "{FF9859D8-6CF4-43BC-8F08-6005E6697D0D}",
+      "limits": "Disposable hosted Windows session; standard-user physical x64/offline upgrade remains untested.",
+      "upgradeExitCode": 0
+    }
+  },
+  "limitations": [
+    "24 FAIL records repeat 12 check scenarios in two themes; they are not 24 distinct defects.",
+    "Actual WPF views/view models hosted in a diagnostic window; separate baseline GUI evidence runs the production application.",
+    "Baseline native/MSI results belong to the recorded baseline source, not the additional-only UI run.",
+    "Physical Windows DPI 150/200 percent, Narrator speech, physical x64 standard-user/offline acceptance and complete high-contrast keyboard navigation remain untested."
+  ]
+}
