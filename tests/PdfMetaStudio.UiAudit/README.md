@@ -29,8 +29,11 @@ XMP streams. Contrast uses captured client background pixels and the actual text
 brush. Captures read the composited desktop at the verified foreground client's
 physical position, after DWM synchronization; a window DC or transparent rendered
 visual omits Fluent translucency and is not evidence of displayed contrast.
-Foreground acquisition and desktop bounds are checked; unavailable capture is
-blocked. A provider that cannot deliver the explicit UIA event is blocked rather
+Foreground acquisition uses bounded asynchronous verification and the existing
+hosted foreground-lock release; input-thread attachment is always detached.
+Desktop bounds are checked; unavailable capture or keyboard focus is blocked
+without suppressing unrelated model/provider checks.
+A provider that cannot deliver the explicit UIA event is blocked rather
 than evidence that the application emits no events.
 
 The 150%/200% LayoutTransform scenarios are constrained-layout simulations, not

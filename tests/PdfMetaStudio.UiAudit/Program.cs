@@ -135,6 +135,7 @@ internal static class Program
                 await Idle();
                 date.Year = "invalid";
                 var apply = Descendants<Button>(componentView).Single(b => Equals(b.Content, "Применить компоненты даты"));
+                await FocusWindow(window);
                 apply.Focus();
                 date.ApplyCommand.Execute(null);
                 await Idle();
@@ -158,6 +159,7 @@ internal static class Program
                 var text = Descendants<TextBlock>(view).Single(t => t.Text == "Before value");
                 if (text.Foreground is not SolidColorBrush brush) throw new InvalidOperationException("Contrast requires an observed solid foreground brush");
                 if (!text.IsEnabled) throw new BlockedException("Contrast target is disabled; normal text contrast cannot be assessed");
+                await FocusWindow(window);
                 var image = Capture(window);
                 var bounds = text.TransformToAncestor(window).TransformBounds(new Rect(text.RenderSize));
                 var dpi = VisualTreeHelper.GetDpi(window);
@@ -207,7 +209,7 @@ internal static class Program
                     var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Применить XML"));
                     var close = Descendants<Button>(view).Single(b => Equals(b.Content, "Закрыть"));
                     bool reachable = InViewport(apply, view) && InViewport(close, view);
-                    Snapshot(window, $"{theme}-xml-layout-{scale:F1}");
+                    await Snapshot(window, $"{theme}-xml-layout-{scale:F1}");
                     Check(reachable, $"640x480 window; LayoutTransform {scale:F1}; actual DPI {VisualTreeHelper.GetDpi(view).PixelsPerInchX}; XML apply viewport: {InViewport(apply, view)}; close viewport: {InViewport(close, view)}. Transform is not OS DPI.");
                 });
             }
@@ -238,7 +240,6 @@ internal static class Program
         try
         {
             window.Show();
-            FocusWindow(window);
             await Idle();
             await test(vm, view, window, dialogs);
             Results.Add(new(theme, name, "PASS", _detail));
@@ -285,7 +286,11 @@ internal static class Program
         var bounds = control.TransformToAncestor(root).TransformBounds(new Rect(control.RenderSize));
         return control.IsVisible && control.ActualWidth > 0 && control.ActualHeight > 0 && bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= root.ActualWidth + 1 && bounds.Bottom <= root.ActualHeight + 1;
     }
-    private static void Snapshot(Window window, string name) => SaveImage(Capture(window), name);
+    private static async Task Snapshot(Window window, string name)
+    {
+        await FocusWindow(window);
+        SaveImage(Capture(window), name);
+    }
     private static void SaveImage(BitmapSource image, string name)
     {
         var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(image));
@@ -300,6 +305,8 @@ internal static class Program
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool AttachThreadInput(uint first, uint second, bool attach);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool BringWindowToTop(IntPtr window);
+    [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ClientToScreen(IntPtr window, ref NativePoint point);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
     [DllImport("dwmapi.dll")] private static extern int DwmFlush();
@@ -312,18 +319,35 @@ internal static class Program
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteObject(IntPtr item);
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool DeleteDC(IntPtr dc);
     [DllImport("gdi32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool BitBlt(IntPtr target, int x, int y, int width, int height, IntPtr source, int sourceX, int sourceY, uint mode);
-    private static void FocusWindow(Window window)
+    private static async Task FocusWindow(Window window)
     {
         var handle = new WindowInteropHelper(window).Handle;
-        uint current = GetCurrentThreadId(), foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
-        bool attached = foreground != 0 && foreground != current && AttachThreadInput(current, foreground, true);
-        try { SetForegroundWindow(handle); window.Activate(); }
-        finally { if (attached) AttachThreadInput(current, foreground, false); }
-        if (GetForegroundWindow() != handle) throw new BlockedException("Audit window cannot obtain foreground; cannot trust focus or captured pixels");
+        for (int attempt = 0; attempt < 4; attempt++)
+        {
+            if (GetForegroundWindow() == handle) return;
+            uint current = GetCurrentThreadId(), foreground = GetWindowThreadProcessId(GetForegroundWindow(), IntPtr.Zero);
+            bool attached = foreground != 0 && foreground != current && AttachThreadInput(current, foreground, true);
+            try
+            {
+                BringWindowToTop(handle);
+                if (!SetForegroundWindow(handle))
+                {
+                    // Same hosted foreground-lock release as gui-smoke.ps1.
+                    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+                    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+                    SetForegroundWindow(handle);
+                }
+                window.Activate();
+            }
+            finally { if (attached) AttachThreadInput(current, foreground, false); }
+            await Idle(); // Activation messages must be dispatched before verification.
+            await Task.Delay(100);
+        }
+        if (GetForegroundWindow() != handle) throw new BlockedException("Audit window cannot obtain foreground after bounded activation; cannot trust focus or captured pixels");
     }
     private static BitmapSource Capture(Window window)
     {
-        FocusWindow(window);
+        if (GetForegroundWindow() != new WindowInteropHelper(window).Handle) throw new BlockedException("Audit window lost foreground before capture");
         window.UpdateLayout();
         if (DwmFlush() < 0) throw new BlockedException("Desktop composition did not synchronize; cannot trust captured pixels");
         var handle = new WindowInteropHelper(window).Handle;
@@ -402,9 +426,10 @@ internal static class Program
             {
                 var review = Descendants<Button>(view).Single(b => Equals(b.Content, "Проверить и сохранить"));
                 var input = Descendants<TextBox>(view).First(t => AutomationProperties.GetName(t).StartsWith("Название документа", StringComparison.Ordinal));
+                await FocusWindow(window);
                 input.Focus();
                 await Idle();
-                Snapshot(window, "high-contrast");
+                await Snapshot(window, "high-contrast");
                 Check(input.IsKeyboardFocused && review.IsVisible, $"Actual system high contrast: {SystemParameters.HighContrast}; title focused: {input.IsKeyboardFocused}; review visible: {review.IsVisible}. Screenshot retained; human focus-ring inspection still needed.");
             });
         }
