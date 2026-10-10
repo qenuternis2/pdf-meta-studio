@@ -7,6 +7,10 @@ on:
         type: string
         required: true
         default: '37729944353'
+      additional_only:
+        description: 'Run only additional checks; does not establish baseline GUI acceptance for this run'
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -61,6 +65,7 @@ jobs:
           python scripts/generate-acceptance-fixtures.py build/acceptance-fixtures
           if ($LASTEXITCODE) { throw 'Stress fixture generation failed' }
       - name: Existing keyboard, calendar, theme, resizing and stress acceptance
+        if: ${{ !inputs.additional_only }}
         timeout-minutes: 12
         shell: pwsh
         env:
