@@ -26,6 +26,17 @@ public partial class EditorView : UserControl
         }));
     }
 
+    private void OnXmlActionFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        if (e.NewFocus is not Button action) return;
+        // Leave space for the focus outline after both scroll owners finish layout.
+        action.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (action.IsKeyboardFocused)
+                action.BringIntoView(new Rect(-4, -4, action.ActualWidth + 8, action.ActualHeight + 8));
+        }));
+    }
+
     private void OnTreeSelection(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
         if (Vm is { } vm) vm.Tags.Selected = e.NewValue as TagNodeViewModel;
