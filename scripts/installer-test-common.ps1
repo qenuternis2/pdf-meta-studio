@@ -76,6 +76,11 @@ function Invoke-SetupUninstall([string]$Log) {
     while ((Test-Path -LiteralPath $uninstaller) -and [DateTime]::UtcNow -lt $until) {
         Start-Sleep -Milliseconds 200
     }
+    Assert-UninstalledPayload $Log
+    return $exitCode
+}
+
+function Assert-UninstalledPayload([string]$Log) {
     foreach ($file in Get-ChildItem -LiteralPath $PublishedDir -Recurse -File) {
         $relative = $file.FullName.Substring($PublishedDir.Length).TrimStart('\')
         if (Test-Path -LiteralPath (Join-Path $InstallDir $relative)) {
@@ -87,7 +92,6 @@ function Invoke-SetupUninstall([string]$Log) {
     if ((Test-Path -LiteralPath $SetupRegistration) -or (Test-Path -LiteralPath $ShortcutPath)) {
         throw 'Uninstall retained registration or shortcut'
     }
-    return $exitCode
 }
 
 function Invoke-InstalledGui([string]$Pdf, [string]$OutDir) {

@@ -40,7 +40,22 @@ if ($LASTEXITCODE -ne 0 -or $actualVersion -ne $pin.version) {
 }
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $tools 'license.txt') -Destination (Join-Path $OutputDir 'InnoSetup-LICENSE.txt') -Force
-& $compiler "/DAppVersion=$Version" "/DPublishDir=$PublishDir" "/DOutputDir=$OutputDir" "$root\installer\PdfMetaStudio.iss"
+# Bake the exact published file names into the uninstaller. A mutable manifest
+# or recursive wildcard must never authorize deletion of user-created files.
+$ownedScript = Join-Path $OutputDir 'owned-payload.iss'
+$ownedLines = [Collections.Generic.List[string]]::new()
+$ownedLines.Add('function RemoveOwnedPayload: Boolean;')
+$ownedLines.Add('var Base: String;')
+$ownedLines.Add('begin')
+$ownedLines.Add('  Result := True;')
+$ownedLines.Add("  Base := AddBackslash(ExpandConstant('{app}'));")
+foreach ($file in Get-ChildItem -LiteralPath $PublishDir -Recurse -File | Sort-Object FullName) {
+    $relative = $file.FullName.Substring($PublishDir.Length).TrimStart('\').Replace("'", "''")
+    $ownedLines.Add("  Result := RemoveOwnedFile(Base + '$relative') and Result;")
+}
+$ownedLines.Add('end;')
+[IO.File]::WriteAllLines($ownedScript, $ownedLines, [Text.UTF8Encoding]::new($true))
+& $compiler "/DAppVersion=$Version" "/DPublishDir=$PublishDir" "/DOutputDir=$OutputDir" "/DOwnedPayloadScript=$ownedScript" "$root\installer\PdfMetaStudio.iss"
 if ($LASTEXITCODE) { throw 'EXE installer compilation failed' }
 $output = Join-Path $OutputDir "PdfMetaStudio-$Version-win-x64-setup.exe"
 if (-not (Test-Path -LiteralPath $output -PathType Leaf)) { throw 'Compiled EXE installer missing' }

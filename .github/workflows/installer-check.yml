@@ -6,17 +6,25 @@ on:
       - '.github/workflows/installer-check.yml'
       - 'scripts/installer-lock-diagnostics.ps1'
       - 'scripts/installer-test-common.ps1'
+      - 'scripts/build-installer.ps1'
+      - 'installer/PdfMetaStudio.iss'
+      - 'scripts/test-installer-file-lock.ps1'
   workflow_dispatch:
     inputs:
       package_run_id:
         description: 'Windows workflow run with a successful build job; reuse its exact package'
         type: string
         required: true
+      rebuild_installer:
+        description: 'Compile the current installer template over unchanged application bits'
+        type: boolean
+        default: true
 permissions:
   contents: read
   actions: read
 env:
   PACKAGE_RUN_ID: ${{ inputs.package_run_id || '38741107544' }}
+  REBUILD_INSTALLER: ${{ github.event_name == 'push' || inputs.rebuild_installer }}
 jobs:
   installer:
     runs-on: windows-11-arm
@@ -40,10 +48,12 @@ jobs:
           if ($LASTEXITCODE -or -not @($jobs.jobs | Where-Object { $_.name -eq 'build' -and $_.conclusion -eq 'success' }).Count) { throw 'Package build must have passed' }
           git fetch --no-tags origin $run.head_sha
           if ($LASTEXITCODE) { throw 'Could not fetch package source' }
-          $changed = git diff --name-only $run.head_sha HEAD -- src worker installer Directory.Build.props Directory.Build.targets Directory.Packages.props global.json scripts/build-installer.ps1 scripts/build-windows.ps1 scripts/collect-licenses.ps1 scripts/deps.lock scripts/patches scripts/fetch-deps.ps1 scripts/fetch-deps.sh .github/workflows/windows.yml
+          $protected = @('src', 'worker', 'Directory.Build.props', 'Directory.Build.targets', 'Directory.Packages.props', 'global.json', 'scripts/build-windows.ps1', 'scripts/collect-licenses.ps1', 'scripts/deps.lock', 'scripts/patches', 'scripts/fetch-deps.ps1', 'scripts/fetch-deps.sh', '.github/workflows/windows.yml')
+          if ($env:REBUILD_INSTALLER -ne 'true') { $protected += @('installer', 'scripts/build-installer.ps1') }
+          $changed = git diff --name-only $run.head_sha HEAD -- @protected
           if ($LASTEXITCODE -or $changed) { throw 'Application/installer build inputs changed; run the full Windows build' }
           New-Item -ItemType Directory installer-check | Out-Null
-          @{ packageRun = $runId; packageSource = $run.head_sha; harnessSource = $env:GITHUB_SHA; scope = 'Exact prebuilt package; current installer test harness. Not a full source build/native acceptance run.' } | ConvertTo-Json | Set-Content installer-check/provenance.json
+          @{ packageRun = $runId; packageSource = $run.head_sha; harnessSource = $env:GITHUB_SHA; rebuiltInstaller = $env:REBUILD_INSTALLER; scope = 'Exact prebuilt package; current installer test harness. Not a full source build/native acceptance run.' } | ConvertTo-Json | Set-Content installer-check/provenance.json
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: PdfMetaStudio-win-x64
@@ -68,6 +78,10 @@ jobs:
           path: build/native-tools
           run-id: ${{ env.PACKAGE_RUN_ID }}
           github-token: ${{ github.token }}
+      - name: Compile current installer over unchanged application bits
+        if: ${{ env.REBUILD_INSTALLER == 'true' }}
+        shell: pwsh
+        run: ./scripts/build-installer.ps1
       - name: Prepare isolated desktop and checked-in fixture
         shell: powershell
         run: |
@@ -101,6 +115,9 @@ jobs:
       - name: Legacy MSI isolation
         shell: pwsh
         run: ./scripts/test-installer-legacy-msi.ps1
+      - name: Transient owned-file lock and unowned document preservation
+        shell: pwsh
+        run: ./scripts/test-installer-file-lock.ps1
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
@@ -113,3 +130,4 @@ jobs:
             installer-smoke
             installer-upgrade
             installer-legacy
+            installer-file-lock

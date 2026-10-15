@@ -8,6 +8,9 @@
 #ifndef OutputDir
   #error OutputDir is required
 #endif
+#ifndef OwnedPayloadScript
+  #error OwnedPayloadScript is required
+#endif
 #define ProductId "CA630B1F-9153-5830-A5EC-84A95D16534D"
 
 [Setup]
@@ -59,6 +62,39 @@ Name: "{autodesktop}\PDF Meta Studio"; Filename: "{app}\PdfMetaStudio.exe"; Icon
 Filename: "{app}\PdfMetaStudio.exe"; Description: "{cm:LaunchProgram,PDF Meta Studio}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+function RemoveOwnedFile(const Filename: String): Boolean;
+begin
+  Result := not FileExists(Filename);
+  if not Result then
+  begin
+    Result := DeleteFile(Filename);
+    if not Result then
+      Log('Owned payload temporarily unavailable for removal: ' + Filename);
+  end;
+end;
+
+#include OwnedPayloadScript
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Attempt: Integer;
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    { A bounded retry covers transient access failures without closing processes.
+      The compiled list contains only installer-owned files; Inno still handles
+      registration, shortcuts, old-version files and empty directory removal. }
+    for Attempt := 1 to 20 do
+    begin
+      if RemoveOwnedPayload then
+        Exit;
+      Log('Retrying owned payload removal, attempt ' + IntToStr(Attempt));
+      Sleep(250);
+    end;
+    Log('Owned payload remains unavailable; continuing normal uninstall reporting.');
+  end;
+end;
+
 function InitializeSetup: Boolean;
 var
   PreviousVersion: String;
