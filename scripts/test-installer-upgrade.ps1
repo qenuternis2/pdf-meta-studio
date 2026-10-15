@@ -9,17 +9,17 @@ $publish = Join-Path $root 'dist\PdfMetaStudio'
 $installed = Join-Path $env:LOCALAPPDATA 'PdfMetaStudio'
 $output = Join-Path $root 'installer-upgrade'
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version
-if ([version]$version -le [version]'0.3.0') { throw 'Upgrade acceptance requires a version newer than 0.3.0' }
+if ([version]$version -le [version]'0.3.1') { throw 'Upgrade acceptance requires a version newer than 0.3.1' }
 $currentMsi = Join-Path $root "dist\installer\PdfMetaStudio-$version-win-x64.msi"
 if (-not (Test-Path -LiteralPath $currentMsi -PathType Leaf)) { throw 'Current installer missing' }
 if (Test-Path -LiteralPath $installed) { throw 'Upgrade acceptance requires a clean installation directory' }
 if (Test-Path -LiteralPath $output) { throw 'Upgrade acceptance requires a fresh evidence directory' }
 
-$baselineUrl = 'https://github.com/qenuternis2/pdf-meta-studio/releases/download/v0.3.0/PdfMetaStudio-0.3.0-win-x64.msi'
-$baselineHash = 'cfa7398eb07b8025afc67820bc10f86da16bcd142531253005ef6c8eabacd05a'
+$baselineUrl = 'https://github.com/qenuternis2/pdf-meta-studio/releases/download/v0.3.1/PdfMetaStudio-0.3.1-win-x64.msi'
+$baselineHash = '3db4e58d07caaa08b20479e9887883c19c3f3c43a364d9f50084a3e961f143b8'
 $cache = Join-Path $env:RUNNER_TEMP ('pdfmeta-upgrade-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $cache, $output | Out-Null
-$baselineMsi = Join-Path $cache 'PdfMetaStudio-0.3.0-win-x64.msi'
+$baselineMsi = Join-Path $cache 'PdfMetaStudio-0.3.1-win-x64.msi'
 Invoke-WebRequest -Uri $baselineUrl -OutFile $baselineMsi
 if ((Get-FileHash -LiteralPath $baselineMsi -Algorithm SHA256).Hash -ne $baselineHash) {
     throw 'Legacy MSI SHA-256 mismatch; refusing to install'
@@ -66,7 +66,7 @@ function Invoke-Installer([string]$Operation, [string]$Package, [string]$LogName
 try {
     $old = Get-MsiInfo $baselineMsi
     $new = Get-MsiInfo $currentMsi
-    if ($old.ProductVersion -ne '0.3.0' -or $new.ProductVersion -ne $version) { throw 'Unexpected MSI versions' }
+    if ($old.ProductVersion -ne '0.3.1' -or $new.ProductVersion -ne $version) { throw 'Unexpected MSI versions' }
     if ($old.UpgradeCode -ne $new.UpgradeCode -or $old.ProductCode -eq $new.ProductCode) {
         throw 'The new MSI must keep UpgradeCode and change ProductCode'
     }
@@ -133,7 +133,7 @@ try {
         documentSha256 = $documentHash; preservedDocuments = 2
         limits = 'Disposable hosted Windows session; standard-user physical x64/offline upgrade remains untested.'
     } | ConvertTo-Json | Set-Content (Join-Path $output 'results.json') -Encoding utf8
-    Write-Host "PASS per-user 0.3.0 -> $version upgrade, exact payload, GUI, document retention and uninstall"
+    Write-Host "PASS per-user 0.3.1 -> $version upgrade, exact payload, GUI, document retention and uninstall"
 } finally {
     [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($msi)
 }

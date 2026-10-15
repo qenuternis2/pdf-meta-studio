@@ -4,6 +4,14 @@ Read [README.md](README.md) for architecture, setup and validation commands.
 Repository documentation and development work use English; the application UI
 remains Russian.
 
+## Build delivery
+
+- Include the application version in every archive delivered to the user (for
+  example, `PdfMetaStudio-v0.3.2-win-x64.zip`) and in the accompanying message or
+  download-link label. Preserve versioned release assets and checksum files.
+- The main window title includes the built application version in parentheses.
+  Read it from assembly metadata so a version bump updates the title automatically.
+
 ## Interface reviews
 
 - When developing or changing a web interface, use

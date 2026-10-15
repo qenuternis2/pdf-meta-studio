@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Title = $"PDF Meta Studio ({typeof(MainWindow).Assembly.GetName().Version!.ToString(3)})";
         DataContext = _vm;
     }
 
