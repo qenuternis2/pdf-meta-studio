@@ -25,6 +25,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
       - name: Verify package source and build success
         shell: pwsh
         env:
@@ -59,13 +62,25 @@ jobs:
           path: build/installer-baseline
           run-id: ${{ env.PACKAGE_RUN_ID }}
           github-token: ${{ github.token }}
-      - name: Prepare isolated desktop and synthetic PDF
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: PdfMetaStudio-native-test-tools-win-x64
+          path: build/native-tools
+          run-id: ${{ env.PACKAGE_RUN_ID }}
+          github-token: ${{ github.token }}
+      - name: Prepare isolated desktop and checked-in fixture
         shell: powershell
         run: |
           ./scripts/prepare-windows-desktop.ps1 -OutDir installer-check
           ./scripts/windows-host-info.ps1 -OutDir installer-check -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
-          python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('tests/fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
-          if ($LASTEXITCODE) { throw 'Synthetic PDF generation failed' }
+          if (-not (Test-Path tests/fixtures/rich.pdf)) { throw 'Checked-in PDF fixture missing' }
+      - name: Reproduce the managed-test context before installation
+        shell: pwsh
+        run: |
+          $env:PDFMETA_WORKER = "$PWD/dist/PdfMetaStudio/pdfmeta-worker.exe"
+          $env:PDFMETA_TEST_WORKER = "$PWD/build/native-tools/pdfmeta-test-worker.exe"
+          dotnet test tests/PdfMetaStudio.Core.Tests -c Release --logger 'trx;LogFileName=core-tests.trx' --results-directory installer-check
+          if ($LASTEXITCODE) { throw 'Managed test context failed' }
       - name: Diagnose payload cleanup independently of wizard automation
         shell: pwsh
         run: |

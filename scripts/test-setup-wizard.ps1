@@ -22,6 +22,7 @@ public static class SetupWizardProbe {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder text, int count);
     [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr h, uint message, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
     static Node Read(IntPtr h) {
         var text = new StringBuilder(2048); var cls = new StringBuilder(256);
         GetWindowText(h, text, text.Capacity); GetClassName(h, cls, cls.Capacity);
@@ -43,6 +44,14 @@ public static class SetupWizardProbe {
         }, IntPtr.Zero);
         return result;
     }
+    public static void Advance(Node button) {
+        // Never queue a stale Next click that could execute after it becomes Install.
+        if (!button.Class.Contains("Button") || Read(button.Handle).Text != "Next")
+            throw new InvalidOperationException("Expected the current Next button");
+        IntPtr result;
+        if (SendMessageTimeout(button.Handle, 0x00F5, IntPtr.Zero, IntPtr.Zero, 0x0002, 10000, out result) == IntPtr.Zero)
+            throw new InvalidOperationException("Next navigation did not complete");
+    }
     public static void Click(Node button) {
         if (!button.Class.Contains("Button")) throw new InvalidOperationException("Expected a native button");
         if (!PostMessage(button.Handle, 0x00F5, IntPtr.Zero, IntPtr.Zero)) throw new InvalidOperationException("BM_CLICK failed");
@@ -57,6 +66,20 @@ function Capture([string]$Name) {
         $graphics.CopyFromScreen($bounds.Location, [Drawing.Point]::Empty, $bounds.Size)
         $bitmap.Save((Join-Path $OutDir $Name))
     } finally { $graphics.Dispose(); $bitmap.Dispose() }
+}
+function Wait-WizardPage([IntPtr]$Window, [string]$Previous = '') {
+    $until = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $children = @([SetupWizardProbe]::Children($Window))
+        $fingerprint = ($children | Where-Object { $_.Text } | ForEach-Object { $_.Text }) -join ' | '
+        $next = $children | Where-Object { $_.Class -like '*Button*' -and $_.Text -eq 'Next' } | Select-Object -First 1
+        $install = $children | Where-Object { $_.Class -like '*Button*' -and $_.Text -eq 'Install' } | Select-Object -First 1
+        if (($next -or $install) -and $fingerprint -ne $Previous) {
+            return [pscustomobject]@{ Children = $children; Fingerprint = $fingerprint; Next = $next; Install = $install }
+        }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $until)
+    throw 'Setup wizard did not expose the next interactive page'
 }
 $guard = $null
 $process = $null
@@ -80,19 +103,15 @@ try {
     }
     if (-not $wizard -or $wizard.Text -notlike '*PDF Meta Studio*') { throw 'Visible setup wizard did not appear' }
     $null = [SetupWizardProbe]::SetForegroundWindow($wizard.Handle)
-    Start-Sleep -Milliseconds 300
+    $currentPage = Wait-WizardPage $wizard.Handle
     Capture 'setup-welcome.png'
     $pages = @()
     $ready = $false
     for ($page = 0; $page -lt 6; $page++) {
-        $children = @([SetupWizardProbe]::Children($wizard.Handle))
-        $pages += (($children | Where-Object { $_.Text } | ForEach-Object { $_.Text }) -join ' | ')
-        $install = $children | Where-Object { $_.Class -like '*Button*' -and $_.Text -eq 'Install' } | Select-Object -First 1
-        if ($install) { $ready = $true; break }
-        $next = $children | Where-Object { $_.Class -like '*Button*' -and $_.Text -match '^Next\b' } | Select-Object -First 1
-        if (-not $next) { throw 'Setup wizard has no usable Next button' }
-        [SetupWizardProbe]::Click($next)
-        Start-Sleep -Milliseconds 500
+        $pages += $currentPage.Fingerprint
+        if ($currentPage.Install) { $ready = $true; break }
+        [SetupWizardProbe]::Advance($currentPage.Next)
+        $currentPage = Wait-WizardPage $wizard.Handle $currentPage.Fingerprint
     }
     if (-not $ready) { throw 'Setup wizard did not reach Ready to Install' }
     Capture 'setup-ready.png'
@@ -113,6 +132,9 @@ try {
     @{ status = 'PASS'; title = $wizard.Text; readyReached = $ready; pages = $pages; cancelExitCode = $process.ExitCode } |
         ConvertTo-Json -Depth 5 | Set-Content (Join-Path $OutDir 'wizard-results.json') -Encoding utf8
     Write-Host 'PASS visible EXE wizard, Next navigation, Ready to Install and cancellation'
+} catch {
+    try { Capture 'setup-failure.png' } catch { }
+    throw
 } finally {
     foreach ($id in $ids) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
     if ($guard) { Stop-Job $guard; Remove-Job $guard -Force }
