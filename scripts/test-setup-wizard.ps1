@@ -3,6 +3,8 @@ $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT' -or $env:GITHUB_ACTIONS -ne 'true') {
     throw 'Interactive setup acceptance requires disposable Windows GitHub Actions'
 }
+# Prefer Windows PowerShell modules when launched from PowerShell 7.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
 Add-Type -TypeDefinition @'
 using System;

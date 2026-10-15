@@ -33,9 +33,10 @@ if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
     ) -Wait -PassThru
     if ($process.ExitCode -ne 0) { throw "Inno Setup compiler extraction failed: $($process.ExitCode)" }
 }
-$actualVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($compiler)
-if ("$($actualVersion.FileMajorPart).$($actualVersion.FileMinorPart).$($actualVersion.FileBuildPart)" -ne $pin.version) {
-    throw 'Unexpected Inno Setup compiler version'
+# The console launcher has independent PE metadata; query the actual engine.
+$actualVersion = (& $compiler --version | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or $actualVersion -ne $pin.version) {
+    throw "Unexpected Inno Setup engine version: $actualVersion"
 }
 New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $tools 'license.txt') -Destination (Join-Path $OutputDir 'InnoSetup-LICENSE.txt') -Force
