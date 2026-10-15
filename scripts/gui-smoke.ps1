@@ -36,6 +36,9 @@ public static class AcceptanceFocus {
         return id == (uint)processId;
     }
     public static IntPtr ActivePopup(IntPtr owner) { return GetLastActivePopup(owner); }
+    public static IntPtr WindowIcon(IntPtr window, bool small) {
+        return SendMessage(window, 0x007F, small ? IntPtr.Zero : new IntPtr(1), IntPtr.Zero); // WM_GETICON
+    }
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr id);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint a, uint b, bool attach);
@@ -262,6 +265,27 @@ try {
         throw "Window title does not match the built version: expected '$expectedTitle', actual '$($win.Current.Name)'"
     }
     Log "OK  versioned window title: $expectedTitle"
+    foreach ($kind in @('small', 'large')) {
+        $handle = [AcceptanceFocus]::WindowIcon($proc.MainWindowHandle, $kind -eq 'small')
+        if ($handle -eq [IntPtr]::Zero) { throw "Main window $kind icon is missing" }
+        # The handle belongs to WPF; dispose only the bitmap copy, never DestroyIcon.
+        $bitmap = [Drawing.Icon]::FromHandle($handle).ToBitmap()
+        try {
+            $minimum = if ($kind -eq 'small') { 16 } else { 32 }
+            if ($bitmap.Width -lt $minimum -or $bitmap.Width -ne $bitmap.Height) {
+                throw "Main window $kind icon is undersized: $($bitmap.Size)"
+            }
+            $bitmap.Save((Join-Path $OutDir "icon-window-$kind.png"))
+            Log "OK  window $kind icon: $($bitmap.Width)x$($bitmap.Height)"
+        } finally { $bitmap.Dispose() }
+    }
+    $exeIcon = [Drawing.Icon]::ExtractAssociatedIcon($Exe)
+    try {
+        if (-not $exeIcon) { throw 'Executable shell icon is missing' }
+        $bitmap = $exeIcon.ToBitmap()
+        try { $bitmap.Save((Join-Path $OutDir 'icon-executable.png')) } finally { $bitmap.Dispose() }
+        Log "OK  executable shell icon: $($exeIcon.Width)x$($exeIcon.Height)"
+    } finally { if ($exeIcon) { $exeIcon.Dispose() } }
     [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
     Log ("OK  запуск: окно «{0}» за {1:N1} с" -f $win.Current.Name, $sw.Elapsed.TotalSeconds)
 

@@ -29,6 +29,9 @@ element(package, 'MajorUpgrade', DowngradeErrorMessage='A newer version of PDF M
 element(package, 'MediaTemplate', EmbedCab='yes')
 element(package, 'Property', Id='ARPNOREPAIR', Value='1')
 element(package, 'Property', Id='ARPCOMMENTS', Value='Local PDF metadata editor. No administrator privileges required.')
+element(package, 'Icon', Id='ApplicationIcon.ico',
+        SourceFile=str(pathlib.Path(__file__).resolve().parents[1] / 'src' / 'PdfMetaStudio.App' / 'Assets' / 'app.ico'))
+element(package, 'Property', Id='ARPPRODUCTICON', Value='ApplicationIcon.ico')
 local = element(package, 'StandardDirectory', Id='LocalAppDataFolder')
 install = element(local, 'Directory', Id='INSTALLFOLDER', Name='PdfMetaStudio')
 feature = element(package, 'Feature', Id='Application', Title='PDF Meta Studio', Level='1')
@@ -59,7 +62,8 @@ for directory, node in directories.items():
 menu = element(package, 'StandardDirectory', Id='ProgramMenuFolder')
 folder = element(menu, 'Directory', Id='ApplicationMenu', Name='PDF Meta Studio')
 component = element(folder, 'Component', Id='StartMenuShortcut', Guid='F58116E7-4882-566E-83B3-6C778A3A79EB')
-element(component, 'Shortcut', Id='ApplicationShortcut', Name='PDF Meta Studio', Target='[#MainExecutable]', WorkingDirectory='INSTALLFOLDER')
+element(component, 'Shortcut', Id='ApplicationShortcut', Name='PDF Meta Studio', Target='[#MainExecutable]', WorkingDirectory='INSTALLFOLDER',
+        Icon='ApplicationIcon.ico', IconIndex='0')
 element(component, 'RemoveFolder', Id='RemoveStartMenu', On='uninstall')
 element(component, 'RegistryValue', Root='HKCU', Key='Software\\PdfMetaStudio', Name='Installed', Type='integer', Value='1', KeyPath='yes')
 element(feature, 'ComponentRef', Id='StartMenuShortcut')
