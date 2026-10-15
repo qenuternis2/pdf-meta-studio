@@ -78,7 +78,11 @@ function Invoke-SetupUninstall([string]$Log) {
     }
     foreach ($file in Get-ChildItem -LiteralPath $PublishedDir -Recurse -File) {
         $relative = $file.FullName.Substring($PublishedDir.Length).TrimStart('\')
-        if (Test-Path -LiteralPath (Join-Path $InstallDir $relative)) { throw "Uninstall retained owned payload: $relative" }
+        if (Test-Path -LiteralPath (Join-Path $InstallDir $relative)) {
+            & (Join-Path $PSScriptRoot 'installer-lock-diagnostics.ps1') -Path (Join-Path $InstallDir $relative) |
+                Tee-Object -FilePath ($Log + '.diagnostics.json') | Write-Host
+            throw "Uninstall retained owned payload: $relative"
+        }
     }
     if ((Test-Path -LiteralPath $SetupRegistration) -or (Test-Path -LiteralPath $ShortcutPath)) {
         throw 'Uninstall retained registration or shortcut'
