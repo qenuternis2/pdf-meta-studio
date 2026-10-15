@@ -1,5 +1,11 @@
 name: Windows installer package checks
 on:
+  push:
+    branches: [feat/exe-installer]
+    paths:
+      - '.github/workflows/installer-check.yml'
+      - 'scripts/installer-lock-diagnostics.ps1'
+      - 'scripts/installer-test-common.ps1'
   workflow_dispatch:
     inputs:
       package_run_id:
@@ -9,6 +15,8 @@ on:
 permissions:
   contents: read
   actions: read
+env:
+  PACKAGE_RUN_ID: ${{ inputs.package_run_id || '38741107544' }}
 jobs:
   installer:
     runs-on: windows-11-arm
@@ -20,7 +28,6 @@ jobs:
       - name: Verify package source and build success
         shell: pwsh
         env:
-          PACKAGE_RUN_ID: ${{ inputs.package_run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           $runId = [long]::Parse($env:PACKAGE_RUN_ID)
@@ -38,19 +45,19 @@ jobs:
         with:
           name: PdfMetaStudio-win-x64
           path: dist/PdfMetaStudio
-          run-id: ${{ inputs.package_run_id }}
+          run-id: ${{ env.PACKAGE_RUN_ID }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: PdfMetaStudio-installer-win-x64
           path: dist/installer
-          run-id: ${{ inputs.package_run_id }}
+          run-id: ${{ env.PACKAGE_RUN_ID }}
           github-token: ${{ github.token }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: PdfMetaStudio-installer-test-baseline
           path: build/installer-baseline
-          run-id: ${{ inputs.package_run_id }}
+          run-id: ${{ env.PACKAGE_RUN_ID }}
           github-token: ${{ github.token }}
       - name: Prepare isolated desktop and synthetic PDF
         shell: powershell
