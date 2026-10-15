@@ -66,6 +66,17 @@ jobs:
           ./scripts/windows-host-info.ps1 -OutDir installer-check -Exe "$PWD/dist/PdfMetaStudio/PdfMetaStudio.exe" -RequireWindows11Arm
           python -c "import sys,pathlib; sys.path.insert(0,'worker/tests'); import pdfgen; p=pathlib.Path('tests/fixtures'); p.mkdir(parents=True,exist_ok=True); (p/'rich.pdf').write_bytes(pdfgen.make_pdf())"
           if ($LASTEXITCODE) { throw 'Synthetic PDF generation failed' }
+      - name: Diagnose payload cleanup independently of wizard automation
+        shell: pwsh
+        run: |
+          . ./scripts/installer-test-common.ps1
+          Assert-FreshInstall
+          New-Item -ItemType Directory installer-lock-probe | Out-Null
+          if ((Invoke-Setup $CurrentSetup "$PWD/installer-lock-probe/install.log") -ne 0) { throw 'Diagnostic setup failed' }
+          $null = Assert-InstalledPayload
+          Assert-Registration
+          Invoke-InstalledGui "$PWD/tests/fixtures/rich.pdf" "$PWD/installer-lock-probe/gui"
+          $null = Invoke-SetupUninstall "$PWD/installer-lock-probe/uninstall.log"
       - name: Wizard, install, installed editor and uninstall
         shell: pwsh
         run: ./scripts/test-installer.ps1
@@ -81,6 +92,7 @@ jobs:
           name: installer-check
           path: |
             installer-check
+            installer-lock-probe
             installer-*.log
             installer-*.json
             installer-smoke
