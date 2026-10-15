@@ -21,6 +21,17 @@
                 <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
                 <Setter Property="TextWrapping" Value="Wrap"/>
             </Style>
+            <Style x:Key="IconGlyph" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+                <Setter Property="FontSize" Value="20"/>
+                <Setter Property="Width" Value="20"/>
+                <Setter Property="Height" Value="20"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Grayscale"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
             <Style x:Key="Mono" TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
                 <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
                 <Setter Property="FontSize" Value="11"/>
