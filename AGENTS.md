@@ -9,6 +9,9 @@ remains Russian.
 - Include the application version in every archive delivered to the user (for
   example, `PdfMetaStudio-v0.3.2-win-x64.zip`) and in the accompanying message or
   download-link label. Preserve versioned release assets and checksum files.
+- Deliver the standalone per-user EXE installer as the primary installation asset
+  (for example, `PdfMetaStudio-0.3.4-win-x64-setup.exe`), rather than an MSI wrapper.
+  Keep the version in its filename and delivery-link label.
 - The main window title includes the built application version in parentheses.
   Read it from assembly metadata so a version bump updates the title automatically.
 

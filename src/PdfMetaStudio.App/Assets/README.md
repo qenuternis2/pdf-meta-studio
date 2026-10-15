@@ -4,7 +4,7 @@
 - `app-small.png`: optical variant for 16–28 px; omits lettering, fine document
   strokes and nested gear rings so the document/gear/teal silhouette stays legible.
 - `app.ico`: generated Windows resource shared by the executable, all three WPF
-  windows, the MSI installed-app entry and Start menu shortcut.
+  windows, the installed-app entry and Start menu shortcut.
 
 Keep the paper/gear/PDF identity and transparent padding. Never upscale a small
 ICO frame to produce a larger one. The checked-in ICO has independent 32-bit
@@ -23,7 +23,7 @@ not loaded at runtime. Interface action/navigation icons remain scalable Segoe
 Fluent/MDL2 glyphs, rendered with the shared `IconGlyph` style in `App.xaml`.
 
 GUI smoke captures the actual small/large window HICONs and executable shell
-icon as PNGs, checks their sizes and keeps the ordinary UI screenshots. MSI
+icon as PNGs, checks their sizes and keeps the ordinary UI screenshots. Installer
 acceptance checks that the embedded icon is referenced by both `ARPPRODUCTICON`
 and the shortcut. These checks detect missing/misconnected resources; visual
 inspection and physical DPI acceptance remain necessary for rendering quality.

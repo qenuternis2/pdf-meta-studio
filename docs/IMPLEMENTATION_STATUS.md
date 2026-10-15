@@ -19,7 +19,7 @@ Updated 2026-10-07 against the uploaded development brief (`TASK.md`) and detail
 | Protected files | Initial read-only signed/restricted documents, explicit signed-copy editing consent, in-session owner password and encryption preservation. |
 | Profiles | Declared status remains unverified after edits; optional local veraPDF executable/JAR validates the saved file and reports its actual profile independently of preservation success. veraPDF is not a PDF/X validator. |
 | Resource limits | 4 GiB worker memory, 128 MiB request/queued-byte limit, 8 queued commands, 128 request/PDF traversal depth, bounded XMP model/discovery/export and response reading. Five-minute operation deadline and five-second cancellation grace kill an unresponsive worker without losing the session cache; restart is available in the editor. |
-| Packaging | Self-contained .NET/WPF application, complete dependency license collection, versioned per-user WiX MSI, shortcut, upgrades, uninstall and installation smoke workflow. |
+| Packaging | Self-contained .NET/WPF application, complete dependency license collection, versioned standalone per-user Inno Setup EXE, visible wizard, shortcut, upgrades/reinstall, downgrade refusal, document retention, legacy MSI isolation and uninstall workflow. |
 
 ## Acceptance evidence
 
@@ -27,7 +27,7 @@ The Release solution builds with zero warnings/errors. All 84 managed/core/ViewM
 
 The independent corpus runner uses pypdf field values/attachments/page boxes and Poppler pixels for every page of each eligible sample. Its page/time limits and unsupported or damaged source exclusions are explicit. This is sampled-resolution rendering evidence, not a proof about every possible PDF or rendering engine.
 
-Windows CI builds the x64 application and MSI on Windows Server 2022, then repeats native/corpus, managed/IPC, MSI and GUI acceptance on the `windows-11-arm` runner. The shipped x64 application runs under Windows 11 ARM64 emulation. OS caption/build, CPU architecture, executable identity, privilege level, display resolution and observed DPI are recorded; the legacy registry product name alone does not identify Windows 11. See [Windows 11 CI](WINDOWS11_CI.md) for evidence and limits.
+Windows CI builds the x64 application and EXE installer on Windows Server 2022, then repeats native/corpus, managed/IPC, EXE installer and GUI acceptance on the `windows-11-arm` runner. The shipped x64 application runs under Windows 11 ARM64 emulation. OS caption/build, CPU architecture, executable identity, privilege level, display resolution and observed DPI are recorded; the legacy registry product name alone does not identify Windows 11. See [Windows 11 CI](WINDOWS11_CI.md) for evidence and limits.
 
 Additional hosted Windows automation records forward/reverse keyboard focus cycles, Ctrl+Z/Y/Shift+Z/S/W, keyboard save actions, observed light/dark backgrounds, four sections at two window sizes, and a generated 10,000-tag / 1 MiB multiline-value sample. Its logs/screenshots/results are uploaded as `windows-acceptance`. The XMP model indexes immediate children so the tag tree does not rescan the full property list for each leaf; long values have a bounded, scrollable editing viewport.
 
