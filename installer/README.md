@@ -28,8 +28,12 @@ Tool acquisition is build-only; the product setup downloads nothing.
 - Upgrades and same-version reinstalls share one stable Inno AppId. Downgrades
   and unrecognized installed version strings are refused. Running applications
   are not forcibly closed.
-- Uninstallation removes installer-owned payload only, with no wildcard
-  `[UninstallDelete]` rule. Unowned PDF documents are retained.
+- Uninstallation retries access failures for 20 passes with 250 ms pauses using an exact
+  file list compiled from the published payload. That list cannot be changed
+  by editing an installed manifest. The normal Inno cleanup then removes
+  registration, shortcuts, old-version entries and empty directories. No process
+  is forcibly closed and no wildcard `[UninstallDelete]` rule is used. Unowned
+  PDF documents are retained; permanently blocked files can still remain.
 - `generate.py` remains a legacy MSI source generator for maintenance and external
   callers. Normal builds do not install WiX or create an MSI.
 
@@ -47,7 +51,9 @@ For EXE-to-EXE upgrade coverage, CI creates a **test-only** 0.3.3 EXE using the
 current installer template and checksum-verified published 0.3.3 application
 bits. This is not a previously shipped EXE and is never published as a release.
 CI records baseline provenance and distinct results for this scenario and the
-real legacy MSI scenario. Physical Windows x64, offline and standard-user
+real legacy MSI scenario. A separate regression holds an installed DLL open
+until the retry is logged, then releases that test-owned handle and verifies
+complete cleanup while preserving an unowned PDF. Physical Windows x64, offline and standard-user
 acceptance remain separate manual checks; hosted runners are elevated.
 
 A version tag runs the full Windows workflow and publishes validated assets.
@@ -58,3 +64,12 @@ the tested commit to be an ancestor of main, exactly identical tracked source
 trees, a matching application version and a new tag. It downloads the exact
 tested artifacts, checks their source manifest, and publishes versioned ZIP/EXE
 assets, the Inno license and SHA-256 manifests without rebuilding them.
+
+`installer-check.yml` provides focused Windows 11 installer checks using a
+previous successful build job. It verifies unchanged application/native build
+inputs, optionally recompiles the current installer over those application bits,
+and records separate package and installer/harness sources. This diagnostic run
+does not replace full release acceptance. It runs the managed tests before
+installation to preserve the context that exposed the cleanup failure. On a
+remaining-file failure, read-only Restart Manager, assembly and ACL diagnostics
+are retained; they never terminate a locking process.

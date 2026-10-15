@@ -24,6 +24,7 @@ Fluent/MDL2 glyphs, rendered with the shared `IconGlyph` style in `App.xaml`.
 
 GUI smoke captures the actual small/large window HICONs and executable shell
 icon as PNGs, checks their sizes and keeps the ordinary UI screenshots. Installer
-acceptance checks that the embedded icon is referenced by both `ARPPRODUCTICON`
-and the shortcut. These checks detect missing/misconnected resources; visual
+acceptance checks the installed-app `DisplayIcon` and Start menu shortcut
+against the application executable. The legacy MSI generator retains its
+`ARPPRODUCTICON` resource. These checks detect missing/misconnected resources; visual
 inspection and physical DPI acceptance remain necessary for rendering quality.

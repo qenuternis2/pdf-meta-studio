@@ -129,3 +129,16 @@ verified published 0.3.3 application bits using the current installer template;
 it is test-only and is not an earlier publicly shipped EXE. These automated
 checks do not establish clean physical x64/offline/non-elevated acceptance.
 Publisher signing and independent update-channel authenticity remain open.
+
+During installer acceptance, Windows 11 twice refused removal of
+`System.Collections.Immutable.dll` with error 5 after the application exited.
+A focused reproduction after the managed tests confirmed normal file attributes,
+full user/admin ACLs, no matching assembly in the test process and no locker
+reported by Restart Manager. This does not identify the underlying Windows or
+third-party component responsible. The installer now performs bounded retries
+against a file list baked into its script at build time; it never reads a
+user-editable deletion manifest or traverses arbitrary installed directories.
+A regression deliberately denies deletion of one owned DLL, releases only its
+own handle after observing a retry, and checks the entire payload and an
+unowned PDF. Persistent access denial can still leave program files behind; no
+process is forcibly terminated and no extra privilege is requested.

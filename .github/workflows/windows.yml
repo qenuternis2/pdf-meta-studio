@@ -123,6 +123,9 @@ jobs:
       - name: Keep legacy MSI and new EXE installations independent
         shell: pwsh
         run: ./scripts/test-installer-legacy-msi.ps1
+      - name: Recover from a transient owned-file lock without deleting user PDFs
+        shell: pwsh
+        run: ./scripts/test-installer-file-lock.ps1
       - name: Keyboard, theme, resize and large-data acceptance
         timeout-minutes: 12
         shell: pwsh
@@ -141,9 +144,11 @@ jobs:
           name: installer-acceptance
           path: |
             installer-*.log
+            installer-*.json
             installer-smoke
             installer-upgrade
             installer-legacy
+            installer-file-lock
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PdfMetaStudio-installer-win-x64
@@ -249,6 +254,9 @@ jobs:
       - name: Windows 11 legacy MSI and new EXE isolation
         shell: pwsh
         run: ./scripts/test-installer-legacy-msi.ps1
+      - name: Windows 11 transient owned-file lock and document preservation
+        shell: pwsh
+        run: ./scripts/test-installer-file-lock.ps1
       - name: Windows 11 keyboard, themes, resizing and large metadata
         timeout-minutes: 12
         shell: pwsh
@@ -263,9 +271,11 @@ jobs:
           path: |
             windows11-acceptance
             installer-*.log
+            installer-*.json
             installer-smoke
             installer-upgrade
             installer-legacy
+            installer-file-lock
   desktop_probe:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_probe }}
     runs-on: windows-11-arm
@@ -354,7 +364,7 @@ jobs:
           TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           zip -r -q "PdfMetaStudio-$TAG-win-x64.zip" PdfMetaStudio
-          sha256sum installer/*-setup.exe installer/InnoSetup-LICENSE.txt > installer/SHA256SUMS
+          (cd installer && sha256sum *-setup.exe InnoSetup-LICENSE.txt) > installer/SHA256SUMS
           sha256sum "PdfMetaStudio-$TAG-win-x64.zip" > "PdfMetaStudio-$TAG-win-x64.zip.sha256"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "PDF Meta Studio $TAG" --generate-notes \
             "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256" installer/*-setup.exe installer/InnoSetup-LICENSE.txt installer/SHA256SUMS

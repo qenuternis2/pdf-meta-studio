@@ -11,6 +11,10 @@ if (-not $Version) {
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw 'Installer version must have three numeric components' }
 $PublishDir = [IO.Path]::GetFullPath($PublishDir)
 $OutputDir = [IO.Path]::GetFullPath($OutputDir)
+$payloadPrefix = $PublishDir.TrimEnd('\') + '\'
+if (($OutputDir.TrimEnd('\') + '\').StartsWith($payloadPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Installer output must be outside the published application directory'
+}
 foreach ($required in @('PdfMetaStudio.exe', 'pdfmeta-worker.exe', 'licenses\MANIFEST.txt')) {
     if (-not (Test-Path -LiteralPath (Join-Path $PublishDir $required) -PathType Leaf)) {
         throw "Published installer input missing: $required"
@@ -50,8 +54,11 @@ $ownedLines.Add('begin')
 $ownedLines.Add('  Result := True;')
 $ownedLines.Add("  Base := AddBackslash(ExpandConstant('{app}'));")
 foreach ($file in Get-ChildItem -LiteralPath $PublishDir -Recurse -File | Sort-Object FullName) {
-    $relative = $file.FullName.Substring($PublishDir.Length).TrimStart('\').Replace("'", "''")
-    $ownedLines.Add("  Result := RemoveOwnedFile(Base + '$relative') and Result;")
+    $relative = $file.FullName.Substring($PublishDir.Length).TrimStart('\')
+    # Numeric Pascal character literals prevent file names from injecting ISPP
+    # inline expressions or Pascal syntax, including quotes and braces.
+    $encoded = ($relative.ToCharArray() | ForEach-Object { '#' + [int]$_ }) -join ''
+    $ownedLines.Add("  Result := RemoveOwnedFile(Base + $encoded) and Result;")
 }
 $ownedLines.Add('end;')
 [IO.File]::WriteAllLines($ownedScript, $ownedLines, [Text.UTF8Encoding]::new($true))

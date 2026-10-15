@@ -74,7 +74,7 @@ jobs:
           grep -F "$TESTED_SHA" PdfMetaStudio/licenses/MANIFEST.txt
           test -f "installer/PdfMetaStudio-${TAG#v}-win-x64-setup.exe"
           zip -r -q "PdfMetaStudio-$TAG-win-x64.zip" PdfMetaStudio
-          sha256sum installer/*-setup.exe installer/InnoSetup-LICENSE.txt > installer/SHA256SUMS
+          (cd installer && sha256sum *-setup.exe InnoSetup-LICENSE.txt) > installer/SHA256SUMS
           sha256sum "PdfMetaStudio-$TAG-win-x64.zip" > "PdfMetaStudio-$TAG-win-x64.zip.sha256"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$TESTED_SHA" --title "PDF Meta Studio $TAG" --generate-notes \
             "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256" installer/*-setup.exe installer/InnoSetup-LICENSE.txt installer/SHA256SUMS
