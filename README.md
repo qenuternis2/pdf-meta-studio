@@ -4,6 +4,11 @@ A local PDF metadata editor for Windows 11 x64. The interface uses C# WPF, MVVM 
 
 The application provides typed metadata editing, review, verified save-copy/replacement and recovery workflows. See [specification implementation and acceptance](docs/IMPLEMENTATION_STATUS.md) for the current scope and validation evidence. The application interface remains Russian; repository documentation and new development work use English.
 
+The main window displays the application version, for example `PDF Meta Studio (0.3.2)`.
+Release ZIPs include the version in their names (`PdfMetaStudio-v0.3.2-win-x64.zip`);
+MSI packages use `PdfMetaStudio-0.3.2-win-x64.msi`. Both are published with SHA-256
+checksums in [GitHub Releases](https://github.com/qenuternis2/pdf-meta-studio/releases).
+
 ## Repository structure
 
 | Path | Purpose |

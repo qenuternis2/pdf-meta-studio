@@ -256,6 +256,12 @@ try {
     if (-not $hwnd) { throw 'главное окно не появилось за 60 с' }
     Start-Sleep -Seconds 2
     $win = $AE::FromHandle($proc.MainWindowHandle)
+    $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($Exe)
+    $expectedTitle = 'PDF Meta Studio ({0}.{1}.{2})' -f $fileVersion.FileMajorPart, $fileVersion.FileMinorPart, $fileVersion.FileBuildPart
+    if ($win.Current.Name -ne $expectedTitle) {
+        throw "Window title does not match the built version: expected '$expectedTitle', actual '$($win.Current.Name)'"
+    }
+    Log "OK  versioned window title: $expectedTitle"
     [AcceptanceFocus]::Activate($proc.MainWindowHandle, 0)
     Log ("OK  запуск: окно «{0}» за {1:N1} с" -f $win.Current.Name, $sw.Elapsed.TotalSeconds)
 
