@@ -102,3 +102,43 @@ Every checkout sets `persist-credentials: false`, so its GitHub token is not lef
 - Still needed: non-elevated Windows 11 x64/offline installation; real second-account NTFS access; hostile reparse/SMB/concurrent-commit checks; stale-snapshot recovery/cleanup; publisher-signature verification if signing is introduced. GUI/installer checks execute only in disposable Windows CI VMs with synthetic fixtures.
 - The review did not fuzz every parser, execute resource-exhaustion exploit corpora, scan complete Git history, prove all transitive/toolchain components free of CVEs, or establish the absence of malicious upstream code. Unknown advisories and newly published fixes remain possible.
 - Previously published v0.3.0 assets predate these corrections. Changes in `main` and new CI packages do not retroactively patch an already downloaded release; a serviced release needs its own publication/version decision.
+
+## Installer replacement (0.3.4)
+
+The original MSI observations above describe the reviewed historical package.
+The current delivery is a standalone offline Inno Setup EXE, pinned to 7.1.0
+with the official compiler archive SHA-256 in `installer/inno-setup.lock.json`.
+It uses `PrivilegesRequired=lowest`, requests no elevation, installs no service
+or autostart entry, and makes no network request during product installation.
+The compiler bootstrap is build-only; its downloaded executable is verified
+before portable extraction. The Inno Setup license accompanies the setup asset.
+
+The new default `%LOCALAPPDATA%\Programs\PdfMetaStudio` and flat Start menu
+shortcut are separate from the old MSI-owned directory/shortcut. The EXE refuses
+the legacy MSI directory, does not invoke MSI, and does not remove the old package
+automatically. No wildcard uninstall-delete rule is used. Documents that the
+installer does not own are retained; whole published payloads are hash-compared
+in disposable Windows CI. Downgrades and unrecognized installed versions are
+refused, while same-version reinstalls remain supported.
+
+The acceptance scripts require disposable Windows GitHub Actions and test
+visible wizard navigation/cancellation, installed GUI, upgrade/reinstall,
+downgrade refusal, document retention, and removal of a real published old MSI
+without damaging the new EXE installation. An EXE upgrade baseline packages
+verified published 0.3.3 application bits using the current installer template;
+it is test-only and is not an earlier publicly shipped EXE. These automated
+checks do not establish clean physical x64/offline/non-elevated acceptance.
+Publisher signing and independent update-channel authenticity remain open.
+
+During installer acceptance, Windows 11 twice refused removal of
+`System.Collections.Immutable.dll` with error 5 after the application exited.
+A focused reproduction after the managed tests confirmed normal file attributes,
+full user/admin ACLs, no matching assembly in the test process and no locker
+reported by Restart Manager. This does not identify the underlying Windows or
+third-party component responsible. The installer now performs bounded retries
+against a file list baked into its script at build time; it never reads a
+user-editable deletion manifest or traverses arbitrary installed directories.
+A regression deliberately denies deletion of one owned DLL, releases only its
+own handle after observing a retry, and checks the entire payload and an
+unowned PDF. Persistent access denial can still leave program files behind; no
+process is forcibly terminated and no extra privilege is requested.

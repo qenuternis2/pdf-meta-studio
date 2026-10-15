@@ -1,0 +1,80 @@
+name: Publish validated Windows release
+on:
+  workflow_dispatch:
+    inputs:
+      validated_run_id:
+        description: 'Successful full windows workflow run; both build and windows11 jobs must pass'
+        required: true
+        type: string
+      release_tag:
+        description: 'New version tag matching the tested application version, for example v0.3.4'
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify tested source, full acceptance and version
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.validated_run_id }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python - <<'PY'
+          import json, os, re, subprocess, urllib.request, xml.etree.ElementTree as ET
+          run_id, tag = os.environ['RUN_ID'], os.environ['RELEASE_TAG']
+          assert re.fullmatch(r'[0-9]+', run_id), 'Invalid workflow run ID'
+          assert re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag), 'Invalid version tag'
+          base = 'https://api.github.com/repos/' + os.environ['GITHUB_REPOSITORY']
+          def api(path):
+              req = urllib.request.Request(base + path, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'User-Agent': 'pdfmeta-release'})
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  return json.load(response)
+          run = api('/actions/runs/' + run_id)
+          assert run['conclusion'] == 'success' and run['path'] == '.github/workflows/windows.yml', 'Full Windows workflow must succeed'
+          jobs = {j['name']: j for j in api('/actions/runs/' + run_id + '/jobs?per_page=100')['jobs']}
+          assert all(jobs.get(name, {}).get('conclusion') == 'success' for name in ('build', 'windows11')), 'Build and Windows 11 acceptance must pass'
+          sha = run['head_sha']
+          subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'], check=True)
+          subprocess.run(['git', 'diff', '--exit-code', sha, 'HEAD'], check=True)
+          version = ET.parse('Directory.Build.props').findtext('PropertyGroup/Version')
+          assert tag == 'v' + version, 'Tag must match the tested application version'
+          assert subprocess.run(['git', 'rev-parse', '--verify', 'refs/tags/' + tag], capture_output=True).returncode != 0, 'Refuse to replace an existing tag'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('sha=' + sha + '\n')
+          print('Verified full Windows acceptance and exact main tree for', sha, tag)
+          PY
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: PdfMetaStudio-win-x64
+          path: PdfMetaStudio
+          run-id: ${{ inputs.validated_run_id }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: PdfMetaStudio-installer-win-x64
+          path: installer
+          run-id: ${{ inputs.validated_run_id }}
+          github-token: ${{ github.token }}
+      - name: Publish the exact validated packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          TESTED_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          grep -F "$TESTED_SHA" PdfMetaStudio/licenses/MANIFEST.txt
+          test -f "installer/PdfMetaStudio-${TAG#v}-win-x64-setup.exe"
+          zip -r -q "PdfMetaStudio-$TAG-win-x64.zip" PdfMetaStudio
+          (cd installer && sha256sum *-setup.exe InnoSetup-LICENSE.txt) > installer/SHA256SUMS
+          sha256sum "PdfMetaStudio-$TAG-win-x64.zip" > "PdfMetaStudio-$TAG-win-x64.zip.sha256"
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$TESTED_SHA" --title "PDF Meta Studio $TAG" --generate-notes \
+            "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256" installer/*-setup.exe installer/InnoSetup-LICENSE.txt installer/SHA256SUMS

@@ -4,7 +4,7 @@ Target: clean Windows 11 x64, standard user, no .NET/Visual Studio installed. Re
 
 | Check | Procedure and expected result | Status |
 |---|---|---|
-| Install and uninstall | Install the per-user MSI without elevation; run offline; check Start menu and license directory; uninstall removes program files and shortcut but keeps user documents. | Windows 11 ARM CI covers install/installed GUI/uninstall; clean x64, non-elevated/offline and document/shortcut retention acceptance remains pending |
+| Install and uninstall | Install the standalone per-user EXE without elevation; run offline; check Start menu and license directory; uninstall removes program files and shortcut but keeps user documents. | Windows 11 ARM CI checks the wizard, installation/installed GUI, payload/shortcut hashes, upgrades/reinstall, downgrade refusal, retained test PDFs and independent old MSI removal; clean physical x64 and non-elevated/offline acceptance remains pending |
 | Start screen | Exactly one actionable button, `Change meta info`; cancelling the system dialog keeps the start screen. | Automated smoke; manual pending |
 | Narrator | Navigate every section, tree, component/language/item control, delete/restore state and review. Labels, values, errors and progress are announced in Russian, with no unexplained unlabeled focus targets. | Pending |
 | High contrast | Enable actual Windows high contrast; navigate every section and inspect focused inputs/actions, labels and state indicators. | Additional Windows 11 ARM audit toggles actual system state and verifies sampled title focus/content; screenshots inspected for title focus outline; full navigation remains pending |

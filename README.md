@@ -4,9 +4,9 @@ A local PDF metadata editor for Windows 11 x64. The interface uses C# WPF, MVVM 
 
 The application provides typed metadata editing, review, verified save-copy/replacement and recovery workflows. See [specification implementation and acceptance](docs/IMPLEMENTATION_STATUS.md) for the current scope and validation evidence. The application interface remains Russian; repository documentation and new development work use English.
 
-The main window displays the application version, for example `PDF Meta Studio (0.3.2)`.
-Release ZIPs include the version in their names (`PdfMetaStudio-v0.3.2-win-x64.zip`);
-MSI packages use `PdfMetaStudio-0.3.2-win-x64.msi`. Both are published with SHA-256
+The main window displays the application version, for example `PDF Meta Studio (0.3.4)`.
+Release ZIPs include the version in their names (`PdfMetaStudio-v0.3.4-win-x64.zip`);
+Standalone EXE installers use `PdfMetaStudio-0.3.4-win-x64-setup.exe`. Both are published with SHA-256
 checksums in [GitHub Releases](https://github.com/qenuternis2/pdf-meta-studio/releases).
 
 ## Repository structure
@@ -30,9 +30,11 @@ pip install pypdf==6.19.0 cryptography==50.0.2
 ./scripts/build-windows.ps1
 ```
 
-The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine. The build also collects complete third-party licenses, includes executed test reports under `validation`, and produces a per-user MSI in `dist/installer`. A build with `-SkipTests` excludes test reports.
+The script fetches and verifies pinned dependencies, builds the worker and qpdf test tools, runs native and .NET tests, and publishes a self-contained application to `dist/PdfMetaStudio`. No separate .NET installation is needed on the target machine. The build also collects complete third-party licenses, includes executed test reports under `validation`, and produces a standalone per-user EXE installer in `dist/installer`. A build with `-SkipTests` excludes test reports.
 
-[Windows CI](.github/workflows/windows.yml) runs this build and a GUI UI Automation smoke test, uploads the application and screenshots, exercises MSI installation/uninstallation, and publishes release ZIPs/MSIs and checksums for version tags.
+[Windows CI](.github/workflows/windows.yml) runs this build and a GUI UI Automation smoke test, uploads the application and screenshots, checks the visible setup wizard, installation, upgrade/reinstall, downgrade refusal, document retention, legacy MSI isolation and uninstallation on Windows Server and Windows 11 ARM64. Version tags publish release ZIPs/EXEs and checksums.
+
+The offline installer includes the complete application and needs no Windows Installer service or administrator elevation. Its default location is `%LOCALAPPDATA%\Programs\PdfMetaStudio`. The old MSI installation uses a separate directory and can be removed independently. See [installer design and validation](installer/README.md) for tool pins, ownership boundaries and release publication.
 
 ## Validate on Linux
 

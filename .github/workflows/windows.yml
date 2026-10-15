@@ -9,7 +9,7 @@ on:
         required: false
         default: ''
       gui_only:
-        description: 'Run GUI acceptance using a previously built native worker; skips native/MSI acceptance'
+        description: 'Run GUI acceptance using a previously built native worker; skips native/installer acceptance'
         type: boolean
         default: false
       desktop_probe:
@@ -43,6 +43,24 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pypdf==6.19.0 cryptography==50.0.2
+      - name: Build test-only EXE baseline from verified published application
+        shell: pwsh
+        run: ./scripts/build-installer-test-baseline.ps1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: PdfMetaStudio-installer-test-baseline
+          path: build/installer-baseline
+      - name: Preflight visible setup wizard before the native build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory build/installer-preflight | Out-Null
+          & powershell.exe -NoProfile -File ./scripts/test-setup-wizard.ps1 -SetupExe "$PWD/build/installer-baseline/PdfMetaStudio-0.3.3-win-x64-setup.exe" -OutDir "$PWD/build/installer-preflight"
+          if ($LASTEXITCODE) { throw 'Installer template wizard preflight failed' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: installer-template-preflight
+          path: build/installer-preflight
       - name: vcpkg (baseline from worker/vcpkg.json)
         shell: pwsh
         run: |
@@ -96,12 +114,18 @@ jobs:
         with:
           name: gui-smoke-screenshots
           path: gui-smoke
-      - name: Install, exercise and uninstall the per-user MSI
+      - name: Install, exercise and uninstall the per-user EXE
         shell: pwsh
         run: ./scripts/test-installer.ps1
-      - name: Upgrade published 0.3.2, exercise GUI and preserve documents
+      - name: Upgrade EXE baseline, reject downgrade and preserve documents
         shell: pwsh
         run: ./scripts/test-installer-upgrade.ps1
+      - name: Keep legacy MSI and new EXE installations independent
+        shell: pwsh
+        run: ./scripts/test-installer-legacy-msi.ps1
+      - name: Recover from a transient owned-file lock without deleting user PDFs
+        shell: pwsh
+        run: ./scripts/test-installer-file-lock.ps1
       - name: Keyboard, theme, resize and large-data acceptance
         timeout-minutes: 12
         shell: pwsh
@@ -120,12 +144,17 @@ jobs:
           name: installer-acceptance
           path: |
             installer-*.log
+            installer-*.json
             installer-smoke
             installer-upgrade
+            installer-legacy
+            installer-file-lock
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PdfMetaStudio-installer-win-x64
-          path: dist/installer/*.msi
+          path: |
+            dist/installer/*-setup.exe
+            dist/installer/InnoSetup-LICENSE.txt
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: PdfMetaStudio-win-x64
@@ -179,6 +208,10 @@ jobs:
         with:
           name: PdfMetaStudio-native-test-tools-win-x64
           path: build/native-tools
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: PdfMetaStudio-installer-test-baseline
+          path: build/installer-baseline
       - name: Record Windows 11 ARM host and x64 application identity
         shell: powershell
         run: |
@@ -215,9 +248,15 @@ jobs:
       - name: Windows 11 install, installed GUI and uninstall
         shell: pwsh
         run: ./scripts/test-installer.ps1
-      - name: Windows 11 upgrade published 0.3.2 and preserve documents
+      - name: Windows 11 EXE upgrade, downgrade refusal and document retention
         shell: pwsh
         run: ./scripts/test-installer-upgrade.ps1
+      - name: Windows 11 legacy MSI and new EXE isolation
+        shell: pwsh
+        run: ./scripts/test-installer-legacy-msi.ps1
+      - name: Windows 11 transient owned-file lock and document preservation
+        shell: pwsh
+        run: ./scripts/test-installer-file-lock.ps1
       - name: Windows 11 keyboard, themes, resizing and large metadata
         timeout-minutes: 12
         shell: pwsh
@@ -232,8 +271,11 @@ jobs:
           path: |
             windows11-acceptance
             installer-*.log
+            installer-*.json
             installer-smoke
             installer-upgrade
+            installer-legacy
+            installer-file-lock
   desktop_probe:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.desktop_probe }}
     runs-on: windows-11-arm
@@ -322,7 +364,7 @@ jobs:
           TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           zip -r -q "PdfMetaStudio-$TAG-win-x64.zip" PdfMetaStudio
-          sha256sum installer/*.msi > installer/SHA256SUMS
+          (cd installer && sha256sum *-setup.exe InnoSetup-LICENSE.txt) > installer/SHA256SUMS
           sha256sum "PdfMetaStudio-$TAG-win-x64.zip" > "PdfMetaStudio-$TAG-win-x64.zip.sha256"
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "PDF Meta Studio $TAG" --generate-notes \
-            "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256" installer/*.msi installer/SHA256SUMS
+            "PdfMetaStudio-$TAG-win-x64.zip" "PdfMetaStudio-$TAG-win-x64.zip.sha256" installer/*-setup.exe installer/InnoSetup-LICENSE.txt installer/SHA256SUMS
