@@ -47,6 +47,10 @@ function Assert-Registration([string]$ExpectedVersion = $SetupVersion) {
     if ($entry.DisplayVersion -ne $ExpectedVersion -or $entry.Publisher -ne 'PDF Meta Studio') {
         throw 'Unexpected installed-app registration'
     }
+    $application = Join-Path $InstallDir 'PdfMetaStudio.exe'
+    if (-not ([string]$entry.DisplayIcon).TrimStart('"').StartsWith($application, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Installed-app registration does not use the application icon'
+    }
     if (Test-Path -LiteralPath "Registry::HKEY_LOCAL_MACHINE\$UninstallSubKey") {
         throw 'Per-user setup unexpectedly created a machine-wide registration'
     }
@@ -72,15 +76,24 @@ function Invoke-SetupUninstall([string]$Log) {
     ) -Wait -PassThru
     $exitCode = $process.ExitCode
     if ($exitCode -ne 0) { throw "EXE uninstall failed: $exitCode" }
-    $until = [DateTime]::UtcNow.AddSeconds(20)
-    while ((Test-Path -LiteralPath $uninstaller) -and [DateTime]::UtcNow -lt $until) {
-        Start-Sleep -Milliseconds 200
-    }
     Assert-UninstalledPayload $Log
     return $exitCode
 }
 
 function Assert-UninstalledPayload([string]$Log) {
+    $uninstaller = Join-Path $InstallDir 'unins000.exe'
+    # Inno's original process exits before its temporary second phase removes
+    # unins000.exe and finishes directory cleanup. Wait for the final log marker.
+    $until = [DateTime]::UtcNow.AddSeconds(20)
+    $finished = $false
+    do {
+        $finished = -not (Test-Path -LiteralPath $uninstaller) -and
+            (Test-Path -LiteralPath $Log) -and
+            (Select-String -LiteralPath $Log -SimpleMatch 'Log closed.' -Quiet)
+        if ($finished) { break }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $until)
+    if (-not $finished) { throw 'EXE uninstaller did not finish its second phase' }
     foreach ($file in Get-ChildItem -LiteralPath $PublishedDir -Recurse -File) {
         $relative = $file.FullName.Substring($PublishedDir.Length).TrimStart('\')
         if (Test-Path -LiteralPath (Join-Path $InstallDir $relative)) {

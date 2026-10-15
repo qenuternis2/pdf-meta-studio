@@ -34,7 +34,8 @@ try {
     Assert-UninstalledPayload $log
     if ((Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash -ne $hash) { throw 'Uninstaller changed an unowned PDF' }
     Remove-Item -LiteralPath $sentinel -Force
-    if (@(Get-ChildItem -LiteralPath $InstallDir -Force).Count -ne 0) { throw 'Unexpected payload remained after lock recovery' }
+    $remaining = @(Get-ChildItem -LiteralPath $InstallDir -Force)
+    if ($remaining.Count -ne 0) { throw ("Unexpected payload remained after lock recovery: " + ($remaining.Name -join ', ')) }
     Remove-Item -LiteralPath $InstallDir -Force
     @{ status = 'PASS'; version = $SetupVersion; retryObserved = $retryObserved; preservedDocuments = 1
         scope = 'A test-owned handle denied deletion of one installed DLL until the retry was logged; no process was forcibly closed.'
